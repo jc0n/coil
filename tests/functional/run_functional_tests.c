@@ -1,4 +1,10 @@
-#include "string.h"
+/*
+ * Copyright (C) 2009, 2010, 2011
+ *
+ * Author: John O'Connor
+ */
+
+#include <string.h>
 
 #include "coil.h"
 
@@ -156,9 +162,9 @@ run_test(const void *arg)
   gchar *filepath = (gchar *)arg;
   const guint offset = sizeof(TEST_CASES_PATH)-1;
 
-  if (!strncmp(filepath + offset, COIL_STATIC_STRLEN(TEST_PASS_STR)))
+  if (!strncmp(filepath + offset, TEST_PASS_STR, sizeof(TEST_PASS_STR)-1))
     expect_pass(filepath);
-  else if (!strncmp(filepath + offset, COIL_STATIC_STRLEN(TEST_FAIL_STR)))
+  else if (!strncmp(filepath + offset, TEST_FAIL_STR, sizeof(TEST_FAIL_STR)-1))
     expect_fail(filepath);
   else
     g_warning("Ignoring file '%s'", filepath);
