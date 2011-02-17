@@ -1,0 +1,32 @@
+a: 1
+b: 'hello'
+c: =b
+
+l1: [1, 2]
+l2: [3, 4]
+l3: [5, 6]
+
+test: {
+  links: [
+   =..a,
+   =..b,
+   =..c
+  ]
+
+  links2: [
+   =@root.l1
+   =@root.l2
+   =@root.l3
+  ]
+
+  links3: =links2
+
+  # TODO
+  # expressions: [ "${..a}" ]
+}
+
+expected: {
+  links: [1 'hello' 'hello']
+  links2: [[1 2] [3 4] [5 6]]
+  links3: =links2
+}

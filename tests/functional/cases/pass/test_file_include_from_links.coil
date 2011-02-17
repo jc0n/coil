@@ -1,0 +1,9 @@
+test: {
+  myfile: 'general.coil'
+  @file: myfile
+}
+
+expected: {
+  myfile: 'general.coil'
+  @file: 'general.coil'
+}

@@ -1,0 +1,19 @@
+a: {
+  a: { @extends: ...b.a }
+  b: { x: 1 }
+}
+
+b: {
+  a: { x: 1 }
+  b: { @extends: ...a.b }
+}
+
+test: {
+  a: { @extends: ...a }
+  b: { @extends: ...b }
+}
+
+expected: {
+  a: { a.x: 1 b.x: 1 }
+  b: { a.x: 1 b.x: 1 }
+}

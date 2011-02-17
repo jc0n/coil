@@ -1,0 +1,26 @@
+a: {
+  x: 1
+  y: 2
+  z: 3
+}
+
+x: {
+  a: 3
+  b: 2
+  c: 1
+}
+
+b: {
+  @extends: ..a
+}
+
+y: {
+  @extends: ..x
+}
+
+z: {
+#@extends: [..b ..y ]
+ @extends: ..b
+ @extends: ..y
+}
+

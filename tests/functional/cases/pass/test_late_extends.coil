@@ -1,0 +1,28 @@
+base: {
+  a: "Hello World!"
+  x: 1
+  y: 2
+  z: 3
+}
+
+a.b: { @extends: ...base }
+
+test: {
+  in_order: {
+    @extends: ...a
+    ~b.a
+    b.w: 0
+  }
+
+  out_of_order: {
+    ~b.a
+     b.w: 0
+    @extends: ...a
+  }
+}
+
+expected: {
+  in_order.b: { w:0 x:1 y:2 z:3 }
+  out_of_order.b: { w:0 x:1 y:2 z:3 }
+}
+

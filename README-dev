@@ -1,0 +1,5 @@
+1. Run ./autogen.sh to generate the build files.
+
+2. make
+
+3. make test

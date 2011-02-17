@@ -1,0 +1,9 @@
+test: {
+  a.b: { @extends: ..c }
+  a.c.x.y: 1
+}
+
+expected: {
+  a.b.x.y: 1
+  a.c.x.y: 1
+}

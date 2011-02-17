@@ -1,0 +1,9 @@
+*.o
+*.lo
+parser.c
+parser.h
+parser.output
+scanner.c
+scanner.h
+Makefile.in
+Makefile

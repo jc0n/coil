@@ -1,0 +1,10 @@
+testfile: 'general.coil'
+
+test: {
+  @file: [..testfile 'x']
+  ~a ~b
+}
+
+expected: {
+  c: 1
+}

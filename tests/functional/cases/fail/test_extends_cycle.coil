@@ -1,0 +1,7 @@
+a: {
+  @extends: ..b
+}
+
+b: {
+  @extends: ..a
+}

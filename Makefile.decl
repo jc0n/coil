@@ -1,0 +1,23 @@
+EXTRA_DIST =
+TEST_PROGS =
+test_libs = @GLIB_LIBS@ $(top_srcdir)/coil/libcoil-@LIBCOIL_API_VERSION@.la
+
+# TODO: integrate these better later
+GTESTER=`which gtester`
+GTESTER_REPORT=`which gtester-report`
+GTESTER_LOG=$(top_srcdir)/tests/test-report.xml
+GTESTER_ARGS=--verbose -k $(TEST_PROGS) -o $(GTESTER_LOG)
+
+test: all $(TEST_PROGS)
+	@test -z "${TEST_PROGS}" || $(GTESTER) $(GTESTER_ARGS)
+	@test ! -f "${GTESTER_LOG}" || chmod 755 $(GTESTER_LOG)
+	@for subdir in $(SUBDIRS) . ; do \
+					test "$$subdir" = "." || \
+					( cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) $@ ) || exit $? ; \
+					done
+
+test-report: test
+			@test ! -f "${GTESTER_LOG}" || \
+			$(GTESTER_REPORT) $(GTESTER_LOG)
+
+.PHONY: test test-report

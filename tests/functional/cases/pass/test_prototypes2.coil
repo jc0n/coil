@@ -1,0 +1,28 @@
+test: {
+  one: {
+    # a creates b as a prototype
+    a: { @extends: ..b }
+    # this should cast b to non-prototype
+    # since it is essentially the same as
+    # b: { c: 1 }
+    b.c: 1
+  }
+
+  two: {
+    a: { @extends: ..b }
+    b: { c: 1 }
+  }
+
+}
+
+expected: {
+  one: {
+    a.c: 1
+    b.c: 1
+  }
+
+  two: {
+    a.c: 1
+    b.c: 1
+  }
+}

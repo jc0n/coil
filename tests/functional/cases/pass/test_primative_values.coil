@@ -1,0 +1,25 @@
+test: {
+  x: 1
+  y: 2
+  z: 3
+  a: {
+    b: { c: { d: { e: { f: { g: "Hello World" } } } } }
+    c: True
+    d: False
+    e: 0.12345
+    f: -12345
+    g: None
+  }
+}
+
+expected: {
+  x: 1
+  y: 2
+  z: 3
+  a.b.c.d.e.f.g: "Hello World"
+  a.c: True
+  a.d: False
+  a.e: 0.12345
+  a.f: -12345
+  a.g: None
+}

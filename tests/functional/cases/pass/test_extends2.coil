@@ -1,0 +1,18 @@
+test: {
+  a.b.c: {
+    x:1 y:2 z:3
+  }
+  a.b.d: {
+    @extends: ..c
+  }
+}
+
+expected: {
+  a.b.c: {
+    x:1 y:2 z:3
+  }
+
+  a.b.d: {
+    x:1 y:2 z:3
+  }
+}

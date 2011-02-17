@@ -1,0 +1,31 @@
+Run with ./configure
+
+For use with GDB: CFLAGS='-g -O0' ./configure --enable-debug
+
+For platform compatibility set $PKG_CONFIG_PATH appropriately.
+
+Enhancements:
+
+Added new list formats
+
+abc: [ 1 2 3 ] #old
+abc: [1, 2, 3] # new
+
+abc: { @extends: ..x @extends: ..y @extends: ..z } #old
+abc: { @extends: [ ..x, ..y, ..z ] } # new
+abc: { @extends: ..x, ..y, ..z } # new
+abc: x, y, z {} # new
+
+
+
+Late binding
+a: =b
+b: 1
+
+vs
+b: 1
+a: =b
+
+
+a: { @extends: ..b }
+b: { x: 1 y: 2 z: 3 }

@@ -1,0 +1,5 @@
+a.b.c: 123
+x.y.z: a, {}
+
+test: x.y.z {}
+expected: { b.c: 123 }

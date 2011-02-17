@@ -1,0 +1,12 @@
+# test using multiple links for file include path
+
+some_text: 'general.coil'
+filepath: some_text
+
+test: {
+  @file: [filepath 'b.c.d']
+}
+
+expected: {
+  x:1 y:2 z:3
+}

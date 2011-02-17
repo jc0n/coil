@@ -1,0 +1,11 @@
+a: {
+  @file: 'benchmark.coil'
+}
+
+b: {
+  @file: 'benchmark.coil'
+}
+
+c: {
+  @file: 'benchmark.coil'
+}

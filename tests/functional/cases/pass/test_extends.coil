@@ -1,0 +1,4 @@
+base: { x: 1 y: 2 z: 3 }
+
+test: { @extends: ..base }
+expected: { x: 1 y: 2 z: 3 }

@@ -1,0 +1,51 @@
+NOTES:
+
+CoilPath is now a boxed type. We need to use this everywhere from the lexer ->
+parser -> struct on up.
+
+CoilValue should be a boxed type as well.
+
+Examine the feasability of using custom hashtable implementation since path is
+now a complex datatype. We would have to create a surrogate type to hold the
+container hash with the path if we expect to use an existing impl. We need 1
+argument for the key and the fast case has 2.
+
+There are some problems with the datatypes as is, StructEntries need a reference
+to path so it may make more sense to keep the canonical reference to the
+CoilPath in the entry, as opposed to the more intuitive HashEntry.
+
+One optimization to the hash function should be to start at ROOT_LEN + 1. For
+all hashes. This will make a slight difference in cases where we have to hash
+the whole path or don't have container_hash (which will be 0) for @root.
+
+Also with a custom hash table we can prevent resizing the buckets multiple times
+on construction if we know the size. We can store small metadata for this.
+
+Need to finish implementing expressions -- focus on getting them to work
+
+Finish implementing struct to include the following enhancements.
+
+Reference counted values -- CoilValue is a wrapper around a GValue with a
+refcount such as {GValue, ref_count}
+
+Fix error messiness come up with a common error handling system that works with
+exception handling languages. The errno method should work fine. Then we can
+avoid passing an arg to just about every function.
+
+Add CoilPath to all Expandables
+consider abstracting most expandable code into common CoilNode
+move expand mutex from struct into expandable where it belongs.
+
+What is wrong with coil?
+
+Its not finished. get it done. Its extremely
+fast as it is.
+
+Lack of test coverage. Aim for a future code freeze and write tests exclusively.
+
+Python Binding -- despite how fun it is writing C code explore alternatives:
+Cython
+Swig
+
+Develop creative benchmarks and profile AFTER it is working.
+

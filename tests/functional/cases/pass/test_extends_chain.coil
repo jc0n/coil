@@ -1,0 +1,26 @@
+a: { x:0 y:1 z:2 }
+b: { @extends: ..a }
+c: { @extends: ..b }
+d: { @extends: ..c }
+e: { @extends: ..d }
+f: { @extends: ..g } ## intentionally swapped
+g: { @extends: ..e } ##
+h: { @extends: ..f }
+i: { @extends: ..h }
+j: { @extends: ..i }
+k: { @extends: ..j }
+
+x: { a:10 b:9 c:8 }
+y: { @extends: [..k ..x] }
+
+test: {
+  z: { d:7 e:6 f:5 @extends: ...y }
+}
+
+expected: {
+  z: {
+    d:7 e:6 f:5
+    x:0 y:1 z:2
+    a:10 b:9 c:8
+  }
+}

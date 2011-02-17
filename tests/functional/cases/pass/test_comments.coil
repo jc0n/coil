@@ -1,0 +1,21 @@
+test: {
+  #comments
+  #comments
+  list: [1 2 3 #comments
+  ]
+  #comments
+  #comments
+  string: """#something
+  """
+  #comments
+  #comments
+  node: { #comment
+ }
+}
+
+expected: {
+  list: [1 2 3]
+  string: "#something
+  "
+  node: {}
+}

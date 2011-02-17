@@ -1,0 +1,11 @@
+test: {
+  this_is_a_really_long_key_with_a.couple.of.containers: {
+    this.is.a.long.container.with.a.lot.of.keys: 1
+  }
+}
+
+expected: {
+  this_is_a_really_long_key_with_a.couple.of.containers: {
+    this.is.a.long.container.with.a.lot.of.keys: 1
+  }
+}

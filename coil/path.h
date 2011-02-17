@@ -1,0 +1,207 @@
+/*
+ * Copyright (C) 2009, 2010, 2011
+ *
+ * Author: John O'Connor
+ */
+#ifndef __COIL_PATH_H
+#define __COIL_PATH_H
+
+#include "stdarg.h"
+#include "stdint.h"
+
+typedef enum {
+  COIL_STATIC_PATH         = 1 << 0,
+  COIL_STATIC_KEY          = 1 << 1,
+  COIL_STATIC_PATH_STRINGS = COIL_STATIC_PATH | COIL_STATIC_KEY,
+  COIL_PATH_IS_ABSOLUTE    = 1 << 2,
+  COIL_PATH_IS_ROOT        = 1 << 3,
+  COIL_PATH_IS_BACKREF     = 1 << 4,
+} CoilPathFlags;
+
+typedef struct _CoilPath
+{
+  gchar         *key;
+  guint8         key_len;
+  gchar         *path;
+  guint8         path_len;
+  CoilPathFlags  flags;
+  volatile gint  ref_count;
+} CoilPath;
+
+#define COIL_PATH_LEN 255
+#define COIL_PATH_BUFLEN (COIL_PATH_LEN + 1) /* +1 for '\0' */
+
+#define COIL_PATH_MAX_PARTS \
+  ((int)((COIL_PATH_LEN - COIL_ROOT_PATH_LEN - 3) / 2))
+
+#define COIL_SPECIAL_CHAR '@'
+#define COIL_SPECIAL_CHAR_S "@"
+
+#define COIL_ROOT_PATH \
+        COIL_SPECIAL_CHAR_S "root"
+
+#define COIL_ROOT_PATH_LEN \
+        (sizeof(COIL_ROOT_PATH)-1)
+
+#define COIL_PATH_DELIM '.'
+#define COIL_PATH_DELIM_S "."
+
+#define COIL_PATH_IS_KEY(p) \
+        (((((p)->flags & COIL_STATIC_KEY) && (p)->key == (p)->path) \
+         || !memcmp((p)->key, (p)->path, (p)->key_len)) && (p)->key_len > 0)
+
+#define COIL_PATH_IS_RELATIVE(p) \
+        (!((p)->flags & COIL_PATH_IS_ABSOLUTE))
+
+#define COIL_PATH_IS_ABSOLUTE(p) \
+        ((p)->flags & COIL_PATH_IS_ABSOLUTE)
+
+#define COIL_PATH_IS_ROOT(p) \
+        ((p)->flags & COIL_PATH_IS_ROOT)
+
+#define COIL_PATH_IS_BACKREF(p) \
+        ((p)->flags & COIL_PATH_IS_BACKREF)
+
+#define COIL_PATH_CONTAINER_LEN(p) \
+  (((p)->path_len - (p->key_len)) - 1)
+
+#define COIL_KEY_REGEX "-*[a-zA-Z_][\\w-]*"
+
+#define COIL_PATH_REGEX                                       \
+        "(" COIL_SPECIAL_CHAR_S "|\\.\\.+)?"                  \
+        COIL_KEY_REGEX "(\\." COIL_KEY_REGEX ")*"
+
+#define COIL_TYPE_PATH (coil_path_get_type())
+
+#define COIL_PATH_QUICK_BUFFER(buf, blen, ctr, clen, key, klen) \
+  G_STMT_START \
+  { \
+    g_assert(sizeof(blen) == sizeof(guint8)); \
+    g_assert(sizeof(clen) == sizeof(guint8)); \
+    g_assert(sizeof(klen) == sizeof(guint8)); \
+    g_assert(((guint32)(klen + clen + 1)) <= COIL_PATH_LEN); \
+    register gchar *__p; \
+    if (*key == COIL_PATH_DELIM) { \
+      key++; \
+      klen--; \
+      g_assert(*key != COIL_PATH_DELIM); \
+      g_assert(klen > 0); \
+    } \
+    blen = clen + klen + 1; \
+    buf = g_alloca(blen + 1); \
+    __p = mempcpy(buf, ctr, clen); \
+   *__p++ = COIL_PATH_DELIM; \
+    __p = mempcpy(__p, key, klen); \
+    *__p = 0; \
+  } \
+  G_STMT_END\
+
+G_BEGIN_DECLS
+
+#ifdef COIL_DEBUG
+void
+coil_path_debug(CoilPath *p);
+#endif
+
+GType
+coil_path_get_type(void) G_GNUC_CONST;
+
+CoilPath *
+coil_path_alloc(void) G_GNUC_WARN_UNUSED_RESULT;
+
+void
+coil_path_list_free(GList *list);
+
+CoilPath *
+coil_path_take_strings(gchar         *path,
+                       guint8         path_len,
+                       gchar         *key,
+                       guint8         key_len,
+                       CoilPathFlags  flags);
+
+CoilPath *
+coil_path_new_len(const gchar  *buffer,
+                  guint8        buf_len);
+
+CoilPath *
+coil_path_new(const gchar *buffer);
+
+CoilPath *
+coil_path_copy(const CoilPath *p);
+
+gboolean
+coil_path_equal(const CoilPath *a,
+                const CoilPath *b);
+
+gint
+coil_path_compare(const CoilPath *a,
+                  const CoilPath *b);
+
+void
+coil_path_free(CoilPath *p);
+
+CoilPath *
+coil_path_ref(CoilPath *p);
+
+void
+coil_path_unref(CoilPath *p);
+
+CoilPath *
+coil_path_concat(const CoilPath *container,
+                 const CoilPath *key) G_GNUC_WARN_UNUSED_RESULT;
+
+CoilPath *
+coil_path_build_new_vlen(guint8       path_len,
+                         const gchar *base,
+                         va_list      args);
+
+CoilPath *
+coil_path_build_new_len(guint8       path_len,
+                        const gchar *base,
+                        ...);
+
+CoilPath *
+coil_path_build_new(const gchar *base,
+                    ...);
+
+gboolean
+coil_validate_path_strn(const gchar *path,
+                        guint8       path_len);
+
+gboolean
+coil_validate_path_str(const gchar *path);
+
+gboolean
+coil_validate_path(const CoilPath *path);
+
+gboolean
+coil_validate_key_strn(const gchar *key,
+                       guint8       key_len);
+
+gboolean
+coil_validate_key_str(const gchar *key);
+
+void
+coil_path_change_container(CoilPath      **path,
+                           const CoilPath *ctnr);
+
+CoilPath *
+coil_path_resolve(const CoilPath *path,
+                  const CoilPath *prefix,
+                  GError        **error) G_GNUC_WARN_UNUSED_RESULT;
+
+CoilPath *
+coil_path_relativize(const CoilPath  *path,
+                     const CoilPath  *base) G_GNUC_WARN_UNUSED_RESULT;
+
+gboolean
+coil_path_is_descendent(const gchar *path,
+                        const gchar *maybe_container);
+
+gboolean
+coil_path_has_container(const gchar *path,
+                        const gchar *maybe_container);
+
+G_END_DECLS
+#endif
+

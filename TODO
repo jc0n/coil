@@ -1,0 +1,75 @@
+#
+# BUILD
+#
+
+Re-organize header files to only include what
+is needed so we can build faster and possibly generate
+swig modules easier.
+
+
+#
+# Features
+#
+
+- Implement Expressions
+
+a: "Hello"
+b: "${a} World!"
+
+a: [1 2 3]
+b: ["www${a}"]
+
+a: ["www{1..10}"]
+a: ["www{1,2,3}"]
+
+-------------------------------------------------------------------------------
+
+- @map function (as property for backwards compat)
+
+a: {
+  @map: [1 2 3]
+  b: { x: 1 }
+}
+
+a: {
+  b1.x: 1
+  b2.x: 1
+  b3.x: 1
+}
+
+-------------------------------------------------------------------------------
+
+- Limit expand step with depth
+
+- Improve parser error recovery to warn but continue on error. (WIP)
+
+- Add @package property
+
+- Fix Expandable Locations
+
+- Fix Link cmp Function
+
+- Documentation
+
+- Python Binding
+
+
+#
+# Bugs
+#
+
+--------------------
+a: 'test.coil'
+b: { @file: =a }
+--------------------
+
+--------------------
+file cycles
+--------------------
+
+--------------------
+a: [ 1 2 3 ]
+b.c: =...a
+dump b
+--------------------
+

@@ -1,0 +1,12 @@
+a.x: { b.y: 321 }
+c: a { z: 123 }
+
+test: c {
+  y: b.y
+  ~b
+}
+
+expected: {
+  y: 321
+  z: 123
+}
