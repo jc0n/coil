@@ -1045,7 +1045,6 @@ coil_parse_stream(FILE        *fp,
                   GError     **error)
 {
   g_return_val_if_fail(fp, NULL);
-  g_return_val_if_fail(stream_name, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilParser parser;
