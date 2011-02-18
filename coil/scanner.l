@@ -50,6 +50,7 @@ ROOT_PATH {ROOT}
 ABSOLUTE_PATH {ROOT}({KEY_DELIM}{KEY})*
 RELATIVE_PATH {KEY_DELIM}?{KEY}({KEY_DELIM}{KEY})*
 REFERENCE_PATH {KEY_DELIM}{2,}{RELATIVE_PATH}
+PATH ({ABSOLUTE_PATH}|{RELATIVE_PATH}|{REFERENCE_PATH})
 
 ESC "\\".
 NEWLINE ("\r"|"\n"|"\r\n")
@@ -62,9 +63,13 @@ MULTILINE_STRING0 [']{3}({SQ_CHR}|[']{1,2}[^'])*[']{3}
 MULTILINE_STRING1 ["]{3}({DQ_CHR}|["]{1,2}[^\"])*["]{3}
 MULTILINE_STRING ({MULTILINE_STRING0}|{MULTILINE_STRING1})
 
-_STRING0 [']{SQ_CHR}*[']
-_STRING1 ["]{DQ_CHR}*["]
-STRING ({_STRING0}|{_STRING1})
+SQ_STRING [']{SQ_CHR}*[']
+DQ_STRING ["]{DQ_CHR}*["]
+STRING ({SQ_STRING}|{DQ_STRING})
+
+EXPR_CHR ({ESC}|[^\\"$])
+EXPR_VAR "${"{PATH}"}"
+STRING_EXPRESSION ["]{EXPR_CHR}*{EXPR_VAR}({EXPR_CHR}|{EXPR_VAR})*["]
 
 MODULE ("@"[a-zA-Z]+)
 
@@ -132,6 +137,11 @@ LINK (?i:"link")
 {INTEGER} {
   yylval->longint = strtol(yytext, NULL, 10);
   return INTEGER;
+}
+
+{STRING_EXPRESSION} {
+  yylval->gstring = g_string_new_len(yytext + 1, yyleng - 2);
+  return STRING_EXPRESSION;
 }
 
 {MULTILINE_STRING} {
