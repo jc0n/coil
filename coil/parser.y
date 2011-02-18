@@ -68,10 +68,10 @@ collect_parse_errors(GError     **error,
   GString *msg;
 
   if (error == NULL)
-    return; /* user wants to ignore errors */
+    return; /* ignore errors */
 
-  /* should not be called unless parser reports errors */
-  g_return_if_fail(parser->errors != NULL);
+  if (parser->errors == NULL)
+    return; /* no errors to collect */
 
   msg = g_string_new_len(COIL_STATIC_STRLEN("Parse Error(s): \n"));
 
@@ -79,10 +79,10 @@ collect_parse_errors(GError     **error,
        list; list = g_list_previous(list))
   {
     g_assert(list->data);
-    GError *err = (GError *)list->data;
+    const GError *err = (GError *)list->data;
 
     if (number_errors)
-      g_string_append_printf(msg, "%d) %s\n", n++, (gchar*)err->message);
+      g_string_append_printf(msg, "%d) %s\n", n++, (gchar *)err->message);
     else
       g_string_append(msg, err->message);
 
@@ -104,11 +104,15 @@ handle_undefined_prototypes(CoilParser *parser)
 
   GHashTable *proto_table = parser->prototypes;
 
-  if (g_hash_table_size(proto_table))
+  /* Attempt necessary expansions to finalize prototypes which are
+    defined after an expansion */
+  if (g_hash_table_size(proto_table) > 0)
   {
-    GList *prototypes = g_hash_table_get_values(proto_table);
+    GList *prototypes;
 
-    while (prototypes)
+    for (prototypes = g_hash_table_get_values(proto_table);
+         prototypes;
+         prototypes = g_list_delete_link(prototypes, prototypes))
     {
       CoilStruct *prototype, *container;
 
@@ -133,41 +137,47 @@ handle_undefined_prototypes(CoilParser *parser)
 
       prototypes = g_list_delete_link(prototypes, prototypes);
     }
-  }
 
-  if (g_hash_table_size(proto_table))
-  {
-    GList   *list;
-    GString *msg = g_string_sized_new(512);
-
-    for (list = g_hash_table_get_values(proto_table);
-         list; list = g_list_next(list))
+    /* If we still have undefined prototypes this is an error */
+    if (g_hash_table_size(proto_table) > 0)
     {
-      CoilStruct     *prototype = COIL_STRUCT(list->data);
-      const CoilPath *path = coil_struct_get_path(prototype);
-      list->data = (gpointer)path;
+      GList   *list, *lp;
+      GString *msg = g_string_sized_new(512);
 
-      /* cast the prototype to an empty struct
-         to allow continue despite errors */
-      CoilStructFunc apply_fn = (CoilStructFunc)make_prototype_final;
-      coil_struct_foreach_ancestor(prototype, TRUE, apply_fn, NULL);
+      msg = g_string_append(msg,
+                            "Referencing undefined structs, prototypes are: ");
+
+      list = g_hash_table_get_values(proto_table);
+
+      /* convert list of prototypes to list of paths */
+      for (lp = list; lp; lp = g_list_next(lp))
+      {
+        CoilStruct     *prototype = COIL_STRUCT(lp->data);
+        const CoilPath *path = coil_struct_get_path(prototype);
+
+        lp->data = (gpointer)path;
+
+        /* cast the prototype to an empty struct
+           to allow continue despite errors */
+        CoilStructFunc apply_fn = (CoilStructFunc)make_prototype_final;
+        coil_struct_foreach_ancestor(prototype, TRUE, apply_fn, NULL);
+      }
+
+      /* sort by path and build error message */
+      for (list = g_list_sort(list, (GCompareFunc)coil_path_compare);
+           list; list = g_list_delete_link(list, list))
+      {
+        const CoilPath *path = (CoilPath *)list->data;
+        g_string_append_printf(msg, "%s, ", path->path);
+      }
+
+      parser_error(parser, "%s", msg->str);
+      parser_handle_error(parser);
+
+      g_string_free(msg, TRUE);
+
+      return FALSE;
     }
-
-    list = g_list_sort(list, (GCompareFunc)coil_path_compare);
-
-    while (list)
-    {
-      const CoilPath *path = (CoilPath *)list->data;
-      g_string_append_printf(msg, "%s, ", path->path);
-      list = g_list_delete_link(list, list);
-    }
-
-    parser_error(parser,
-                 "Referencing undefined struct(s). "
-                 "Prototype(s) are: %s", msg->str);
-
-    g_string_free(msg, TRUE);
-    return FALSE;
   }
 
   return TRUE;
@@ -639,7 +649,9 @@ link_path
   {
     CoilStruct *container = PEEK_CONTAINER(YYCTX);
 
-  /* XXX: YYCTX->path is null when link is not assigned to a path */
+  /* XXX: YYCTX->path is null when link is not assigned to a path
+      ie. @extends: [ =..some_node ]
+   */
 
     new_value($$, COIL_TYPE_LINK, take_object,
       coil_link_new("target_path", $1,
@@ -957,11 +969,11 @@ coil_parse_string_len(const gchar *string,
                       GError     **error)
 {
   g_return_val_if_fail(string, NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilParser parser;
   yyscan_t   scanner;
 
-  /* short circuit */
   if (len == 0)
     return coil_struct_new(NULL, NULL);
 
@@ -986,12 +998,11 @@ coil_parse_buffer(gchar   *buffer,
                   GError **error)
 {
   g_return_val_if_fail(buffer != NULL, NULL);
-  g_return_val_if_fail(len > 0, NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilParser parser;
   yyscan_t   scanner;
 
-  /* short circuit */
   if (len == 0)
     return coil_struct_new(NULL, NULL);
 

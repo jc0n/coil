@@ -24,14 +24,20 @@ int main(int argc, char **argv)
 
       root = coil_parse_file(argv[i], &internal_error);
 
+      if (G_UNLIKELY(internal_error))
+      {
+        g_printerr("Continuing despite errors: %s",
+                   internal_error->message);
+
+        g_error_free(internal_error);
+        internal_error = NULL;
+      }
+
       if (root)
       {
         coil_struct_build_string(root, buffer, &internal_error);
         g_print("%s\n", buffer->str);
       }
-
-      if (G_UNLIKELY(internal_error))
-        goto fail;
 
       g_string_truncate(buffer, 0);
       g_object_unref(root);
