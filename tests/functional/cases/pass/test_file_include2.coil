@@ -4,7 +4,7 @@ some_text: 'general.coil'
 filepath: some_text
 
 test: {
-  @file: [filepath 'b.c.d']
+  @file: [..filepath 'a' 'b']
 }
 
 expected: {

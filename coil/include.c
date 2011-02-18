@@ -421,14 +421,13 @@ include_expand(gconstpointer   include,
     coil_expand_value((const GValue **)&value,
                       TRUE, &internal_error);
 
-    g_assert(value);
+    if (G_UNLIKELY(internal_error))
+      goto error;
 
+    g_assert(value);
     g_value_unset(priv->filepath_value);
     g_value_init(priv->filepath_value, G_VALUE_TYPE(value));
     g_value_copy(value, priv->filepath_value);
-
-    if (G_UNLIKELY(internal_error))
-      goto error;
   }
 
   if (G_VALUE_HOLDS(priv->filepath_value, G_TYPE_GSTRING))
