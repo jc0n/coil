@@ -21,7 +21,7 @@
 #define COIL_IS_LINK_CLASS(klass)   \
         (G_TYPE_CHECK_CLASS_TYPE((klass), COIL_TYPE_LINK))
 
-#define COIL_LINK_GET_CLASS(klass)  \
+#define COIL_LINK_GET_CLASS(obj)  \
         (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_LINK, CoilLinkClass))
 
 
