@@ -108,44 +108,71 @@ free_string_list(GList *list)
 }
 
 static void
-string_value_helper(GString *const buffer,
-                    const gchar   *string,
-                    guint          length)
+append_quoted_string(GString *const    buffer,
+                     const gchar      *string,
+                     guint             length,
+                     gchar             quote_char,
+                     CoilStringFormat *format)
 {
   g_return_if_fail(buffer);
   g_return_if_fail(string);
   g_return_if_fail(length);
+  g_return_if_fail(format);
 
-  if (length > COIL_MULTILINE_LEN
-    || memchr(string, '\n', length) != NULL)
+  gboolean multiline = FALSE;
+  gboolean quote_string = !(format->options & DONT_QUOTE_STRINGS);
+
+  if (quote_string)
   {
-    g_string_append_len(buffer,
-                        COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE_S));
-    g_string_append_len(buffer, string, length);
-    g_string_append_len(buffer,
-                        COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE_S));
+    if ((length > format->multiline_len
+      || memchr(string, '\n', length) != NULL))
+    {
+      multiline = TRUE;
+      g_string_append_len(buffer, COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE));
+    }
+    else
+      g_string_append_c(buffer, quote_char);
+  }
+
+  if (format->options & ESCAPE_QUOTES)
+  {
+    guint        n;
+    const gchar *p;
+
+    for (p = string, n = length; n--; string++)
+    {
+      if (*string == quote_char)
+      {
+        g_string_append_len(buffer, p, string - p);
+        g_string_append_c(buffer, '\\');
+        p = string;
+      }
+    }
+
+    g_string_append(buffer, p);
   }
   else
-  {
-    g_string_append_c(buffer, '\'');
     g_string_append_len(buffer, string, length);
-    g_string_append_c(buffer, '\'');
+
+  if (quote_string)
+  {
+    if (multiline)
+      g_string_append_len(buffer, COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE));
+    else
+      g_string_append_c(buffer, quote_char);
   }
 }
 
 COIL_API(void)
-coil_value_build_string(const GValue *value,
-                        GString      *const buffer,
-                        GError      **error)
+coil_value_build_string(const GValue     *value,
+                        GString          *const buffer,
+                        CoilStringFormat *format,
+                        GError          **error)
 {
+  g_return_if_fail(value != NULL);
   g_return_if_fail(buffer != NULL);
+  g_return_if_fail(format != NULL);
   g_return_if_fail(error == NULL || *error == NULL);
-
-  if (value == NULL)
-  {
-    g_string_append_len(buffer, COIL_STATIC_STRLEN("(null)"));
-    return;
-  }
 
   const GType type = G_VALUE_TYPE(value);
 
@@ -170,7 +197,7 @@ coil_value_build_string(const GValue *value,
         string = g_value_get_string(value);
         length = strlen(string);
 
-        string_value_helper(buffer, string, length);
+        append_quoted_string(buffer, string, length, '\'', format);
         break;
       }
 
@@ -201,7 +228,8 @@ coil_value_build_string(const GValue *value,
 
           if (G_LIKELY(COIL_IS_EXPANDABLE(obj)))
           {
-            coil_expandable_build_string(COIL_EXPANDABLE(obj), buffer, error);
+            coil_expandable_build_string(COIL_EXPANDABLE(obj), buffer,
+                                         format, error);
             return;
           }
 
@@ -215,12 +243,12 @@ coil_value_build_string(const GValue *value,
         if (type == G_TYPE_GSTRING)
         {
           const GString *gstring = (GString *)g_value_get_boxed(value);
-          string_value_helper(buffer, gstring->str, gstring->len);
+          append_quoted_string(buffer, gstring->str, gstring->len, '\'', format);
         }
         else if (type == COIL_TYPE_LIST)
         {
           const GList *list = (GList *)g_value_get_boxed(value);
-          coil_list_build_string(list, buffer, error);
+          coil_list_build_string(list, buffer, format, error);
         }
         else if (type == COIL_TYPE_PATH)
         {
@@ -235,13 +263,14 @@ coil_value_build_string(const GValue *value,
 }
 
 COIL_API(gchar *)
-coil_value_to_string(const GValue *value,
-                     GError      **error)
+coil_value_to_string(const GValue     *value,
+                     CoilStringFormat *format,
+                     GError          **error)
 {
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   GString *buffer = g_string_sized_new(128);
-  coil_value_build_string(value, buffer, error);
+  coil_value_build_string(value, buffer, format, error);
 
   return g_string_free(buffer, FALSE);
 }

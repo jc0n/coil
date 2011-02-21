@@ -2146,14 +2146,16 @@ coil_struct_get_size(CoilStruct *self,
 }
 
 static void
-struct_build_string_internal(CoilStruct *self,
-                             GString    *const buffer,
-                             gchar      *prefix,
-                             GError    **error)
+struct_build_string_internal(CoilStruct       *self,
+                             GString          *const buffer,
+                             CoilStringFormat *format,
+                             gchar            *prefix,
+                             GError          **error)
 {
   g_return_if_fail(COIL_IS_STRUCT(self));
   g_return_if_fail(buffer);
   g_return_if_fail(error == NULL || *error == NULL);
+  g_return_if_fail(format);
   g_return_if_fail(!coil_struct_is_prototype(self));
 
   CoilStructIter it;
@@ -2190,6 +2192,7 @@ struct_build_string_internal(CoilStruct *self,
 
         struct_build_string_internal(child,
                                      buffer,
+                                     format,
                                      child_prefix,
                                      &internal_error);
 
@@ -2210,7 +2213,7 @@ struct_build_string_internal(CoilStruct *self,
                              prefix,
                              path->key);
 
-      coil_value_build_string(entry->value, buffer, &internal_error);
+      coil_value_build_string(entry->value, buffer, format, &internal_error);
 
       if (G_UNLIKELY(internal_error))
       {
@@ -2228,15 +2231,18 @@ struct_build_string_internal(CoilStruct *self,
 }
 
 static void
-_struct_build_string(gconstpointer  object,
-                     GString       *buffer,
-                     GError       **error)
+_struct_build_string(gconstpointer     object,
+                     GString          *buffer,
+                     CoilStringFormat *format,
+                     GError          **error)
 {
   g_return_if_fail(COIL_IS_STRUCT(object));
   g_return_if_fail(buffer != NULL);
+  g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  struct_build_string_internal(COIL_STRUCT(object), buffer, NULL, error);
+  struct_build_string_internal(COIL_STRUCT(object), buffer,
+                               format, NULL, error);
 }
 
 /*
@@ -2252,26 +2258,29 @@ _struct_build_string(gconstpointer  object,
  *
  */
 COIL_API(void)
-coil_struct_build_string(CoilStruct *self,
-                         GString    *const buffer,
-                         GError    **error)
+coil_struct_build_string(CoilStruct       *self,
+                         GString          *const buffer,
+                         CoilStringFormat *format,
+                         GError          **error)
 {
   g_return_if_fail(COIL_IS_STRUCT(self));
   g_return_if_fail(buffer != NULL);
+  g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  struct_build_string_internal(self, buffer, NULL, error);
+  struct_build_string_internal(self, buffer, format, NULL, error);
 }
 
 COIL_API(gchar *)
-coil_struct_to_string(CoilStruct *self,
-                      GError    **error)
+coil_struct_to_string(CoilStruct       *self,
+                      CoilStringFormat *format,
+                      GError          **error)
 {
-  GString *buffer;
-
-  g_return_val_if_fail(self != NULL, NULL);
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
+  g_return_val_if_fail(format, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  GString *buffer;
 
   /* short circuit
   if (struct_is_definitely_empty(self))
@@ -2279,7 +2288,7 @@ coil_struct_to_string(CoilStruct *self,
     */
 
   buffer = g_string_sized_new(512);
-  struct_build_string_internal(self, buffer, NULL, error);
+  struct_build_string_internal(self, buffer, format, NULL, error);
 
   return g_string_free(buffer, FALSE);
 }

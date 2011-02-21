@@ -2,7 +2,7 @@
 AC_PREREQ(2.60)
 
 AC_INIT([coil], [0.1], [tehjcon@gmail.com])
-AM_INIT_AUTOMAKE([foreign -Wall])
+AM_INIT_AUTOMAKE([foreign -Wall -Wunused-function])
 
 COIL_MAJOR_VERSION=0
 COIL_MINOR_VERSION=1

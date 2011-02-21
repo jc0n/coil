@@ -67,11 +67,13 @@ coil_include_equals(gconstpointer   e1,
 void
 coil_include_build_string(CoilInclude *self,
                           GString     *const buffer,
+                          CoilStringFormat *format,
                           GError     **error);
 
 gchar *
-coil_include_to_string(CoilInclude *self,
-                       GError     **error);
+coil_include_to_string(CoilInclude      *self,
+                       CoilStringFormat *format,
+                       GError          **error);
 
 G_END_DECLS
 
