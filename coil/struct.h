@@ -10,7 +10,6 @@ typedef struct _CoilStruct        CoilStruct;
 typedef struct _CoilStructClass   CoilStructClass;
 typedef struct _CoilStructPrivate CoilStructPrivate;
 typedef struct _CoilStructIter    CoilStructIter;
-typedef struct _CoilStructEntry   CoilStructEntry;
 
 #include "path.h"
 #include "expandable.h"
@@ -50,16 +49,6 @@ struct _CoilStructIter
   const CoilStruct *node;
   GList            *position;
   guint             version;
-};
-
-struct _CoilStructEntry
-{
-  guint             hash;
-  CoilPath         *path;
-  GValue           *value;
-
-  /* next in bucket */
-  CoilStructEntry  *next;
 };
 
 typedef gboolean (*CoilStructFunc)(CoilStruct *, gpointer);

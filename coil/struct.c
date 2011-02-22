@@ -9,11 +9,12 @@
 #include <string.h>
 
 #include "marshal.h"
-#include "struct.h"
-#include "link.h"
-#include "include.h"
 
 #include "struct_private.h"
+#include "struct.h"
+
+#include "link.h"
+#include "include.h"
 
 G_DEFINE_TYPE(CoilStruct, coil_struct, COIL_TYPE_EXPANDABLE);
 
