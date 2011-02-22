@@ -7,7 +7,12 @@
 #ifndef __COIL_STRUCT_PRIVATE
 #define __COIL_STRUCT_PRIVATE
 
-typedef struct _StructTable
+#include "path.h"
+
+typedef struct _CoilStructEntry CoilStructEntry;
+typedef struct _StructTable StructTable;
+
+struct _StructTable
 {
   guint   max;
   guint   size;
