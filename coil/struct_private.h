@@ -12,10 +12,6 @@ typedef struct _StructTable
   guint   max;
   guint   size;
 
-#ifdef COIL_DEBUG
-  guint   version;
-#endif
-
   volatile gint ref_count;
 
   CoilStructEntry **bucket;
