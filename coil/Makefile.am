@@ -53,7 +53,7 @@ libcoil_include_HEADERS=\
 				scanner.h \
 				strings_extra.h \
 				struct.h \
-				struct_private.h \
+				struct_table.h \
 				value.h
 
 bin_PROGRAMS = coildebug
