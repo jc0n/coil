@@ -75,20 +75,11 @@ NONE (?i:"none")
 INCLUDE (?i:(("@file"|"@include")[s]?))
 EXTEND (?i:"@extend"[s]?)
 PACKAGE (?i:"@package")
-DEBUG (?i:"@"?("debug"|"dump"))
 LINK (?i:"link")
 
 %%
 
 {COMMENT} { ; }
-
-{DEBUG} {
-#ifdef COIL_DEBUG
-  return DEBUG_SYM;
-#else
-  yymore();
-#endif
-}
 
 {PACKAGE} { return PACKAGE_SYM; }
 
