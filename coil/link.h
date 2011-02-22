@@ -64,8 +64,7 @@ coil_link_equals(gconstpointer self,
 void
 coil_link_build_string(CoilLink         *self,
                        GString          *const buffer,
-                       CoilStringFormat *format,
-                       GError          **error);
+                       CoilStringFormat *format);
 
 gchar *
 coil_link_to_string(CoilLink         *self,

@@ -156,16 +156,31 @@ coil_link_equals(gconstpointer  self_,
 COIL_API(void)
 coil_link_build_string(CoilLink         *self,
                        GString          *const buffer,
-                       CoilStringFormat *format,
-                       GError          **error)
+                       CoilStringFormat *format)
 {
   g_return_if_fail(COIL_IS_LINK(self));
   g_return_if_fail(buffer);
   g_return_if_fail(format);
   g_return_if_fail(self->target_path);
 
-  /* TODO(jcon): flatten paths based on formatting parameters */
-  return g_string_append_printf(buffer, "=%s", self->target_path->path);
+  const CoilPath *container_path;
+  CoilPath       *target_path;
+  CoilStruct     *container = COIL_EXPANDABLE(self)->container;
+
+  container_path = coil_struct_get_path(container);
+
+  if (format->options & FLATTEN_PATHS)
+    target_path = coil_path_resolve(self->target_path, container_path, NULL);
+  else
+    target_path = coil_path_relativize(self->target_path, container_path);
+
+  if (G_LIKELY(target_path))
+  {
+    g_string_append_printf(buffer, "=%s", target_path->path);
+    coil_path_unref(target_path);
+  }
+  else
+    g_string_append_printf(buffer, "=%s", self->target_path->path);
 }
 
 static void
@@ -177,20 +192,21 @@ link_build_string(gconstpointer     link,
   g_return_if_fail(COIL_IS_LINK(link));
   g_return_if_fail(buffer);
   g_return_if_fail(format);
-  g_return_if_fail(error == NULL || *error == NULL);
 
-  coil_link_build_string(COIL_LINK(link), buffer, format, error);
+  coil_link_build_string(COIL_LINK(link), buffer, format);
 }
 
 COIL_API(gchar *)
-coil_link_to_string(CoilLink *self,
+coil_link_to_string(CoilLink         *self,
                     CoilStringFormat *format)
 {
   g_return_val_if_fail(COIL_IS_LINK(self), NULL);
   g_return_val_if_fail(self->target_path, NULL);
 
-  /* TODO(jcon): use formatting parameters */
-  return g_strdup_printf("=%s", self->target_path->path);
+  GString *buffer = g_string_sized_new(128);
+  coil_link_build_string(self, buffer, format);
+
+  return g_string_free(buffer, FALSE);
 }
 
 CoilLink *
