@@ -223,20 +223,20 @@ find_bucket(StructTable  *table,
   g_return_val_if_fail(*path == '@', NULL);
   g_return_val_if_fail(path_len > 0, NULL);
 
-  StructEntry *e, **bp;
+  StructEntry *entry, **bucket;
 
-  for (bp = &table->bucket[hash & table->max], e = *bp;
-       e; bp = &e->next, e = *bp)
+  for (bucket = &table->bucket[hash & table->max], entry = *bucket;
+       entry; bucket = &entry->next, entry = *bucket)
   {
-    const CoilPath *p = e->path;
+    const CoilPath *p = entry->path;
 
-    if (e->hash == hash
+    if (entry->hash == hash
       && p->path_len == path_len
       && memcmp(p->path, path, path_len) == 0)
         break;
   }
 
-  return bp;
+  return bucket;
 }
 
 static StructEntry **
@@ -246,16 +246,16 @@ find_bucket_with_entry(StructTable *table,
   g_return_val_if_fail(table, NULL);
   g_return_val_if_fail(entry, NULL);
 
-  StructEntry *e, **ep;
+  StructEntry *e, **bucket;
 
-  for (ep = &table->bucket[entry->hash & table->max], e = *ep;
-       e; ep = &e->next, e = *ep)
+  for (bucket = &table->bucket[entry->hash & table->max], e = *bucket;
+       e; bucket = &e->next, e = *bucket)
   {
     if (e == entry)
       break;
   }
 
-  return ep;
+  return bucket;
 }
 
 static void
@@ -292,16 +292,16 @@ struct_table_insert(StructTable *table,
   g_return_val_if_fail(path, NULL);
   g_return_val_if_fail(path->flags & COIL_PATH_IS_ABSOLUTE, NULL);
 
-  StructEntry *entry, **ep;
+  StructEntry *entry, **bucket;
 
-  ep = find_bucket(table, hash, path->path, path->path_len);
+  bucket = find_bucket(table, hash, path->path, path->path_len);
 
-  if (*ep == NULL)
-    *ep = new_entry(table);
+  if (*bucket == NULL)
+    *bucket = new_entry(table);
   else
-    clear_struct_entry(*ep);
+    clear_struct_entry(*bucket);
 
-  entry = *ep;
+  entry = *bucket;
   entry->hash = hash;
   entry->path = path;
   entry->value = value;
@@ -321,15 +321,15 @@ struct_table_insert_entry(StructTable *table,
   g_return_if_fail(entry->hash);
   g_return_if_fail(entry->path);
 
-  StructEntry **ep;
+  StructEntry **bucket;
 
-  ep = find_bucket(table,
-                   entry->hash,
-                   entry->path->path,
-                   entry->path->path_len);
+  bucket = find_bucket(table,
+                       entry->hash,
+                       entry->path->path,
+                       entry->path->path_len);
 
   entry->next = NULL;
-  *ep = entry;
+  *bucket = entry;
 
   table->size++;
 }
@@ -348,6 +348,27 @@ struct_table_lookup(StructTable *table,
   return *find_bucket(table, hash, path, path_len);
 }
 
+static StructEntry *
+remove_bucket_entry(StructTable  *table,
+                    StructEntry **bucket)
+{
+  g_return_val_if_fail(table, NULL);
+  g_return_val_if_fail(bucket, NULL);
+
+  StructEntry *entry = *bucket;
+
+  if (entry)
+  {
+    *bucket = entry->next;
+    entry->next = NULL;
+    table->size--;
+
+    return entry;
+  }
+
+  return NULL;
+}
+
 StructEntry *
 struct_table_remove(StructTable *table,
                     guint        hash,
@@ -359,22 +380,13 @@ struct_table_remove(StructTable *table,
   g_return_val_if_fail(*path == '@', NULL);
   g_return_val_if_fail(path_len > 0, NULL);
 
-  StructEntry *entry, **ep;
+  StructEntry **bucket;
 
-  ep = find_bucket(table, hash, path, path_len);
-  entry = *ep;
+  bucket = find_bucket(table, hash, path, path_len);
 
-  if (entry)
-  {
-    *ep = entry->next;
-    entry->next = NULL;
-    table->size--;
-
-    return entry;
-  }
-
-  return NULL;
+  return remove_bucket_entry(table, bucket);
 }
+
 
 StructEntry *
 struct_table_remove_entry(StructTable *table,
@@ -383,23 +395,11 @@ struct_table_remove_entry(StructTable *table,
   g_return_val_if_fail(table, NULL);
   g_return_val_if_fail(entry, NULL);
 
-  StructEntry **ep;
+  StructEntry **bucket;
 
-  ep = find_bucket_with_entry(table, entry);
+  bucket = find_bucket_with_entry(table, entry);
 
-  /* TODO(jcon): de-duplicate code */
-  if (*ep)
-  {
-    g_assert(entry == *ep);
-
-    *ep = entry->next;
-    entry->next = NULL;
-    table->size--;
-
-    return entry;
-  }
-
-  return NULL;
+  return remove_bucket_entry(table, bucket);
 }
 
 void
