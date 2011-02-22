@@ -15,6 +15,8 @@ typedef struct _CoilStructIter    CoilStructIter;
 #include "expandable.h"
 #include "value.h"
 
+#include "struct_table.h"
+
 #define COIL_TYPE_STRUCT              \
         (coil_struct_get_type())
 
@@ -208,7 +210,7 @@ coil_struct_iter_init(CoilStructIter   *iter,
 
 gboolean
 coil_struct_iter_next(CoilStructIter  *iter,
-                      CoilStructEntry    **entry);
+                      StructEntry    **entry);
 
 gboolean
 coil_struct_merge(CoilStruct  *src,

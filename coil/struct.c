@@ -10,7 +10,6 @@
 
 #include "marshal.h"
 
-#include "struct_private.h"
 #include "struct.h"
 
 #include "link.h"
@@ -217,7 +216,7 @@ struct_change_container(CoilStruct *self,
   for (entry_list = g_queue_peek_head_link(&priv->entries);
        entry_list; entry_list = g_list_next(entry_list))
   {
-    CoilStructEntry *entry = (CoilStructEntry *)entry_list->data;
+    StructEntry *entry = (StructEntry *)entry_list->data;
 
     struct_table_remove_entry(old_table, entry);
 
@@ -313,7 +312,7 @@ coil_struct_empty(CoilStruct *self,
   while ((object = g_queue_pop_head(&priv->dependencies)))
     g_object_unref(object);*/
 
-  CoilStructEntry *entry;
+  StructEntry *entry;
   while ((entry = g_queue_pop_head(&priv->entries)))
     struct_table_delete_entry(priv->entry_table, entry);
 
@@ -503,7 +502,7 @@ struct_insert_internal(CoilStruct    *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
-  CoilStructEntry   *old_entry;
+  StructEntry       *old_entry;
   GError            *internal_error = NULL;
   guint              hash;
 
@@ -607,7 +606,7 @@ struct_insert_internal(CoilStruct    *self,
   else
   {
     /* entry does NOT exist for key/path */
-    CoilStructEntry *entry;
+    StructEntry *entry;
     entry = struct_table_insert(priv->entry_table, hash, path, value);
     g_queue_push_tail(&priv->entries, entry);
     priv->size++;
@@ -673,7 +672,7 @@ struct_create_container(CoilStruct  *self,
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilStructPrivate *const priv = self->priv;
-  CoilStructEntry   *entry;
+  StructEntry       *entry;
   CoilStruct        *container;
   GValue            *value;
 
@@ -732,7 +731,7 @@ coil_struct_create_containers(CoilStruct     *self,
   }
 
   CoilStructPrivate *const priv = self->priv;
-  CoilStructEntry   *entry;
+  StructEntry       *entry;
   CoilStruct        *container = priv->root;
   const gchar       *next_delim, *end, *delim = path + COIL_ROOT_PATH_LEN + 1;
   guint              saved_hashes[COIL_PATH_MAX_PARTS] = {0, };
@@ -924,7 +923,7 @@ coil_struct_insert_key(CoilStruct  *self,
 
 static gboolean
 struct_remove_entry(CoilStruct            *self,
-                    const CoilStructEntry *entry,
+                    const StructEntry     *entry,
                     GError               **error)
 {
   CoilStructPrivate *const priv = self->priv;
@@ -951,7 +950,7 @@ struct_remove_entry(CoilStruct            *self,
 
 static gboolean
 struct_delete_entry(CoilStruct      *self,
-                    CoilStructEntry *entry,
+                    StructEntry     *entry,
                     GError         **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
@@ -984,7 +983,7 @@ struct_delete_internal(CoilStruct   *self,
   g_return_val_if_fail(!struct_is_definitely_empty(self), FALSE);
 
   CoilStructPrivate *const priv = self->priv;
-  CoilStructEntry   *entry;
+  StructEntry       *entry;
 
   entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
 
@@ -1104,7 +1103,7 @@ struct_mark_deleted_internal(CoilStruct  *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
-  CoilStructEntry   *entry;
+  StructEntry       *entry;
   guint              hash = hash_relative_path(priv->hash, path->key, path->key_len);
 
   entry = struct_table_lookup(priv->entry_table, hash,
@@ -1574,8 +1573,8 @@ coil_struct_iter_init(CoilStructIter   *iter,
 }
 
 COIL_API(gboolean)
-coil_struct_iter_next(CoilStructIter   *iter,
-                      CoilStructEntry **entry)
+coil_struct_iter_next(CoilStructIter *iter,
+                      StructEntry   **entry)
 {
   g_return_val_if_fail(iter, FALSE);
   g_return_val_if_fail(entry, FALSE);
@@ -1588,7 +1587,7 @@ coil_struct_iter_next(CoilStructIter   *iter,
   if (!iter->position)
     return FALSE;
 
-  *entry = (CoilStructEntry *)iter->position->data;
+  *entry = (StructEntry *)iter->position->data;
   iter->position = g_list_next(iter->position);
 
   return TRUE;
@@ -1612,7 +1611,7 @@ coil_struct_iter_next_value(CoilStructIter *iter,
   if (!iter->position)
     return FALSE;
 
-  *value = (GValue *)((CoilStructEntry *)iter->position->data)->value;
+  *value = (GValue *)((StructEntry *)iter->position->data)->value;
 
   if (expand_value)
      return coil_expand_value(value, FALSE, error);
@@ -1633,7 +1632,7 @@ coil_struct_merge(CoilStruct  *src,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructIter   it;
-  CoilStructEntry *entry, *existing_entry;
+  StructEntry     *entry, *existing_entry;
   gboolean         different_roots = FALSE;
   guint            hash;
 
@@ -1859,8 +1858,8 @@ coil_struct_expand_recursive(CoilStruct  *self,
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilStructIter         it;
-  const CoilStructEntry *entry;
+  CoilStructIter     it;
+  const StructEntry *entry;
 
   if (!coil_struct_expand(self, error))
     return FALSE;
@@ -1869,7 +1868,7 @@ coil_struct_expand_recursive(CoilStruct  *self,
     return TRUE;
 
   coil_struct_iter_init(&it, self);
-  while (coil_struct_iter_next(&it, (CoilStructEntry **)&entry))
+  while (coil_struct_iter_next(&it, (StructEntry **)&entry))
   {
     const GValue *value = entry->value;
     if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
@@ -1912,11 +1911,11 @@ struct_lookup_container_internal(CoilStruct  *self,
   g_return_val_if_fail(path, NULL);
   g_return_val_if_fail(path_len > 0, NULL);
 
-  const CoilStructEntry *entry;
-  CoilStructPrivate     *priv = self->priv;
-  const gchar           *key, *end;
-  guint                  hash;
-  guint8                 container_path_len;
+  const StructEntry *entry;
+  CoilStructPrivate *priv = self->priv;
+  const gchar       *key, *end;
+  guint              hash;
+  guint8             container_path_len;
 
   end = path + path_len;
   key = memrchr(path, COIL_PATH_DELIM, path_len);
@@ -1965,7 +1964,7 @@ struct_lookup_internal(CoilStruct     *self,
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilStructPrivate *const priv = self->priv;
-  CoilStructEntry   *entry;
+  StructEntry       *entry;
   const GValue      *result;
 
   entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
@@ -2090,8 +2089,8 @@ coil_struct_get_paths(CoilStruct *self,
   for (entry_list = g_queue_peek_head_link(&priv->entries);
        entry_list; entry_list = g_list_next(entry_list))
   {
-    const CoilStructEntry *entry = (CoilStructEntry *)entry_list->data;
-    const CoilPath        *path = entry->path;
+    const StructEntry *entry = (StructEntry *)entry_list->data;
+    const CoilPath    *path = entry->path;
     g_queue_push_tail(&result_list, (gpointer)path);
   }
 
@@ -2116,8 +2115,8 @@ coil_struct_get_values(CoilStruct *self,
   for (entry_list = g_queue_peek_head_link(&priv->entries);
        entry_list; entry_list = g_list_next(entry_list))
   {
-    const CoilStructEntry *entry = (CoilStructEntry *)entry_list->data;
-    const GValue          *value = entry->value;
+    const StructEntry *entry = (StructEntry *)entry_list->data;
+    const GValue      *value = entry->value;
     g_queue_push_tail(&result_list, (gpointer)value);
   }
 
@@ -2157,8 +2156,8 @@ struct_build_string_internal(CoilStruct *self,
   g_return_if_fail(error == NULL || *error == NULL);
   g_return_if_fail(!coil_struct_is_prototype(self));
 
-  CoilStructIter     it;
-  CoilStructEntry   *entry;
+  CoilStructIter it;
+  StructEntry   *entry;
 
   if (prefix == NULL)
   {
@@ -2330,9 +2329,9 @@ coil_struct_deep_copy(CoilStruct       *self,
 
   if (!struct_is_definitely_empty(self))
   {
-    CoilStructIter   it;
-    CoilStructEntry *entry;
-    GValue          *value_copy;
+    CoilStructIter it;
+    StructEntry   *entry;
+    GValue        *value_copy;
 
     /* iterate keys in order */
     coil_struct_iter_init(&it, self);
@@ -2387,8 +2386,8 @@ error:
 }
 
 static gint
-struct_entry_key_cmp(const CoilStructEntry *self,
-                     const CoilStructEntry *other)
+struct_entry_key_cmp(const StructEntry *self,
+                     const StructEntry *other)
 {
   g_return_val_if_fail(self, -1);
   g_return_val_if_fail(other, -1);
@@ -2435,12 +2434,12 @@ coil_struct_equals(gconstpointer   obj,
   // Loop foreach equal key
   while (lp1 != NULL && lp2 != NULL)
   {
-    CoilStructEntry *e1, *e2;
-    const CoilPath  *p1, *p2;
-    const GValue    *v1, *v2;
+    StructEntry    *e1, *e2;
+    const CoilPath *p1, *p2;
+    const GValue   *v1, *v2;
 
-    e1 = (CoilStructEntry *)lp1->data;
-    e2 = (CoilStructEntry *)lp2->data;
+    e1 = (StructEntry *)lp1->data;
+    e2 = (StructEntry *)lp2->data;
 
     p1 = e1->path;
     p2 = e2->path;
