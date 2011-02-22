@@ -14,8 +14,8 @@ typedef struct _StructTable StructTable;
 
 struct _StructTable
 {
-  guint   max;
-  guint   size;
+  guint         max;
+  guint         size;
 
   volatile gint ref_count;
 
@@ -25,12 +25,12 @@ struct _StructTable
 
 struct _StructEntry
 {
-  guint             hash;
-  CoilPath         *path;
-  GValue           *value;
+  guint        hash;
+  CoilPath    *path;
+  GValue      *value;
 
   /* next in bucket */
-  StructEntry  *next;
+  StructEntry *next;
 };
 
 G_BEGIN_DECLS
