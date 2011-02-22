@@ -299,55 +299,6 @@ parser_has_errors(CoilParser *const parser)
   g_return_val_if_fail(parser, TRUE);
   return parser->errors != NULL;
 }
-
-#ifdef COIL_DEBUG
-static void
-parser_handle_debug(CoilParser *parser,
-                    CoilPath   *path)
-{
-  const GValue *value;
-  gchar        *value_str;
-  const gchar  *arg = path->path;
-  guint8        arg_len = path->path_len;
-
-  if (arg_len == 5
-    && (!strcmp(arg, "clear") || !strcmp(arg, "empty")))
-  {
-    GError *internal_error = NULL;
-          coil_struct_empty(parser->root, &internal_error);
-    g_error("%s", internal_error->message);
-  }
-  else
-  {
-    value = coil_struct_lookup_path(PEEK_CONTAINER(parser),
-                                    path, TRUE,
-                                    &parser->error);
-
-    if (!value && G_UNLIKELY(parser->error))
-    {
-      coil_path_unref(path);
-      return;
-    }
-
-    value_str = coil_value_to_string(value, &parser->error);
-
-    if (G_UNLIKELY(parser->error))
-    {
-      coil_path_unref(path);
-      return;
-    }
-
-    g_print("----[Debug '%s']----\n", arg);
-    g_print("%s\n", value_str);
-    g_print("----[/Debug]----\n");
-
-    g_free(value_str);
-  }
-
-  coil_path_unref(path);
-}
-#endif
-
 %}
 %expect 1
 %error-verbose
@@ -357,7 +308,6 @@ parser_handle_debug(CoilParser *parser,
 %pure_parser
 %parse-param { CoilParser *yyctx }
 
-%token DEBUG_SYM
 %token EXTEND_SYM
 %token INCLUDE_SYM
 %token LINK_SYM
@@ -455,22 +405,7 @@ statement
   : builtin_property
   | deletion
   | assignment
-  | debugging
   | error { parser_handle_error(YYCTX); }
-;
-
-debugging
-  : DEBUG_SYM path
-  {
-#ifdef COIL_DEBUG
-    parser_handle_debug(YYCTX, $2);
-
-    if (G_UNLIKELY(YYCTX->error))
-      YYERROR;
-#else
-  coil_path_unref($2);
-#endif
-  }
 ;
 
 deletion
