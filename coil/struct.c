@@ -1294,13 +1294,11 @@ check_parent_sanity(const CoilStruct *self,
 }
 
 static gboolean
-struct_check_dependency(gconstpointer object)
+struct_check_dependency_type(GType type)
 {
-  GObject *gobject = G_OBJECT(object);
-
-  return COIL_IS_STRUCT(gobject)
-      || COIL_IS_LINK(gobject)
-      || COIL_IS_INCLUDE(gobject);
+  return g_type_is_a(type, COIL_TYPE_STRUCT)
+      || g_type_is_a(type, COIL_TYPE_LINK)
+      || g_type_is_a(type, COIL_TYPE_INCLUDE);
 }
 
 COIL_API(gboolean)
@@ -1315,7 +1313,7 @@ coil_struct_add_dependency(CoilStruct     *self,
 
   CoilStructPrivate *const priv = self->priv;
 
-  if (!struct_check_dependency(object))
+  if (!struct_check_dependency_type(G_OBJECT_TYPE(object)))
     g_error("Adding invalid dependency type '%s'.",
         G_OBJECT_TYPE_NAME(object));
 
@@ -1487,18 +1485,18 @@ coil_struct_extend_path(CoilStruct  *self,
 
   if (value)
   {
-    GObject *object = g_value_get_object(value);
+    GType type = G_VALUE_TYPE(value);
 
-    if (G_UNLIKELY(!struct_check_dependency(object)))
+    if (G_UNLIKELY(!struct_check_dependency_type(type)))
     {
       coil_struct_error(error, self,
         "@extends target '%s' must be a struct, found type '%s'.",
-        path->path, G_OBJECT_TYPE_NAME(object));
+        path->path, g_type_name(type));
 
       goto error;
     }
 
-    dependency = COIL_EXPANDABLE(object);
+    dependency = COIL_EXPANDABLE(g_value_get_object(value));
   }
   else
   {
@@ -1787,7 +1785,7 @@ struct_expand(gconstpointer    object,
   {
     const GValue *return_value = NULL;
 
-    g_assert(struct_check_dependency(dep));
+    g_assert(struct_check_dependency_type(G_OBJECT_TYPE(dep)));
 
     if (!coil_expand(dep, &return_value, TRUE, error))
       return FALSE;
