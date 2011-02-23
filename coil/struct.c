@@ -1490,7 +1490,7 @@ coil_struct_extend_path(CoilStruct  *self,
     if (G_UNLIKELY(!struct_check_dependency_type(type)))
     {
       coil_struct_error(error, self,
-        "@extends target '%s' must be a struct, found type '%s'.",
+        "parent '%s' must be a struct, found type '%s'.",
         path->path, g_type_name(type));
 
       goto error;
