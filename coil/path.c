@@ -17,7 +17,7 @@
 CoilPath *
 coil_path_alloc(void)
 {
-  CoilPath *path = g_new(CoilPath, 1);
+  CoilPath *path = g_new0(CoilPath, 1);
   path->ref_count = 1;
   return path;
 }
@@ -429,17 +429,18 @@ COIL_API(void)
 coil_path_change_container(CoilPath      **path_ptr,
                            const CoilPath *container)
 {
-  g_return_if_fail(path_ptr && *path_ptr);
-  g_return_if_fail(!((*path_ptr)->flags
-        & (COIL_PATH_IS_ROOT | COIL_PATH_IS_BACKREF)));
+  g_return_if_fail(path_ptr);
+  g_return_if_fail(*path_ptr);
   g_return_if_fail(container);
-  g_return_if_fail(container->flags & COIL_PATH_IS_ABSOLUTE);
-  g_return_if_fail(*path_ptr != container);
+  g_return_if_fail(COIL_PATH_IS_ABSOLUTE(container));
 
   CoilPath *path = *path_ptr;
   guint8    len = container->path_len + path->key_len + 1;
   gchar    *p;
 
+  g_return_if_fail(path != container);
+  g_return_if_fail(!COIL_PATH_IS_ROOT(path));
+  g_return_if_fail(!COIL_PATH_IS_BACKREF(path));
   g_return_if_fail(path->key && path->key_len);
 
   if (path->ref_count > 1 || path->flags & COIL_STATIC_PATH)

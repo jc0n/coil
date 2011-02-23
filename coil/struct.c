@@ -2299,7 +2299,10 @@ coil_struct_deep_copy(CoilStruct       *self,
                       GError          **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
-  g_return_val_if_fail(COIL_IS_STRUCT(new_container), NULL);
+
+  g_return_val_if_fail(new_container == NULL
+    || COIL_IS_STRUCT(new_container), NULL);
+
   g_return_val_if_fail(!coil_struct_is_prototype(self), NULL);
   g_return_val_if_fail(!coil_struct_is_prototype(new_container), NULL);
   g_return_val_if_fail(self != new_container, NULL);
