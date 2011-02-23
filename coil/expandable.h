@@ -118,7 +118,8 @@ coil_is_expanded(CoilExpandable *self);
 
  /* const expandable pointer */
 gboolean
-coil_expand_value(const GValue **value_ptr,
+coil_expand_value(const GValue  *value,
+                  const GValue **return_value,
                   gboolean       recursive,
                   GError       **error);
 

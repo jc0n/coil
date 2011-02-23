@@ -1728,8 +1728,9 @@ coil_struct_merge(CoilStruct  *src,
     {
       /* TODO(jcon): implement expandable->copy protocol for this reason
        * should not have to expand to copy */
-      const GValue *real_value = entry->value;
-      if (!coil_expand_value(&real_value, FALSE, error))
+      const GValue *real_value;
+
+      if (!coil_expand_value(entry->value, &real_value, FALSE, error))
       {
         coil_path_unref(path);
         return FALSE;
@@ -1892,7 +1893,7 @@ maybe_expand_value(const GValue  *value,
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE)
-    && !coil_expand_value(&value, TRUE, error))
+    && !coil_expand_value(value, &value, TRUE, error))
     return NULL;
 
   return value;
@@ -2496,9 +2497,9 @@ coil_struct_equals(gconstpointer   obj,
     if ((v1 != v2
       && (v1 == NULL || v2 == NULL))
       || (G_VALUE_HOLDS(v1, COIL_TYPE_EXPANDABLE)
-        && !coil_expand_value(&v1, TRUE, error))
+        && !coil_expand_value(v1, &v1, TRUE, error))
       || (G_VALUE_HOLDS(v2, COIL_TYPE_EXPANDABLE)
-        && !coil_expand_value(&v2, TRUE, error))
+        && !coil_expand_value(v2, &v2, TRUE, error))
       || coil_value_compare(v1, v2, error))
       goto done;
 
