@@ -122,9 +122,6 @@ coil_expand(gpointer        object,
   CoilExpandableClass   *klass = COIL_EXPANDABLE_GET_CLASS(self);
   const GValue          *return_value = NULL;
 
-//  if (klass->is_expanded(self))
-//    return TRUE;
-
   if (!g_static_mutex_trylock(&priv->expand_lock))
   {
     coil_struct_error(error, self->container,
@@ -136,10 +133,11 @@ coil_expand(gpointer        object,
   if (!klass->expand(self, &return_value, error))
     goto error;
 
-  if (recursive && return_value != NULL
-    && (value_ptr == NULL || return_value != *value_ptr)
-    && G_VALUE_HOLDS(return_value, COIL_TYPE_EXPANDABLE)
-    && !coil_expand_value(&return_value, TRUE, error))
+  if (recursive && return_value /* want to expand return value */
+    && (value_ptr == NULL /* caller doesnt care about return value */
+      || return_value != *value_ptr) /* prevent expand cycle on same value */
+    && G_VALUE_HOLDS(return_value, COIL_TYPE_EXPANDABLE) /* must be expandable */
+    && !coil_expand_value(return_value, &return_value, TRUE, error))
     goto error;
 
   g_static_mutex_unlock(&priv->expand_lock);
@@ -158,16 +156,18 @@ error:
 }
 
 COIL_API(gboolean)
-coil_expand_value(const GValue **value,
+coil_expand_value(const GValue  *value,
+                  const GValue **return_value,
                   gboolean       recursive,
                   GError       **error)
 {
-  g_return_val_if_fail(value && G_IS_VALUE(*value), FALSE);
-  g_return_val_if_fail(G_VALUE_HOLDS(*value, COIL_TYPE_EXPANDABLE), FALSE);
+  g_return_val_if_fail(G_IS_VALUE(value), FALSE);
+  g_return_val_if_fail(G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilExpandable *object = COIL_EXPANDABLE(g_value_get_object(*value));
-  return coil_expand(object, (const GValue **)value, recursive, error);
+  CoilExpandable *object = COIL_EXPANDABLE(g_value_get_object(value));
+
+  return coil_expand(object, return_value, recursive, error);
 }
 
 COIL_API(CoilExpandable *)

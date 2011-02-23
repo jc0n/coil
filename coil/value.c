@@ -269,9 +269,9 @@ _compare_value_list(const GValue *v1,
     const GValue *v2 = (GValue *)lp2->data;
 
     if ((G_VALUE_HOLDS(v1, COIL_TYPE_EXPANDABLE)
-        && !coil_expand_value(&v1, TRUE, error))
+        && !coil_expand_value(v1, &v1, TRUE, error))
       || (G_VALUE_HOLDS(v2, COIL_TYPE_EXPANDABLE)
-        && !coil_expand_value(&v2, TRUE, error))
+        && !coil_expand_value(v2, &v2, TRUE, error))
       || (last = coil_value_compare(v1, v2, error)))
       break;
 
@@ -459,14 +459,14 @@ start:
   {
     if (g_type_is_a(t1, COIL_TYPE_EXPANDABLE))
     {
-      if (!coil_expand_value(&v1, TRUE, error))
+      if (!coil_expand_value(v1, &v1, TRUE, error))
         return -1;
 
       goto start;
     }
     else if (g_type_is_a(t2, COIL_TYPE_EXPANDABLE))
     {
-      if (!coil_expand_value(&v2, TRUE, error))
+      if (!coil_expand_value(v2, &v2, TRUE, error))
         return -1;
 
       goto start;

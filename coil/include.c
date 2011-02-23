@@ -418,8 +418,7 @@ include_expand(gconstpointer   include,
   {
     const GValue *value = priv->filepath_value;
 
-    coil_expand_value((const GValue **)&value,
-                      TRUE, &internal_error);
+    coil_expand_value(value, &value, TRUE, &internal_error);
 
     if (G_UNLIKELY(internal_error))
       goto error;
