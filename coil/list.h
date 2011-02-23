@@ -16,12 +16,6 @@ G_BEGIN_DECLS
 GType
 coil_list_get_type(void) G_GNUC_CONST;
 
-/*void
-coil_list_build_string_buffer(GString *const buffer,
-                              const GList *list);
-*/
-
-
 void
 coil_list_build_string(const GList      *list,
                        GString          *const buffer,
