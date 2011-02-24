@@ -1701,6 +1701,7 @@ coil_struct_merge(CoilStruct  *src,
         }
       }
 
+      coil_path_unref(path);
       /* entry exists, dont overwrite
        * includes keys marked deleted */
       continue;
@@ -1747,7 +1748,10 @@ coil_struct_merge(CoilStruct  *src,
       value_copy = copy_value(entry->value);
 
     if (!struct_insert_internal(dst, path, value_copy, TRUE, error))
+    {
+      coil_path_unref(path);
       return FALSE;
+    }
   }
 
   return TRUE;
