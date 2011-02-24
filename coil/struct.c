@@ -306,11 +306,9 @@ coil_struct_empty(CoilStruct *self,
     return;
   }*/
 
-  g_queue_clear(&priv->dependencies);
-
-/*  CoilExpandable *object;
+  CoilExpandable *object;
   while ((object = g_queue_pop_head(&priv->dependencies)))
-    g_object_unref(object);*/
+    g_object_unref(object);
 
   StructEntry *entry;
   while ((entry = g_queue_pop_head(&priv->entries)))
@@ -1339,6 +1337,7 @@ coil_struct_add_dependency(CoilStruct     *self,
           self->priv->path->path);
   }
 
+  g_object_ref(object);
   g_queue_push_tail(&priv->dependencies, object);
 
 #ifdef COIL_DEBUG
@@ -1757,6 +1756,73 @@ coil_struct_merge(CoilStruct  *src,
   return TRUE;
 }
 
+static gboolean
+struct_expand_dependency(CoilStruct     *self,
+                         CoilExpandable *dependency,
+                         GError        **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
+  g_return_val_if_fail(COIL_IS_EXPANDABLE(dependency), FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+
+  const GValue   *expanded_value = NULL;
+  CoilStruct     *parent = NULL;
+
+  if (!coil_expand(dependency, &expanded_value, TRUE, error))
+    return FALSE;
+
+  /* structs are sanity checked before being added as a dependency */
+  if (!COIL_IS_STRUCT(dependency))
+  {
+    /* dependency handled its own expansion
+     * there is no expanded value to merge */
+    if (expanded_value == NULL)
+      return TRUE;
+
+    if (!G_VALUE_HOLDS(expanded_value, COIL_TYPE_STRUCT))
+    {
+      coil_struct_error(error, self,
+          "Invalid struct dependency type '%s', expecting '%s' type.",
+          G_VALUE_TYPE_NAME(expanded_value),
+          g_type_name(COIL_TYPE_STRUCT));
+
+      return FALSE;
+    }
+
+    parent = COIL_STRUCT(g_value_get_object(expanded_value));
+
+    if (!check_parent_sanity(self, parent, error))
+      return FALSE;
+  }
+  else
+    parent = COIL_STRUCT(dependency);
+
+  if (coil_struct_is_prototype(parent))
+  {
+    coil_struct_error(error, self,
+      "dependency struct '%s' is still a prototype"
+      "(inherited but never defined).",
+        coil_struct_get_path(parent)->path);
+
+    return FALSE;
+  }
+
+  g_assert(struct_is_expanded(parent));
+
+  if (!coil_struct_merge(parent, self, FALSE, error))
+    return FALSE;
+
+  /* if the parent changes after now we dont care */
+  g_signal_handlers_disconnect_matched(parent,
+                                       G_SIGNAL_MATCH_ID |
+                                       G_SIGNAL_MATCH_FUNC |
+                                       G_SIGNAL_MATCH_DATA,
+                                       struct_signals[MODIFY], 0, NULL,
+                                       G_CALLBACK(struct_expand_notify),
+                                       self);
+
+  return TRUE;
+}
 
 /* This should not be called directly
  * Call indirectly by coil_struct_expand or coil_expand
@@ -1770,9 +1836,9 @@ struct_expand(gconstpointer    object,
   g_return_val_if_fail(COIL_IS_STRUCT(object), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilStruct        *parent, *self = COIL_STRUCT(object);
+  CoilStruct        *self = COIL_STRUCT(object);
   CoilStructPrivate *priv = self->priv;
-  CoilExpandable    *dep;
+  CoilExpandable    *dependency;
 
   g_return_val_if_fail(!priv->is_prototype, FALSE);
 
@@ -1781,67 +1847,17 @@ struct_expand(gconstpointer    object,
 
   /* Since we waited to expand we're not really changing anything
    * (theoretically). */
-  g_object_set(self,
-               "accumulate", TRUE,
-               NULL);
+  g_object_set(self, "accumulate", TRUE, NULL);
 
-  while ((dep = g_queue_pop_head(&priv->dependencies)))
+  while ((dependency = g_queue_pop_head(&priv->dependencies)))
   {
-    const GValue *return_value = NULL;
-
-    g_assert(struct_check_dependency_type(G_OBJECT_TYPE(dep)));
-
-    if (!coil_expand(dep, &return_value, TRUE, error))
-      return FALSE;
-
-    /* structs are checked before they are added */
-    if (!COIL_IS_STRUCT(dep))
+    if (!struct_expand_dependency(self, dependency, error))
     {
-      if (return_value == NULL)
-        continue;
-
-      g_assert(G_IS_VALUE(return_value));
-      dep = COIL_EXPANDABLE(g_value_get_object(return_value));
-
-      if (!COIL_IS_STRUCT(dep))
-      {
-        coil_struct_error(error, self,
-            "Invalid type '%s' in @extends, expecting '%s' type.",
-            G_OBJECT_TYPE_NAME(dep), g_type_name(COIL_TYPE_STRUCT));
-
-        return FALSE;
-      }
-
-      if (!check_parent_sanity(self, COIL_STRUCT(dep), error))
-        return FALSE;
-    }
-
-    parent = COIL_STRUCT(dep);
-
-    if (coil_struct_is_prototype(parent))
-    {
-      coil_struct_error(error, self,
-        "dependency struct '%s' is still a prototype"
-        "(extended but never defined).",
-          coil_struct_get_path(parent)->path);
-
+      g_object_unref(dependency);
       return FALSE;
     }
 
-    g_assert(struct_is_expanded(parent));
-
-    if (!coil_struct_merge(parent, self, FALSE, error))
-      return FALSE;
-
-    /* if the parent changes after now we dont care */
-    g_signal_handlers_disconnect_matched(parent,
-                                         G_SIGNAL_MATCH_ID |
-                                         G_SIGNAL_MATCH_FUNC |
-                                         G_SIGNAL_MATCH_DATA,
-                                         struct_signals[MODIFY], 0, NULL,
-                                         G_CALLBACK(struct_expand_notify),
-                                         self);
-
+    g_object_unref(dependency);
   }
 
 #ifdef COIL_DEBUG
