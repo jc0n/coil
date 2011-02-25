@@ -314,10 +314,10 @@ coil_struct_empty(CoilStruct *self,
   while ((entry = g_queue_pop_head(&priv->entries)))
     struct_table_delete_entry(priv->entry_table, entry);
 
-  priv->size       = 0;
+  priv->size = 0;
 
 #ifdef COIL_DEBUG
-  priv->version    = 0;
+  priv->version = 0;
 #endif
 }
 
@@ -1451,7 +1451,7 @@ coil_struct_extend(CoilStruct  *self,
 
 COIL_API(gboolean)
 coil_struct_extend_path(CoilStruct  *self,
-                        CoilPath    *path, /* steal */
+                        CoilPath    *path,
                         CoilStruct  *context,
                         GError     **error)
 {
@@ -1470,7 +1470,6 @@ coil_struct_extend_path(CoilStruct  *self,
     context = self;
 
   resolved = struct_resolve_path(context, path, &hash, error);
-
   if (G_UNLIKELY(resolved == NULL))
     goto error;
 
@@ -1512,7 +1511,6 @@ coil_struct_extend_path(CoilStruct  *self,
     dependency = COIL_EXPANDABLE(container);
   }
 
-  coil_path_unref(path);
   coil_path_unref(resolved);
 
   return coil_struct_add_dependency(self, dependency, error);
@@ -1521,7 +1519,6 @@ error:
   if (resolved)
     coil_path_unref(resolved);
 
-  coil_path_unref(path);
   return FALSE;
 }
 
@@ -1541,16 +1538,12 @@ coil_struct_extend_paths(CoilStruct *self,
     CoilPath *path = (CoilPath *)path_list->data;
 
     if (G_UNLIKELY(!coil_struct_extend_path(self, path, context, error)))
-      goto error;
+      return FALSE;
 
-    path_list = g_list_delete_link(path_list, path_list);
+    path_list = g_list_next(path_list);
   }
 
   return TRUE;
-
-error:
-  coil_path_list_free(path_list);
-  return FALSE;
 }
 
 COIL_API(void)
@@ -1854,6 +1847,7 @@ struct_expand(gconstpointer    object,
     if (!struct_expand_dependency(self, dependency, error))
     {
       g_object_unref(dependency);
+      g_object_set(self, "accumulate", FALSE, NULL);
       return FALSE;
     }
 

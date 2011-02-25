@@ -36,6 +36,10 @@ int main(int argc, char **argv)
       if (root)
       {
         coil_struct_build_string(root, buffer, &internal_error);
+
+        if (G_UNLIKELY(internal_error))
+          goto error;
+
         g_print("%s\n", buffer->str);
       }
 
@@ -51,11 +55,15 @@ int main(int argc, char **argv)
     if (root)
     {
       coil_struct_build_string(root, buffer, &internal_error);
+
+      if (G_UNLIKELY(internal_error))
+        goto error;
+
       g_print("%s", buffer->str);
     }
 
     if (G_UNLIKELY(internal_error))
-      goto fail;
+      goto error;
 
     g_object_unref(root);
     root = NULL;
@@ -65,14 +73,17 @@ int main(int argc, char **argv)
 
   return 0;
 
-fail:
+error:
   if (root)
     g_object_unref(root);
 
   g_string_free(buffer, TRUE);
 
   if (internal_error)
+  {
     g_printerr("Error: %s\n", internal_error->message);
+    g_error_free(internal_error);
+  }
 
   return 0;
 }

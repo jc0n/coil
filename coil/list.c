@@ -22,7 +22,7 @@ coil_list_get_type(void)
   if (!type_id)
     type_id = g_boxed_type_register_static(g_intern_static_string("CoilList"),
                                            (GBoxedCopyFunc)g_list_copy,
-                                           (GBoxedFreeFunc)g_list_free);
+                                           (GBoxedFreeFunc)free_value_list);
 
   return type_id;
 }

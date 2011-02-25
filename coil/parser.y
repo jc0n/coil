@@ -207,9 +207,11 @@ parser_push_container(CoilParser *parser)
                                                 FALSE, /* has failed lookup */
                                                 &parser->error);
 
-  if (G_UNLIKELY(new_container == NULL))
+  if (G_UNLIKELY(parser->error))
   {
-    PUSH_CONTAINER(parser, NULL);
+    if (new_container)
+      g_object_unref(new_container);
+
     return FALSE;
   }
 
@@ -217,7 +219,8 @@ parser_push_container(CoilParser *parser)
                "accumulate", TRUE,
                NULL);
 
-  PUSH_CONTAINER(parser, new_container);
+  PUSH_CONTAINER(parser, g_object_ref(new_container));
+
   return TRUE;
 }
 
@@ -229,6 +232,8 @@ parser_pop_container(CoilParser *parser)
   g_object_set(container,
                "accumulate", FALSE,
                NULL);
+
+  g_object_unref(container);
 }
 
 /* arguments can take the following form..
@@ -265,6 +270,8 @@ parser_handle_include(CoilParser   *parser,
                                           NULL);
 
   coil_struct_add_dependency(container, include, &parser->error);
+
+  g_object_unref(include);
 
   return parser->error ? FALSE : TRUE;
 }
@@ -475,14 +482,17 @@ container_context_inherit
   {
     CoilStruct *container, *context;
 
+    context = PEEK_CONTAINER(YYCTX);
+
     if (!parser_push_container(YYCTX))
       YYERROR;
 
     container = PEEK_CONTAINER(YYCTX);
-    context = PEEK_NTH_CONTAINER(YYCTX, 1);
 
     if (!coil_struct_extend_paths(container, $1, context, &YYCTX->error))
       YYERROR;
+
+    coil_path_list_free($1);
   }
   context '}'
 ;
@@ -513,6 +523,8 @@ extend_property
 
     if (!coil_struct_extend_paths(container, $2, NULL, &YYCTX->error))
       YYERROR;
+
+    coil_path_list_free($2);
   }
 ;
 
@@ -721,6 +733,7 @@ untrack_prototype(GObject    *instance,
   {
     g_hash_table_remove(parser->prototypes, prototype);
     g_signal_handler_disconnect(instance, notify->handler_id);
+    g_object_unref(prototype);
   }
 }
 
@@ -741,7 +754,7 @@ track_prototype(GSignalInvocationHint *ihint,
   CoilStruct   *prototype, *root;
   CoilParser   *parser = (CoilParser *)data;
 
-  prototype = COIL_STRUCT(g_value_get_object(&param_values[0]));
+  prototype = COIL_STRUCT(g_value_dup_object(&param_values[0]));
   root = coil_struct_get_root(prototype);
 
   if (root == parser->root)
@@ -784,6 +797,7 @@ coil_parser_init(CoilParser *const parser,
   parser->root = coil_struct_new(NULL, NULL);
   parser->scanner = scanner;
 
+  g_object_ref(parser->root);
   g_queue_push_head(&parser->containers, parser->root);
 
   parser->prototype_hook_id =
@@ -809,7 +823,9 @@ coil_parser_finish(CoilParser *parser,
 
   g_hash_table_unref(parser->prototypes);
 
-  g_queue_clear(&parser->containers);
+  CoilStruct *container;
+  while ((container = g_queue_pop_head(&parser->containers)))
+    g_object_unref(container);
 
   if (parser->path)
     coil_path_unref(parser->path);

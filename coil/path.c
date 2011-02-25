@@ -37,8 +37,11 @@ coil_path_get_type(void)
 void
 coil_path_list_free(GList *list)
 {
-  g_list_foreach(list, (GFunc)coil_path_unref, NULL);
-  g_list_free(list);
+  while (list)
+  {
+    coil_path_unref(list->data);
+    list = g_list_delete_link(list, list);
+  }
 }
 
 COIL_API(CoilPath *)
