@@ -63,7 +63,7 @@ int main(int argc, char **argv)
       if (G_UNLIKELY(internal_error))
         goto error;
 
-      g_print("%s", buffer->str);
+      g_print("%s\n", buffer->str);
     }
 
     if (G_UNLIKELY(internal_error))
