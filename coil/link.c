@@ -208,6 +208,21 @@ coil_link_to_string(CoilLink         *self,
   return g_string_free(buffer, FALSE);
 }
 
+static void
+linkval_to_stringval(const GValue *linkval,
+                           GValue *strval)
+{
+  g_return_if_fail(G_IS_VALUE(linkval));
+  g_return_if_fail(G_IS_VALUE(strval));
+
+  CoilLink *link;
+  gchar    *string;
+
+  link = COIL_LINK(g_value_get_object(linkval));
+  string = coil_link_to_string(link, &default_string_format);
+  g_value_take_string(strval, string);
+}
+
 CoilLink *
 coil_link_new(const gchar *first_property_name, ...)
 {
@@ -371,5 +386,9 @@ coil_link_class_init(CoilLinkClass *klass)
                          COIL_TYPE_PATH,
                          G_PARAM_READWRITE |
                          G_PARAM_CONSTRUCT));
+
+  g_value_register_transform_func(COIL_TYPE_LINK,
+                                  G_TYPE_STRING,
+                                  linkval_to_stringval);
 }
 

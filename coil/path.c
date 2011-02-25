@@ -22,17 +22,38 @@ coil_path_alloc(void)
   return path;
 }
 
+static void
+pathval_to_strval(const GValue *pathval,
+                        GValue *strval)
+{
+  g_return_if_fail(G_IS_VALUE(pathval));
+  g_return_if_fail(G_IS_VALUE(strval));
+
+  CoilPath *path;
+  gchar    *string;
+
+  path = (CoilPath *)g_value_get_boxed(pathval);
+  string = g_strndup(path->path, path->path_len);
+  g_value_take_string(strval, string);
+}
+
 GType
 coil_path_get_type(void)
 {
   static GType type_id = 0;
 
   if (G_UNLIKELY(!type_id))
+  {
     type_id = g_boxed_type_register_static(g_intern_static_string("CoilPath"),
                                            (GBoxedCopyFunc)coil_path_copy,
                                            (GBoxedFreeFunc)coil_path_unref);
+
+    g_value_register_transform_func(type_id, G_TYPE_STRING, pathval_to_strval);
+  }
+
   return type_id;
 }
+
 
 void
 coil_path_list_free(GList *list)
