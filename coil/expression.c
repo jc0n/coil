@@ -75,6 +75,7 @@ expr_expand(gconstpointer  object,
   buffer = g_string_sized_new(128);
 
   memcpy(&format, &default_string_format, sizeof(format));
+  format.indent_level = 0;
   format.options |= ESCAPE_QUOTES | DONT_QUOTE_STRINGS;
 
   for (s = p = expr->str; *s; s++)
