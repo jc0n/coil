@@ -338,7 +338,7 @@ start:
 
       case G_TYPE_CHAR:
       {
-        register gchar c1, c2;
+        gchar c1, c2;
         c1 = g_value_get_char(v1);
         c2 = g_value_get_char(v2);
         return (c1 > c2) ? 1 : (c1 == c2) ? 0 : -1;
@@ -346,7 +346,7 @@ start:
 
       case G_TYPE_UCHAR:
       {
-        register guchar c1, c2;
+        guchar c1, c2;
         c1 = g_value_get_uchar(v1);
         c2 = g_value_get_uchar(v2);
         return (c1 > c2) ? 1 : (c1 == c2) ? 0 : -1;
@@ -354,7 +354,7 @@ start:
 
       case G_TYPE_BOOLEAN:
       {
-        register gboolean b1, b2;
+        gboolean b1, b2;
         b1 = g_value_get_boolean(v1);
         b2 = g_value_get_boolean(v2);
         return (b1 > b2) ? 1 : (b1 == b2) ? 0 : -1;
@@ -362,7 +362,7 @@ start:
 
       case G_TYPE_INT:
       {
-        register gint i1, i2;
+        gint i1, i2;
         i1 = g_value_get_int(v1);
         i2 = g_value_get_int(v2);
         return (i1 > i2) ? 1 : (i1 == i2) ? 0 : -1;
@@ -370,7 +370,7 @@ start:
 
       case G_TYPE_UINT:
       {
-        register guint u1, u2;
+        guint u1, u2;
         u1 = g_value_get_uint(v1);
         u2 = g_value_get_uint(v2);
         return (u1 > u2) ? 1 : (u1 == u2) ? 0 : -1;
@@ -378,7 +378,7 @@ start:
 
       case G_TYPE_LONG:
       {
-        register glong l1, l2;
+        glong l1, l2;
         l1 = g_value_get_long(v1);
         l2 = g_value_get_long(v2);
         return (l1 > l2) ? 1 : (l1 == l2) ? 0 : -1;
@@ -386,7 +386,7 @@ start:
 
       case G_TYPE_ULONG:
       {
-        register gulong ul1, ul2;
+        gulong ul1, ul2;
         ul1 = g_value_get_ulong(v1);
         ul2 = g_value_get_ulong(v2);
         return (ul1 > ul2) ? 1 : (ul1 == ul2) ? 0 : -1;
@@ -394,7 +394,7 @@ start:
 
       case G_TYPE_INT64:
       {
-        register gint64 i1, i2;
+        gint64 i1, i2;
         i1 = g_value_get_int64(v1);
         i2 = g_value_get_int64(v2);
        return (i1 > i2) ? 1 : (i1 == i2) ? 0 : -1;
@@ -402,7 +402,7 @@ start:
 
       case G_TYPE_UINT64:
       {
-        register guint64 u1, u2;
+        guint64 u1, u2;
         u1 = g_value_get_uint64(v1);
         u2 = g_value_get_uint64(v2);
         return (u1 > u2) ? 1 : (u1 == u2) ? 0 : -1;
@@ -410,7 +410,7 @@ start:
 
       case G_TYPE_FLOAT:
       {
-        register gfloat f1, f2;
+        gfloat f1, f2;
         f1 = g_value_get_float(v1);
         f2 = g_value_get_float(v2);
         return (f1 > f2) ? 1 : (f1 == f2) ? 0 : -1;
@@ -418,7 +418,7 @@ start:
 
       case G_TYPE_DOUBLE:
       {
-        register gdouble d1, d2;
+        gdouble d1, d2;
         d1 = g_value_get_double(v1);
         d2 = g_value_get_double(v2);
         return (d1 > d2) ? 1 : (d1 == d2) ? 0 : -1;
@@ -426,7 +426,7 @@ start:
 
       case G_TYPE_STRING:
       {
-        register const gchar *s1, *s2;
+        const gchar *s1, *s2;
         s1 = g_value_get_string(v1);
         s2 = g_value_get_string(v2);
         return strcmp(s1, s2);
@@ -434,7 +434,7 @@ start:
 
       case G_TYPE_POINTER:
       {
-        register gpointer *p1, *p2;
+        gpointer *p1, *p2;
         p1 = g_value_get_pointer(v1);
         p2 = g_value_get_pointer(v2);
         return (p1 > p2) ? 1 : (p1 == p2) ? 0 : -1;
