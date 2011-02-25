@@ -33,10 +33,11 @@ expr_is_expanded(gconstpointer object)
 }
 
 static void
-append_path_substitution(CoilExpr    *self,
-                  GString     *buffer,
-                  const gchar *path,
-                  guint        len)
+append_path_substitution(CoilExpr         *self,
+                         GString          *buffer,
+                         CoilStringFormat *format,
+                         const gchar      *path,
+                         guint             len)
 {
   g_return_if_fail(COIL_IS_EXPR(self));
   g_return_if_fail(path != NULL);
@@ -50,7 +51,7 @@ append_path_substitution(CoilExpr    *self,
   if (value == NULL)
     return;
 
-  coil_value_build_string(value, buffer, NULL);
+  coil_value_build_string(value, buffer, format, NULL);
 }
 
 
@@ -64,6 +65,7 @@ expr_expand(gconstpointer  object,
 
   CoilExpr        *const self = COIL_EXPR(object);
   CoilExprPrivate *const priv = self->priv;
+  CoilStringFormat format;
   GString         *expr = priv->expr, *buffer;
   const gchar     *s, *p;
 
@@ -71,6 +73,9 @@ expr_expand(gconstpointer  object,
     goto done;
 
   buffer = g_string_sized_new(128);
+
+  memcpy(&format, &default_string_format, sizeof(format));
+  format.options |= ESCAPE_QUOTES | DONT_QUOTE_STRINGS;
 
   for (s = p = expr->str; *s; s++)
   {
@@ -90,7 +95,7 @@ expr_expand(gconstpointer  object,
       g_string_append_len(buffer, p, s - p - 1);
 
       p = rawmemchr(++s, '}'); /* XXX: safe b.c lexer has already found '}' */
-      append_path_substitution(self, buffer, s, p - s);
+      append_path_substitution(self, buffer, &format, s, p - s);
       p++;
     }
   }
@@ -112,55 +117,58 @@ done:
   return TRUE;
 }
 
-static gint
+static gboolean
 expr_equals(gconstpointer  object,
             gconstpointer  other_object,
             GError       **error)
 {
-  g_return_val_if_fail(COIL_IS_EXPR(object), -2);
-  g_return_val_if_fail(other_object != NULL, -2);
-  g_return_val_if_fail(error == NULL || *error == NULL, -2);
+  g_return_val_if_fail(COIL_IS_EXPR(object), FALSE);
+  g_return_val_if_fail(COIL_IS_EXPANDABLE(other_object), FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   const GValue  *v1, *v2;
-  const GString *s1, *s2;
-
-  if (!COIL_IS_EXPR(other_object))
-    return -2;
+  const gchar   *s1;
+  gchar         *s2;
+  gboolean       result;
 
   if (!coil_expand((gpointer)object, &v1, TRUE, error))
-    return -2;
+    return FALSE;
+
+  s1 = g_value_get_string(v1);
 
   if (!coil_expand((gpointer)other_object, &v2, TRUE, error))
-    return -2;
+    return FALSE;
 
-  s1 = (GString *)g_value_get_boxed(v1);
-  s2 = (GString *)g_value_get_boxed(v2);
+  s2 = g_strdup_value_contents(v2);
 
-  if (s1->len != s2->len)
-    return s1->len > s2->len ? 1 : -1;
+  result = g_str_equal(s1, s2);
+  g_free(s2);
 
-  return memcmp(s1->str, s2->str, s2->len);
+  return result;
 }
 
 static void
-expr_build_string(gconstpointer object,
-                  GString      *buffer,
-                  GError      **error)
+expr_build_string(gconstpointer     object,
+                  GString          *buffer,
+                  CoilStringFormat *format,
+                  GError          **error)
 {
-  g_return_if_fail(object != NULL);
+  g_return_if_fail(COIL_IS_EXPR(object));
   g_return_if_fail(buffer != NULL);
+  g_return_if_fail(format != NULL);
   g_return_if_fail(error == NULL || *error == NULL);
 
   const GValue *return_value = NULL;
 
   coil_expand((gpointer)object, &return_value, TRUE, error);
 
-  coil_value_build_string(return_value, buffer, error);
+  coil_value_build_string(return_value, buffer, format, error);
 }
 
 static gchar *
-coil_expr_to_string(CoilExpr *self,
-                    GError  **error)
+coil_expr_to_string(CoilExpr         *self,
+                    CoilStringFormat *format,
+                    GError          **error)
 {
   g_return_val_if_fail(COIL_IS_EXPR(self), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
@@ -168,7 +176,7 @@ coil_expr_to_string(CoilExpr *self,
   GString *buffer = g_string_sized_new(128);
   GError  *internal_error = NULL;
 
-  expr_build_string(self, buffer, &internal_error);
+  expr_build_string(self, buffer, format, &internal_error);
 
   if (G_UNLIKELY(internal_error))
     return NULL;
@@ -184,7 +192,7 @@ exprval_to_strval(const GValue *exprval,
   g_return_if_fail(G_IS_VALUE(strval));
 
   CoilExpr *expr = COIL_EXPR(g_value_get_object(exprval));
-  gchar    *string = coil_expr_to_string(expr, NULL);
+  gchar    *string = coil_expr_to_string(expr, &default_string_format, NULL);
 
   g_value_take_string(strval, string);
 }
