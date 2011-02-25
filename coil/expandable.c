@@ -29,26 +29,30 @@ typedef enum
 } CoilExpandableProperties;
 
 COIL_API(void)
-coil_expandable_build_string(CoilExpandable *self,
-                             GString        *const buffer,
-                             GError        **error)
+coil_expandable_build_string(CoilExpandable   *self,
+                             GString          *const buffer,
+                             CoilStringFormat *format,
+                             GError          **error)
 {
   g_return_if_fail(COIL_IS_EXPANDABLE(self));
   g_return_if_fail(error == NULL || *error == NULL);
+  g_return_if_fail(format);
 
   CoilExpandableClass *klass = COIL_EXPANDABLE_GET_CLASS(self);
-  return klass->build_string(self, buffer, error);
+  return klass->build_string(self, buffer, format, error);
 }
 
 COIL_API(gchar *)
-coil_expandable_to_string(CoilExpandable *self,
-                          GError        **error)
+coil_expandable_to_string(CoilExpandable   *self,
+                          CoilStringFormat *format,
+                          GError          **error)
 {
   g_return_val_if_fail(COIL_IS_EXPANDABLE(self), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+  g_return_val_if_fail(format, NULL);
 
   GString *buffer = g_string_sized_new(128);
-  coil_expandable_build_string(self, buffer, error);
+  coil_expandable_build_string(self, buffer, format, error);
 
   return g_string_free(buffer, FALSE);
 }
@@ -121,14 +125,14 @@ coil_expand(gpointer        object,
   CoilExpandablePrivate *const priv = self->priv;
   CoilExpandableClass   *klass = COIL_EXPANDABLE_GET_CLASS(self);
   const GValue          *return_value = NULL;
-
-//  if (klass->is_expanded(self))
-//    return TRUE;
+  GError                *internal_error = NULL;
 
   if (!g_static_mutex_trylock(&priv->expand_lock))
   {
-    coil_struct_error(error, self->container,
-      "Cycle detected during struct expansion");
+    /* TODO(jcon): improve error handling for cases like this */
+    coil_struct_error(&internal_error,
+                      COIL_IS_STRUCT(self) ? COIL_STRUCT(self) : self->container,
+                      "Cycle detected during expansion");
 
     goto error;
   }
@@ -136,10 +140,11 @@ coil_expand(gpointer        object,
   if (!klass->expand(self, &return_value, error))
     goto error;
 
-  if (recursive && return_value != NULL
-    && (value_ptr == NULL || return_value != *value_ptr)
-    && G_VALUE_HOLDS(return_value, COIL_TYPE_EXPANDABLE)
-    && !coil_expand_value(&return_value, TRUE, error))
+  if (recursive && return_value /* want to expand return value */
+    && (value_ptr == NULL /* caller doesnt care about return value */
+      || return_value != *value_ptr) /* prevent expand cycle on same value */
+    && G_VALUE_HOLDS(return_value, COIL_TYPE_EXPANDABLE) /* must be expandable */
+    && !coil_expand_value(return_value, &return_value, TRUE, error))
     goto error;
 
   g_static_mutex_unlock(&priv->expand_lock);
@@ -153,21 +158,26 @@ error:
   if (value_ptr)
     *value_ptr = NULL;
 
+  if (internal_error)
+    g_propagate_error(error, internal_error);
+
   g_static_mutex_unlock(&priv->expand_lock);
   return FALSE;
 }
 
 COIL_API(gboolean)
-coil_expand_value(const GValue **value,
+coil_expand_value(const GValue  *value,
+                  const GValue **return_value,
                   gboolean       recursive,
                   GError       **error)
 {
-  g_return_val_if_fail(value && G_IS_VALUE(*value), FALSE);
-  g_return_val_if_fail(G_VALUE_HOLDS(*value, COIL_TYPE_EXPANDABLE), FALSE);
+  g_return_val_if_fail(G_IS_VALUE(value), FALSE);
+  g_return_val_if_fail(G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilExpandable *object = COIL_EXPANDABLE(g_value_get_object(*value));
-  return coil_expand(object, (const GValue **)value, recursive, error);
+  CoilExpandable *object = COIL_EXPANDABLE(g_value_get_object(value));
+
+  return coil_expand(object, return_value, recursive, error);
 }
 
 COIL_API(CoilExpandable *)
@@ -302,9 +312,10 @@ _expandable_equals(gconstpointer self,
 }
 
 static void
-_expandable_build_string(gconstpointer  self,
-                         GString       *buffer,
-                         GError       **error)
+_expandable_build_string(gconstpointer     self,
+                         GString          *buffer,
+                         CoilStringFormat *format,
+                         GError          **error)
 {
   g_error("Bad implementation of expandable->build_string() in '%s' class.",
           G_OBJECT_CLASS_NAME(self));

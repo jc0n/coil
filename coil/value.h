@@ -22,6 +22,41 @@ struct _CoilNoneClass
   GObjectClass parent_class;
 };
 
+typedef enum {
+
+  LEGACY                     = 1 << 0,
+  COMPACT                    = 1 << 1,
+
+  FLATTEN_PATHS              = 1 << 2,
+
+  ESCAPE_QUOTES              = 1 << 3,
+
+  BLANK_LINE_AFTER_COMMA     = 1 << 4,
+  BLANK_LINE_AFTER_BRACE     = 1 << 5,
+  BLANK_LINE_AFTER_STRUCT    = 1 << 6,
+  COMMAS_IN_LIST             = 1 << 7,
+  BRACE_ON_PATH_LINE         = 1 << 8,
+
+  DONT_EXPAND                = 1 << 9,
+  DONT_QUOTE_STRINGS         = 1 << 10,
+
+} CoilStringFormatOptions;
+
+
+typedef struct _CoilStringFormat
+{
+  CoilStringFormatOptions options;
+
+  guint                   block_indent;
+  guint                   brace_indent;
+
+  guint                   multiline_len;
+
+  guint                   indent_level;
+} CoilStringFormat;
+
+extern CoilStringFormat default_string_format;
+
 /* block padding chars for string output */
 #define COIL_BLOCK_PADDING "    " /* 4 spaces */
 #define COIL_BLOCK_PADDING_LEN                                      \
@@ -32,12 +67,9 @@ struct _CoilNoneClass
 /* string escape character */
 #define COIL_STRING_ESCAPE '\\'
 /* multiline quote string */
-#define COIL_MULTILINE_QUOTE_S "'''"
+#define COIL_MULTILINE_QUOTE "'''"
 /* multiline quotes after line exceeds n chars */
 #define COIL_MULTILINE_LEN 80
-
-#define COIL_STRING_EXPAND_REGEX \
-        "\\$\\{[\\w][\\w\\d\\-\\_]*(\\.[\\w][\\w\\d\\-\\_]*)*\\}"
 
 #define new_value(dst, type, v_func, ptr)                         \
         G_STMT_START                                              \
@@ -73,23 +105,20 @@ void
 free_string_list(GList *list);
 
 void
-coil_value_build_string(const GValue  *value,
-                        GString       *const buffer,
-                        GError       **error);
+coil_value_build_string(const GValue     *value,
+                        GString          *const buffer,
+                        CoilStringFormat *format,
+                        GError          **error);
 
 gchar *
-coil_value_to_string(const GValue *value,
-                     GError **error);
+coil_value_to_string(const GValue     *value,
+                     CoilStringFormat *format,
+                     GError          **error);
 
 gint
 coil_value_compare(const GValue *,
                    const GValue *,
                    GError      **);
-
-void
-coil_value_build_string(const GValue *value,
-                        GString      *const buffer,
-                        GError      **error);
 
 G_END_DECLS
 

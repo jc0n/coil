@@ -6,6 +6,18 @@
 #include "common.h"
 #include "value.h"
 
+CoilStringFormat default_string_format = {
+    ( LEGACY
+    | BRACE_ON_PATH_LINE
+    | BLANK_LINE_AFTER_BRACE
+    | BLANK_LINE_AFTER_STRUCT
+    | ESCAPE_QUOTES
+    ),
+    4, /* block indent */
+    0,  /* brace indent */
+    78, /* multiline len */
+};
+
 /*
  * coil_init:
  *
