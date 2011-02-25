@@ -1,0 +1,8 @@
+# This is not the best type of test for this
+# but might as well add it anyway
+
+a: { @file: 'general.coil' }
+b: { @file: 'general.coil' }
+
+test: a {}
+expected: b {}

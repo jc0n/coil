@@ -1,0 +1,6 @@
+# This is currently not an error. Though, in the python
+# implementation it is. I prefer the bash style replacement
+# (quiet in this case)
+
+test.value: "${nonexistent}"
+expected.value: ''
