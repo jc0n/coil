@@ -326,10 +326,12 @@ coil_value_compare(const GValue *v1,
 
   GType t1, t2;
 
+  gboolean expanded = FALSE;
+
+start:
   t1 = G_VALUE_TYPE(v1);
   t2 = G_VALUE_TYPE(v2);
 
-start:
   if (t1 == t2)
     switch (G_TYPE_FUNDAMENTAL(t1))
     {
@@ -483,29 +485,74 @@ start:
       default:
         goto bad_type;
     }
-  else
+  else if (t1 == G_TYPE_STRING && t2 == G_TYPE_GSTRING)
   {
-    if (g_type_is_a(t1, COIL_TYPE_EXPANDABLE))
-    {
-      if (!coil_expand_value(v1, &v1, TRUE, error))
-        return -1;
-
-      goto start;
-    }
-    else if (g_type_is_a(t2, COIL_TYPE_EXPANDABLE))
-    {
-      if (!coil_expand_value(v2, &v2, TRUE, error))
-        return -1;
-
-      goto start;
-    }
+    const gchar *s1, *s2;
+    s1 = g_value_get_string(v1);
+    s2 = ((GString *)g_value_get_boxed(v2))->str;
+    return strcmp(s1, s2);
   }
+  else if (t2 == G_TYPE_STRING && t1 == G_TYPE_GSTRING)
+  {
+    const gchar *s1, *s2;
+    s1 = ((GString *)g_value_get_boxed(v1))->str;
+    s2 = g_value_get_string(v2);
+    return strcmp(s1, s2);
+  }
+  else if (g_value_type_transformable(t1, G_TYPE_STRING)
+      && g_value_type_transformable(t2, G_TYPE_STRING))
+  {
+    gchar *s1, *s2;
+    gint result;
 
- return (t1 > t2) ? 1 : -1;
+    s1 = g_strdup_value_contents(v1);
+    s2 = g_strdup_value_contents(v2);
+
+    result = strcmp(s1, s2);
+
+    g_free(s1);
+    g_free(s2);
+
+    return result;
+  }
+#if 0
+  else if (g_value_type_compatible(t1, t2))
+  {
+    GValue *tmp = value_alloc();
+    g_value_init(tmp, t2);
+    g_value_copy(v1, tmp);
+    free_value(v1);
+    v1 = tmp;
+    goto start;
+  }
+  else if (g_value_type_compatible(t2, t1))
+  {
+    GValue *tmp = value_alloc();
+    g_value_init(tmp, t1);
+    g_value_copy(v2, tmp);
+    free_value(v2);
+    v2 = tmp;
+    goto start;
+  }
+#endif
+  else if (!expanded)
+  {
+    if (g_type_is_a(t1, COIL_TYPE_EXPANDABLE)
+      && !coil_expand_value(v1, &v1, TRUE, error))
+        return -1;
+    else if (g_type_is_a(t2, COIL_TYPE_EXPANDABLE)
+      && !coil_expand_value(v2, &v2, TRUE, error))
+        return -1;
+
+    expanded = TRUE;
+    goto start;
+  }
 
 bad_type:
 #ifdef COIL_DEBUG
-        g_debug("value GType = %d", (gint)t1);
+        g_debug("t1 = %s, t2 = %s",
+                g_type_name(t1),
+                g_type_name(t2));
 #endif
         COIL_NOT_IMPLEMENTED(-1);
 }

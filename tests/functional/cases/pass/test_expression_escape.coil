@@ -1,0 +1,2 @@
+test.value: "Not an \${expression}"
+expected.value: 'Not an \${expression}'

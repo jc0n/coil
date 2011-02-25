@@ -1,0 +1,14 @@
+a: "Hello"
+b: "World"
+
+test: {
+  one: "${..a} ${..b}!"
+  two: "${@root.a} ${@root.b}!"
+  three.four: "${...a} ${@root.b}!"
+}
+
+expected: {
+  one: "Hello World!"
+  two: "Hello World!"
+  three.four: "Hello World!"
+}

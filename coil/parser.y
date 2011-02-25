@@ -15,6 +15,7 @@
 #include "struct.h"
 #include "include.h"
 #include "link.h"
+#include "expression.h"
 
 #include "parser_defs.h"
 #include "parser.h"
@@ -383,7 +384,7 @@ parser_has_errors(CoilParser *const parser)
 %type <doubleval> DOUBLE
 %type <longint> INTEGER
 
-%type <value> STRING_EXPRESSION
+%type <gstring> STRING_EXPRESSION
 %type <gstring> STRING_LITERAL
 
 %type <value> link
@@ -394,6 +395,7 @@ parser_has_errors(CoilParser *const parser)
 %type <value> value
 
 %destructor { g_free($$); } <string>
+%destructor { g_string_free($$, TRUE); } <gstring>
 %destructor { coil_path_unref($$); } <path>
 %destructor { coil_path_list_free($$); } <path_list>
 %destructor { free_value($$); } <value>
@@ -687,8 +689,8 @@ path
 string
   : STRING_LITERAL
   { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }
-/*  | STRING_EXPRESSION
-  { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }*/
+  | STRING_EXPRESSION
+  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1)); }
 ;
 
 primative
