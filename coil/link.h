@@ -62,11 +62,13 @@ coil_link_equals(gconstpointer self,
                  GError       **error);
 
 void
-coil_link_build_string(CoilLink *self,
-                       GString  *const buffer);
+coil_link_build_string(CoilLink         *self,
+                       GString          *const buffer,
+                       CoilStringFormat *format);
 
 gchar *
-coil_link_to_string(const CoilLink *self);
+coil_link_to_string(CoilLink         *self,
+                    CoilStringFormat *format);
 
 
 G_END_DECLS

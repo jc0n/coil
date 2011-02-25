@@ -258,13 +258,15 @@ coil_struct_get_size(CoilStruct *self,
                      GError    **error);
 
 void
-coil_struct_build_string(CoilStruct *self,
-                         GString    *const buffer,
-                         GError    **error);
+coil_struct_build_string(CoilStruct       *self,
+                         GString          *const buffer,
+                         CoilStringFormat *format,
+                         GError          **error);
 
 gchar *
-coil_struct_to_string(CoilStruct *self,
-                      GError    **error);
+coil_struct_to_string(CoilStruct       *self,
+                      CoilStringFormat *format,
+                      GError          **error);
 
 CoilStruct *
 coil_struct_deep_copy(CoilStruct       *self,

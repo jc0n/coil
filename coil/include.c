@@ -598,56 +598,118 @@ coil_include_equals(gconstpointer   e1,
 }
 
 static void
-include_build_string(gconstpointer   include,
-                     GString        *const buffer,
-                     GError        **error)
+include_build_string(gconstpointer     include,
+                     GString          *const buffer,
+                     CoilStringFormat *format,
+                     GError          **error)
 {
   g_return_if_fail(COIL_IS_INCLUDE(include));
   g_return_if_fail(buffer);
+  g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  coil_include_build_string(COIL_INCLUDE(include), buffer, error);
+  coil_include_build_string(COIL_INCLUDE(include), buffer, format, error);
+}
+
+static void
+build_legacy_string(CoilInclude      *self,
+                    GString          *const buffer,
+                    CoilStringFormat *format,
+                    GError          **error)
+{
+  g_return_if_fail(COIL_IS_INCLUDE(self));
+  g_return_if_fail(buffer);
+  g_return_if_fail(format);
+  g_return_if_fail(error == NULL || *error == NULL);
+
+  CoilIncludePrivate *priv = self->priv;
+  GList              *import_list = priv->import_list;
+  GError             *internal_error = NULL;
+
+  g_assert(import_list);
+
+  do
+  {
+    g_string_append_len(buffer, COIL_STATIC_STRLEN("@file: ["));
+
+    coil_value_build_string(priv->filepath_value, buffer,
+                            format, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+      goto error;
+
+    g_string_append_c(buffer, ' ');
+
+    coil_value_build_string((GValue *)import_list->data, buffer,
+                            format, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+      goto error;
+
+    g_string_append_c(buffer, ']');
+  } while ((import_list = g_list_next(import_list)));
+
+  return;
+
+error:
+  g_propagate_error(error, internal_error);
 }
 
 COIL_API(void)
-coil_include_build_string(CoilInclude *self,
-                          GString     *const buffer,
-                          GError     **error)
+coil_include_build_string(CoilInclude      *self,
+                          GString          *const buffer,
+                          CoilStringFormat *format,
+                          GError          **error)
 {
 
   g_return_if_fail(COIL_IS_INCLUDE(self));
   g_return_if_fail(buffer != NULL);
+  g_return_if_fail(format != NULL);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  const CoilIncludePrivate *priv = self->priv;
-  GError                   *internal_error = NULL;
+  CoilIncludePrivate *priv = self->priv;
+  GList              *import_list = priv->import_list;
+  GError             *internal_error = NULL;
+  gboolean            whitespace = !(format->options & COMPACT);
 
-  g_string_append_len(buffer, COIL_STATIC_STRLEN("@file: "));
-
-  if (priv->import_list != NULL)
-    g_string_append_len(buffer, COIL_STATIC_STRLEN("[ "));
-
-  coil_value_build_string(priv->filepath_value, buffer, &internal_error);
-
-  if (G_UNLIKELY(internal_error))
-    goto error;
-
-  if (priv->import_list != NULL)
+  if (format->options & LEGACY)
   {
-    register const GList *list;
-    for (list = priv->import_list;
-         list != NULL; list = g_list_next(list))
+    guint num_imports;
+
+    num_imports = g_list_length((GList *)import_list);
+    if (num_imports > 1)
     {
-      GValue *value = (GValue *)list->data;
-      coil_value_build_string(value, buffer, &internal_error);
-
-      if (G_UNLIKELY(internal_error))
-        goto error;
-
-      g_string_append_c(buffer, ' ');
+      build_legacy_string(self, buffer, format, error);
+      return;
     }
+  }
 
-    g_string_append_len(buffer, COIL_STATIC_STRLEN(" ]"));
+  g_string_append_len(buffer, COIL_STATIC_STRLEN("@file:"));
+
+  if (whitespace)
+    g_string_append_c(buffer, ' ');
+
+  if (priv->import_list)
+  {
+    GList *argument_list;
+
+    argument_list = g_list_append(NULL, priv->filepath_value);
+    argument_list = g_list_concat(argument_list, import_list);
+
+    coil_list_build_string(argument_list, buffer, format, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+      goto error;
+
+    import_list = g_list_delete_link(argument_list, argument_list);
+  }
+  else
+  {
+    coil_value_build_string(priv->filepath_value, buffer,
+                            format, &internal_error);
+
+    if (G_UNLIKELY(error))
+      goto error;
   }
 
   return;
@@ -657,14 +719,15 @@ error:
 }
 
 COIL_API(gchar *)
-coil_include_to_string(CoilInclude *self,
-                       GError     **error)
+coil_include_to_string(CoilInclude      *self,
+                       CoilStringFormat *format,
+                       GError          **error)
 {
   g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   GString *buffer = g_string_sized_new(128);
-  coil_include_build_string(self, buffer, error);
+  coil_include_build_string(self, buffer, format, error);
 
   return g_string_free(buffer, FALSE);
 }

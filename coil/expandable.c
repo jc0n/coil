@@ -29,26 +29,30 @@ typedef enum
 } CoilExpandableProperties;
 
 COIL_API(void)
-coil_expandable_build_string(CoilExpandable *self,
-                             GString        *const buffer,
-                             GError        **error)
+coil_expandable_build_string(CoilExpandable   *self,
+                             GString          *const buffer,
+                             CoilStringFormat *format,
+                             GError          **error)
 {
   g_return_if_fail(COIL_IS_EXPANDABLE(self));
   g_return_if_fail(error == NULL || *error == NULL);
+  g_return_if_fail(format);
 
   CoilExpandableClass *klass = COIL_EXPANDABLE_GET_CLASS(self);
-  return klass->build_string(self, buffer, error);
+  return klass->build_string(self, buffer, format, error);
 }
 
 COIL_API(gchar *)
-coil_expandable_to_string(CoilExpandable *self,
-                          GError        **error)
+coil_expandable_to_string(CoilExpandable   *self,
+                          CoilStringFormat *format,
+                          GError          **error)
 {
   g_return_val_if_fail(COIL_IS_EXPANDABLE(self), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+  g_return_val_if_fail(format, NULL);
 
   GString *buffer = g_string_sized_new(128);
-  coil_expandable_build_string(self, buffer, error);
+  coil_expandable_build_string(self, buffer, format, error);
 
   return g_string_free(buffer, FALSE);
 }
@@ -308,9 +312,10 @@ _expandable_equals(gconstpointer self,
 }
 
 static void
-_expandable_build_string(gconstpointer  self,
-                         GString       *buffer,
-                         GError       **error)
+_expandable_build_string(gconstpointer     self,
+                         GString          *buffer,
+                         CoilStringFormat *format,
+                         GError          **error)
 {
   g_error("Bad implementation of expandable->build_string() in '%s' class.",
           G_OBJECT_CLASS_NAME(self));

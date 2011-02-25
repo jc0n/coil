@@ -35,7 +35,9 @@ int main(int argc, char **argv)
 
       if (root)
       {
-        coil_struct_build_string(root, buffer, &internal_error);
+        coil_struct_build_string(root, buffer,
+                                 &default_string_format,
+                                 &internal_error);
 
         if (G_UNLIKELY(internal_error))
           goto error;
@@ -54,7 +56,9 @@ int main(int argc, char **argv)
 
     if (root)
     {
-      coil_struct_build_string(root, buffer, &internal_error);
+      coil_struct_build_string(root, buffer,
+                               &default_string_format,
+                               &internal_error);
 
       if (G_UNLIKELY(internal_error))
         goto error;

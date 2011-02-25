@@ -153,38 +153,74 @@ coil_link_equals(gconstpointer  self_,
 }
 
 COIL_API(void)
-coil_link_build_string(CoilLink *self,
-                       GString  *const buffer)
+coil_link_build_string(CoilLink         *self,
+                       GString          *const buffer,
+                       CoilStringFormat *format)
 {
-  g_return_if_fail(self != NULL);
   g_return_if_fail(COIL_IS_LINK(self));
-  g_return_if_fail(buffer != NULL);
-  g_return_if_fail(self->target_path != NULL);
+  g_return_if_fail(buffer);
+  g_return_if_fail(format);
+  g_return_if_fail(self->target_path);
 
-  return g_string_append_printf(buffer, "=%s", self->target_path->path);
+  const CoilPath *container_path;
+  CoilPath       *target_path;
+  CoilStruct     *container = COIL_EXPANDABLE(self)->container;
+
+  container_path = coil_struct_get_path(container);
+
+  if (format->options & FLATTEN_PATHS)
+    target_path = coil_path_resolve(self->target_path, container_path, NULL);
+  else
+    target_path = coil_path_relativize(self->target_path, container_path);
+
+  if (G_LIKELY(target_path))
+  {
+    g_string_append_printf(buffer, "=%s", target_path->path);
+    coil_path_unref(target_path);
+  }
+  else
+    g_string_append_printf(buffer, "=%s", self->target_path->path);
 }
 
 static void
-link_build_string(gconstpointer link,
-                  GString      *const buffer,
-                  GError      **error /* ignored */)
+link_build_string(gconstpointer     link,
+                  GString          *const buffer,
+                  CoilStringFormat *format,
+                  GError          **error /* ignored */)
 {
   g_return_if_fail(COIL_IS_LINK(link));
   g_return_if_fail(buffer);
-  g_return_if_fail(error == NULL || *error == NULL); /* still wise */
+  g_return_if_fail(format);
 
-  CoilLink *self = COIL_LINK(link);
-  coil_link_build_string(self, buffer);
+  coil_link_build_string(COIL_LINK(link), buffer, format);
 }
 
 COIL_API(gchar *)
-coil_link_to_string(const CoilLink *self)
+coil_link_to_string(CoilLink         *self,
+                    CoilStringFormat *format)
 {
-  g_return_val_if_fail(self != NULL, NULL);
   g_return_val_if_fail(COIL_IS_LINK(self), NULL);
-  g_return_val_if_fail(self->target_path != NULL, NULL);
+  g_return_val_if_fail(self->target_path, NULL);
 
-  return g_strdup_printf("=%s", self->target_path->path);
+  GString *buffer = g_string_sized_new(128);
+  coil_link_build_string(self, buffer, format);
+
+  return g_string_free(buffer, FALSE);
+}
+
+static void
+linkval_to_stringval(const GValue *linkval,
+                           GValue *strval)
+{
+  g_return_if_fail(G_IS_VALUE(linkval));
+  g_return_if_fail(G_IS_VALUE(strval));
+
+  CoilLink *link;
+  gchar    *string;
+
+  link = COIL_LINK(g_value_get_object(linkval));
+  string = coil_link_to_string(link, &default_string_format);
+  g_value_take_string(strval, string);
 }
 
 CoilLink *
@@ -350,5 +386,9 @@ coil_link_class_init(CoilLinkClass *klass)
                          COIL_TYPE_PATH,
                          G_PARAM_READWRITE |
                          G_PARAM_CONSTRUCT));
+
+  g_value_register_transform_func(COIL_TYPE_LINK,
+                                  G_TYPE_STRING,
+                                  linkval_to_stringval);
 }
 
