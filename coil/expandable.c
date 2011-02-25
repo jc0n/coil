@@ -125,11 +125,14 @@ coil_expand(gpointer        object,
   CoilExpandablePrivate *const priv = self->priv;
   CoilExpandableClass   *klass = COIL_EXPANDABLE_GET_CLASS(self);
   const GValue          *return_value = NULL;
+  GError                *internal_error = NULL;
 
   if (!g_static_mutex_trylock(&priv->expand_lock))
   {
-    coil_struct_error(error, self->container,
-      "Cycle detected during struct expansion");
+    /* TODO(jcon): improve error handling for cases like this */
+    coil_struct_error(&internal_error,
+                      COIL_IS_STRUCT(self) ? COIL_STRUCT(self) : self->container,
+                      "Cycle detected during expansion");
 
     goto error;
   }
@@ -154,6 +157,9 @@ coil_expand(gpointer        object,
 error:
   if (value_ptr)
     *value_ptr = NULL;
+
+  if (internal_error)
+    g_propagate_error(error, internal_error);
 
   g_static_mutex_unlock(&priv->expand_lock);
   return FALSE;
