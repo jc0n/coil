@@ -765,8 +765,8 @@ coil_struct_create_containers(CoilStruct     *self,
             || !G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT)))
       {
         coil_struct_error(error, self,
-          "Attempting to assign values in non-struct object %.*s.",
-          saved_lens[i], path);
+          "Attempting to assign values in non-struct object %.*s type %s.",
+          saved_lens[i], path, G_VALUE_TYPE_NAME(entry->value));
 
         return NULL;
       }
