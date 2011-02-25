@@ -19,7 +19,6 @@ G_DEFINE_TYPE(CoilLink, coil_link, COIL_TYPE_EXPANDABLE);
 
 struct _CoilLinkPrivate
 {
-  CoilStruct *target_container;
   CoilPath   *path;
 };
 
@@ -252,9 +251,6 @@ coil_link_finalize(GObject *object)
 
   if (priv->path)
     coil_path_unref(priv->path);
-
-  if (priv->target_container)
-    g_object_unref(priv->target_container);
 
   G_OBJECT_CLASS(coil_link_parent_class)->finalize(object);
 }
