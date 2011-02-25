@@ -195,7 +195,17 @@ make_path_from_import_arg(CoilInclude  *self,
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilPath *path;
+#if 0
+  gchar *str;
+  GValue strvalue = {0, };
 
+  g_value_init(&strvalue, G_TYPE_STRING);
+  if (g_value_transform(argvalue, &strvalue))
+  {
+    str = (gchar *)g_value_get_string(&strvalue);
+    path = coil_path_take_strings(str, 0, NULL, 0, 0);
+  }
+#else
   if (G_VALUE_HOLDS(path_value, COIL_TYPE_PATH))
   {
     path = (CoilPath *)g_value_dup_boxed(path_value);
@@ -213,8 +223,10 @@ make_path_from_import_arg(CoilInclude  *self,
     gchar *str = g_value_dup_string(path_value);
     path = coil_path_take_strings(str, 0, NULL, 0, 0);
   }
+#endif
   else
-    g_error("Invalid include argument type '%s' in import argument list.",
+    g_error("Invalid include argument type '%s' in import argument list. "
+            "All import arguments are treated as strings.",
             G_VALUE_TYPE_NAME(path_value));
 
   return path;
