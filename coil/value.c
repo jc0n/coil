@@ -57,17 +57,16 @@ copy_value(const GValue *value)
 GList *
 copy_value_list(const GList *value_list)
 {
-  if (value_list == NULL)
-    return NULL;
-
-  const GList *list;
-  GList       *list_copy = NULL;
+  const GList  *list;
+  GList        *list_copy = NULL;
+  const GValue *value;
+  GValue       *value_copy;
 
   for (list = g_list_last((GList *)value_list);
        list; list = g_list_previous(list))
   {
-    const GValue *value = (GValue *)list->data;
-    GValue       *value_copy = copy_value(value);
+    value = (GValue *)list->data;
+    value_copy = copy_value(value);
     list_copy = g_list_prepend(list_copy, value_copy);
   }
 

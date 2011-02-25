@@ -1,0 +1,15 @@
+some_file: 'general.coil'
+some_path: 'a'
+
+another_path.in.struct: @root.web
+web: of
+of: links
+links: 'b'
+
+test: {
+  @file: [..some_file ..some_path ..another_path.in.struct]
+}
+
+expected: {
+  x:1 y:2 z:3
+}
