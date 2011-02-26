@@ -1,0 +1,5 @@
+a: '$'
+b: a
+
+test.value: "${..a}\$\$${..b}"
+expected.value: '$$$$'

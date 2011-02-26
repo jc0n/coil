@@ -34,6 +34,54 @@
 
 #include "parser_defs.h"
 #include "parser.h"
+
+static GString *
+copy_compressed_string(const gchar *str,
+                             guint  len)
+{
+  GString     *buffer = g_string_sized_new(len + 1);
+  const gchar *s = str;
+  guint        n = len;
+
+  for (s = str, n = len; n > 0; s++, n--)
+  {
+    if (*s == '\\')
+    {
+      s++; n--;
+      switch (*s)
+      {
+        case '\0':
+          g_warning("%s: trailing \\", G_STRLOC);
+          return buffer;
+
+        case '$':
+          g_string_append(buffer, "\\$");
+          break;
+
+        case 'n':
+          g_string_append_c(buffer, '\n');
+          break;
+
+        case 'r':
+          g_string_append_c(buffer, '\r');
+          break;
+
+        case 't':
+          g_string_append_c(buffer, '\t');
+          break;
+
+        default:
+          g_string_append_c(buffer, *s);
+          break;
+      }
+    }
+    else
+      g_string_append_c(buffer, *s);
+  }
+
+  return buffer;
+}
+
 %}
 
 D [0-9]
@@ -131,18 +179,18 @@ LINK (?i:"link")
 }
 
 {STRING_EXPRESSION} {
-  yylval->gstring = g_string_new_len(yytext + 1, yyleng - 2);
+  yylval->gstring = copy_compressed_string(yytext + 1, yyleng - 2);
   return STRING_EXPRESSION;
 }
 
 {MULTILINE_STRING} {
-  yylval->gstring = g_string_new_len(yytext + 3, yyleng - 6);
+  yylval->gstring = copy_compressed_string(yytext + 3, yyleng - 6);
   return STRING_LITERAL;
 }
 
 {STRING} {
-  yylval->gstring = g_string_new_len(yytext + 1, yyleng - 2);
-  return STRING_LITERAL;
+   yylval->gstring = copy_compressed_string(yytext + 1, yyleng - 2);
+   return STRING_LITERAL;
 }
 
 {MODULE} {

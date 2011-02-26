@@ -115,7 +115,6 @@ append_quoted_string(GString *const    buffer,
 {
   g_return_if_fail(buffer);
   g_return_if_fail(string);
-  g_return_if_fail(length);
   g_return_if_fail(format);
 
   gboolean multiline = FALSE;

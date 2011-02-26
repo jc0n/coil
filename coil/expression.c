@@ -78,11 +78,14 @@ expr_expand(gconstpointer  object,
   format.indent_level = 0;
   format.options |= ESCAPE_QUOTES | DONT_QUOTE_STRINGS;
 
-  for (s = p = expr->str; *s; s++)
+  for (s = expr->str; *s; s++)
   {
     if (*s == '\\')
     {
       s++;
+      if (*s == '$')
+        g_string_append_c(buffer, '$');
+
       continue;
     }
 
@@ -90,18 +93,19 @@ expr_expand(gconstpointer  object,
      * TODO(jcon): Add more advanced possibly bash style
      * replacements here as well as list indexing
      */
-    if (*s == '$' && *++s == '{')
+    if (*s == '$' && s[1] == '{')
     {
-      /* copy literal into buffer */
-      g_string_append_len(buffer, p, s - p - 1);
-
-      p = rawmemchr(++s, '}'); /* XXX: safe b.c lexer has already found '}' */
+      s += 2;
+      /* XXX: safe b.c lexer has already found '}' */
+      p = rawmemchr(s + 1, '}');
       append_path_substitution(self, buffer, &format, s, p - s);
-      p++;
-    }
-  }
+      s = p;
 
-  g_string_append(buffer, p);
+      continue;
+    }
+
+    g_string_append_c(buffer, *s);
+  }
 
   new_value(priv->expanded_value, G_TYPE_STRING,
             take_string, g_string_free(buffer, FALSE));
