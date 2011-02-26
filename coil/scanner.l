@@ -82,13 +82,33 @@ copy_compressed_string(const gchar *str,
   return buffer;
 }
 
+#define REMOVE_STRING_TOKEN_QUOTES(s, len) \
+  while (*s == '\'' || *s == '\"') \
+  { \
+    s++; \
+    len -= 2; \
+  } \
+
 %}
 
+/* basic tokens */
 D [0-9]
 DOUBLE "-"?(({D}+\.{D}*)|({D}*\.{D}+))
 INTEGER "-"?{D}+
 COMMENT "#"[^\n]*
 
+TRUE (?i:"true")
+FALSE (?i:"false")
+NONE (?i:"none")
+
+INCLUDE (?i:(("@file"|"@include")[s]?))
+EXTEND (?i:"@extend"[s]?)
+PACKAGE (?i:"@package")
+
+/* module token */
+MODULE ("@"[a-zA-Z]+)
+
+/* keys and paths */
 ROOT "@root"
 
 KEY "-"*[a-zA-Z\_][a-zA-Z0-9_\-]*
@@ -100,12 +120,13 @@ RELATIVE_PATH {KEY_DELIM}?{KEY}({KEY_DELIM}{KEY})*
 REFERENCE_PATH {KEY_DELIM}{2,}{RELATIVE_PATH}
 PATH ({ABSOLUTE_PATH}|{RELATIVE_PATH}|{REFERENCE_PATH})
 
-ESC "\\".
+/* single and multiline string literals */
+ESC_C "\\".
 NEWLINE ("\r"|"\n"|"\r\n")
 WHITESPACE [:space:]
 
-DQ_CHR {ESC}|[^\\"]
-SQ_CHR {ESC}|[^\\\']
+DQ_CHR {ESC_C}|[^\\"]
+SQ_CHR {ESC_C}|[^\\\']
 
 MULTILINE_STRING0 [']{3}({SQ_CHR}|[']{1,2}[^'])*[']{3}
 MULTILINE_STRING1 ["]{3}({DQ_CHR}|["]{1,2}[^\"])*["]{3}
@@ -113,23 +134,35 @@ MULTILINE_STRING ({MULTILINE_STRING0}|{MULTILINE_STRING1})
 
 SQ_STRING [']{SQ_CHR}*[']
 DQ_STRING ["]{DQ_CHR}*["]
-STRING ({SQ_STRING}|{DQ_STRING})
 
-EXPR_CHR ({ESC}|[^\\"$])
+STRING_LITERAL ({SQ_STRING}|{DQ_STRING}|{MULTILINE_STRING})
+
+/* expressions */
 EXPR_VAR "${"{PATH}"}"
-STRING_EXPRESSION ["]{EXPR_CHR}*{EXPR_VAR}({EXPR_CHR}|{EXPR_VAR})*["]
 
-MODULE ("@"[a-zA-Z]+)
+/* double quote single line */
+EXPR_DQ_CHR {ESC_C}|[^\\"$]
 
-TRUE (?i:"true")
-FALSE (?i:"false")
-NONE (?i:"none")
+/* single quote single line */
+EXPR_SQ_CHR {ESC_C}|[^\\'$]
 
-INCLUDE (?i:(("@file"|"@include")[s]?))
-EXTEND (?i:"@extend"[s]?)
-PACKAGE (?i:"@package")
-LINK (?i:"link")
+/* single line expression parts */
+EXPR_DQ_SL_PART {EXPR_DQ_CHR}*{EXPR_VAR}
+EXPR_SQ_SL_PART {EXPR_SQ_CHR}*{EXPR_VAR}
 
+/* single line expressions */
+EXPR0 ["]{EXPR_DQ_SL_PART}+["]
+EXPR1 [']{EXPR_SQ_SL_PART}+[']
+
+/* multiline expression parts */
+EXPR_DQ_ML_PART ({EXPR_DQ_CHR}|["]{1,2}[^"\\$])*{EXPR_VAR}
+EXPR_SQ_ML_PART ({EXPR_SQ_CHR}|[']{1,2}[^'\\$])*{EXPR_VAR}
+
+/* multiline expressions */
+EXPR2 ["]{3}{EXPR_DQ_ML_PART}+["]{3}
+EXPR3 [']{3}{EXPR_SQ_ML_PART}+[']{3}
+
+STRING_EXPRESSION ({EXPR0}|{EXPR1}|{EXPR2}|{EXPR3})
 %%
 
 {COMMENT} { ; }
@@ -139,8 +172,6 @@ LINK (?i:"link")
 {INCLUDE} { return INCLUDE_SYM; }
 
 {EXTEND} { return EXTEND_SYM; }
-
-{LINK}/"(" { return LINK_SYM; }
 
 {NONE} { return NONE_SYM; }
 
@@ -179,18 +210,23 @@ LINK (?i:"link")
 }
 
 {STRING_EXPRESSION} {
-  yylval->gstring = copy_compressed_string(yytext + 1, yyleng - 2);
+  const gchar *str = yytext;
+  guint        len = yyleng;
+
+  REMOVE_STRING_TOKEN_QUOTES(str, len);
+  yylval->gstring = copy_compressed_string(str, len);
+
   return STRING_EXPRESSION;
 }
 
-{MULTILINE_STRING} {
-  yylval->gstring = copy_compressed_string(yytext + 3, yyleng - 6);
-  return STRING_LITERAL;
-}
+{STRING_LITERAL} {
+  const gchar *str = yytext;
+  guint        len = yyleng;
 
-{STRING} {
-   yylval->gstring = copy_compressed_string(yytext + 1, yyleng - 2);
-   return STRING_LITERAL;
+  REMOVE_STRING_TOKEN_QUOTES(str, len);
+  yylval->gstring = copy_compressed_string(str, len);
+
+  return STRING_LITERAL;
 }
 
 {MODULE} {

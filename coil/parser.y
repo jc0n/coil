@@ -322,7 +322,6 @@ parser_has_errors(CoilParser *const parser)
 
 %token EXTEND_SYM
 %token INCLUDE_SYM
-%token LINK_SYM
 %token MODULE_SYM
 %token PACKAGE_SYM
 
