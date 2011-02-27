@@ -16,8 +16,20 @@ G_DEFINE_TYPE(CoilNone, coil_none, G_TYPE_OBJECT);
 CoilNone *coil_none_object = NULL;
 
 static void
+noneval_to_strval(const GValue *noneval,
+                        GValue *strval)
+{
+  g_return_if_fail(G_IS_VALUE(noneval));
+  g_return_if_fail(G_IS_VALUE(strval));
+
+  g_value_set_static_string(strval, "None");
+}
+
+static void
 coil_none_class_init(CoilNoneClass *klass)
 {
+  g_value_register_transform_func(COIL_TYPE_NONE, G_TYPE_STRING,
+                                  noneval_to_strval);
 }
 
 static void
@@ -167,97 +179,100 @@ coil_value_build_string(const GValue     *value,
                         CoilStringFormat *format,
                         GError          **error)
 {
-  g_return_if_fail(value != NULL);
-  g_return_if_fail(buffer != NULL);
-  g_return_if_fail(format != NULL);
+  g_return_if_fail(value);
+  g_return_if_fail(buffer);
+  g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
   const GType type = G_VALUE_TYPE(value);
 
-  if (g_value_type_transformable(type, G_TYPE_STRING))
+  if (G_TYPE_IS_FUNDAMENTAL(type))
   {
-    switch (type)
+    if (type == G_TYPE_BOOLEAN)
     {
-      case G_TYPE_BOOLEAN:
-      {
-        if (g_value_get_boolean(value))
-          g_string_append_len(buffer, COIL_STATIC_STRLEN("True"));
-        else
-          g_string_append_len(buffer, COIL_STATIC_STRLEN("False"));
-        break;
-      }
+      if (g_value_get_boolean(value))
+        g_string_append_len(buffer, COIL_STATIC_STRLEN("True"));
+      else
+        g_string_append_len(buffer, COIL_STATIC_STRLEN("False"));
 
-      case G_TYPE_STRING:
-      {
-        const gchar *string;
-        guint        length;
+      return;
+    }
 
-        string = g_value_get_string(value);
-        length = strlen(string);
+    if (type == G_TYPE_STRING)
+    {
+      const gchar *string;
+      guint        length;
 
-        append_quoted_string(buffer, string, length, '\'', format);
-        break;
-      }
+      string = g_value_get_string(value);
+      length = strlen(string);
 
-      default:
-      {
-        GValue cast_value = {0, };
-        g_value_init(&cast_value, G_TYPE_STRING);
-        g_value_transform(value, &cast_value);
+      append_quoted_string(buffer, string, length, '\'', format);
+      return;
+    }
 
-        g_string_append(buffer, g_value_get_string(&cast_value));
-        g_value_unset(&cast_value);
-      }
+    goto transform;
+  }
+
+  if (g_type_is_a(type, COIL_TYPE_EXPANDABLE))
+  {
+    CoilExpandable *object;
+
+    object = COIL_EXPANDABLE(g_value_get_object(value));
+    coil_expandable_build_string(object, buffer, format, error);
+    return;
+  }
+
+  if (g_type_is_a(type, G_TYPE_BOXED))
+  {
+    if (type == G_TYPE_GSTRING)
+    {
+      const GString *gstring = (GString *)g_value_get_boxed(value);
+      append_quoted_string(buffer, gstring->str, gstring->len, '\'', format);
+      return;
+    }
+
+    if (type == COIL_TYPE_LIST)
+    {
+      const GList *list = (GList *)g_value_get_boxed(value);
+      coil_list_build_string(list, buffer, format, error);
+      return;
+    }
+
+    if (type == COIL_TYPE_PATH)
+    {
+      const CoilPath *path = (CoilPath *)g_value_get_boxed(value);
+      g_string_append_len(buffer, path->path, path->path_len);
+      return;
     }
   }
-  else
-    switch (G_TYPE_FUNDAMENTAL(type))
-    {
-      case G_TYPE_OBJECT:
-      {
-        if (type == COIL_TYPE_NONE)
-        {
-          g_string_append_len(buffer, COIL_STATIC_STRLEN("None"));
-          return;
-        }
-        else
-        {
-          GObject *obj = g_value_get_object(value);
 
-          if (G_LIKELY(COIL_IS_EXPANDABLE(obj)))
-          {
-            coil_expandable_build_string(COIL_EXPANDABLE(obj), buffer,
-                                         format, error);
-            return;
-          }
+transform:
+  if (g_value_type_transformable(type, G_TYPE_STRING))
+  {
+    GValue tmp = {0, };
 
-          g_assert_not_reached();
-        }
-        break;
-      }
+    g_value_init(&tmp, G_TYPE_STRING);
+    g_value_transform(value, &tmp);
 
-      case G_TYPE_BOXED:
-      {
-        if (type == G_TYPE_GSTRING)
-        {
-          const GString *gstring = (GString *)g_value_get_boxed(value);
-          append_quoted_string(buffer, gstring->str, gstring->len, '\'', format);
-        }
-        else if (type == COIL_TYPE_LIST)
-        {
-          const GList *list = (GList *)g_value_get_boxed(value);
-          coil_list_build_string(list, buffer, format, error);
-        }
-        else if (type == COIL_TYPE_PATH)
-        {
-          const CoilPath *path = (CoilPath *)g_value_get_boxed(value);
-          g_string_append_len(buffer, path->path, path->path_len);
-        }
-        else
-          g_assert_not_reached();
-        break;
-      }
-    }
+    g_string_append(buffer, g_value_get_string(&tmp));
+    g_value_unset(&tmp);
+    return;
+  }
+
+  if (g_value_type_compatible(type, G_TYPE_STRING))
+  {
+    GValue tmp = {0, };
+
+    g_value_init(&tmp, G_TYPE_STRING);
+    g_value_copy(value, &tmp);
+
+    g_string_append(buffer, g_value_get_string(&tmp));
+    g_value_unset(&tmp);
+    return;
+  }
+
+  g_warning("Unable to build string for value type %s",
+            G_VALUE_TYPE_NAME(value));
 }
 
 COIL_API(gchar *)
