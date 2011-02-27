@@ -7,6 +7,7 @@
 %option noyywrap
 %option bison-bridge
 %option bison-locations
+%option never-interactive
 
 %{
 #define YY_USER_ACTION                                          \
@@ -39,9 +40,14 @@ static GString *
 copy_compressed_string(const gchar *str,
                              guint  len)
 {
-  GString     *buffer = g_string_sized_new(len + 1);
-  const gchar *s = str;
-  guint        n = len;
+  GString     *buffer;
+  const gchar *s;
+  guint        n;
+
+  if (len == 0)
+    return g_string_sized_new(2);
+
+  buffer = g_string_sized_new(len + 1);
 
   for (s = str, n = len; n > 0; s++, n--)
   {
@@ -83,11 +89,19 @@ copy_compressed_string(const gchar *str,
 }
 
 #define REMOVE_STRING_TOKEN_QUOTES(s, len) \
-  while (*s == '\'' || *s == '\"') \
+  G_STMT_START { \
+  if (len > 1) \
   { \
-    s++; \
-    len -= 2; \
+    const gchar *e = (s + len) - 1; \
+    while (s < e && *e == *s \
+      && (*s == '\'' || *s == '\"' )) \
+    { \
+      s++; \
+      e--; \
+    } \
+    len = (e - s) + 1; \
   } \
+  } G_STMT_END
 
 %}
 
@@ -121,12 +135,12 @@ REFERENCE_PATH {KEY_DELIM}{2,}{RELATIVE_PATH}
 PATH ({ABSOLUTE_PATH}|{RELATIVE_PATH}|{REFERENCE_PATH})
 
 /* single and multiline string literals */
-ESC_C "\\".
+ESC_CHR "\\".
 NEWLINE ("\r"|"\n"|"\r\n")
 WHITESPACE [:space:]
 
-DQ_CHR {ESC_C}|[^\\"]
-SQ_CHR {ESC_C}|[^\\\']
+DQ_CHR ({ESC_CHR}|[^\\"])
+SQ_CHR ({ESC_CHR}|[^\\\'])
 
 MULTILINE_STRING0 [']{3}({SQ_CHR}|[']{1,2}[^'])*[']{3}
 MULTILINE_STRING1 ["]{3}({DQ_CHR}|["]{1,2}[^\"])*["]{3}
@@ -140,27 +154,19 @@ STRING_LITERAL ({SQ_STRING}|{DQ_STRING}|{MULTILINE_STRING})
 /* expressions */
 EXPR_VAR "${"{PATH}"}"
 
-/* double quote single line */
-EXPR_DQ_CHR {ESC_C}|[^\\"$]
-
-/* single quote single line */
-EXPR_SQ_CHR {ESC_C}|[^\\'$]
-
-/* single line expression parts */
-EXPR_DQ_SL_PART {EXPR_DQ_CHR}*{EXPR_VAR}
-EXPR_SQ_SL_PART {EXPR_SQ_CHR}*{EXPR_VAR}
+EXPR_DQ_CHR ({ESC_CHR}|[^\\"$])
+EXPR_SQ_CHR ({ESC_CHR}|[^\\'$])
 
 /* single line expressions */
-EXPR0 ["]{EXPR_DQ_SL_PART}+["]
-EXPR1 [']{EXPR_SQ_SL_PART}+[']
-
-/* multiline expression parts */
-EXPR_DQ_ML_PART ({EXPR_DQ_CHR}|["]{1,2}[^"\\$])*{EXPR_VAR}
-EXPR_SQ_ML_PART ({EXPR_SQ_CHR}|[']{1,2}[^'\\$])*{EXPR_VAR}
+EXPR0 ["]{EXPR_DQ_CHR}*{EXPR_VAR}({EXPR_DQ_CHR}|{EXPR_VAR})*["]
+EXPR1 [']{EXPR_SQ_CHR}*{EXPR_VAR}({EXPR_SQ_CHR}|{EXPR_VAR})*[']
 
 /* multiline expressions */
-EXPR2 ["]{3}{EXPR_DQ_ML_PART}+["]{3}
-EXPR3 [']{3}{EXPR_SQ_ML_PART}+[']{3}
+EXPR_DQ_ML_CHR ({EXPR_DQ_CHR}|["]{1,2}[^"\\$])
+EXPR_SQ_ML_CHR ({EXPR_DQ_CHR}|[']{1,2}[^'\\$])
+
+EXPR2 ["]{3}{EXPR_DQ_ML_CHR}*{EXPR_VAR}({EXPR_DQ_ML_CHR}|{EXPR_VAR})*["]{3}
+EXPR3 [']{3}{EXPR_SQ_ML_CHR}*{EXPR_VAR}({EXPR_SQ_ML_CHR}|{EXPR_VAR})*[']{3}
 
 STRING_EXPRESSION ({EXPR0}|{EXPR1}|{EXPR2}|{EXPR3})
 %%
