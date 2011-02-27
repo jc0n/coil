@@ -37,16 +37,24 @@ append_path_substitution(CoilExpr         *self,
                          GString          *buffer,
                          CoilStringFormat *format,
                          const gchar      *path,
-                         guint             len)
+                         guint             len,
+                         GError          **error)
 {
   g_return_if_fail(COIL_IS_EXPR(self));
   g_return_if_fail(path != NULL);
   g_return_if_fail(len > 0);
 
-  CoilStruct      *container = COIL_EXPANDABLE(self)->container;
-  const GValue    *value;
+  CoilStruct   *container = COIL_EXPANDABLE(self)->container;
+  const GValue *value;
+  GError       *internal_error = NULL;
 
-  value = coil_struct_lookup(container, path, len, TRUE, NULL);
+  value = coil_struct_lookup(container, path, len, TRUE, &internal_error);
+
+  if (G_UNLIKELY(internal_error))
+  {
+    g_propagate_error(error, internal_error);
+    return;
+  }
 
   if (value == NULL)
     return;
@@ -68,6 +76,7 @@ expr_expand(gconstpointer  object,
   CoilStringFormat format;
   GString         *expr = priv->expr, *buffer;
   const gchar     *s, *p;
+  GError          *internal_error = NULL;
 
   if (priv->is_expanded)
     goto done;
@@ -98,9 +107,17 @@ expr_expand(gconstpointer  object,
       s += 2;
       /* XXX: safe b.c lexer has already found '}' */
       p = rawmemchr(s + 1, '}');
-      append_path_substitution(self, buffer, &format, s, p - s);
-      s = p;
 
+      append_path_substitution(self, buffer, &format, s, p - s, &internal_error);
+
+      if (G_UNLIKELY(internal_error))
+      {
+        g_propagate_error(error, internal_error);
+        g_string_free(buffer, TRUE);
+        return FALSE;
+      }
+
+      s = p;
       continue;
     }
 
@@ -165,7 +182,8 @@ expr_build_string(gconstpointer     object,
 
   const GValue *return_value = NULL;
 
-  coil_expand((gpointer)object, &return_value, TRUE, error);
+  if (!coil_expand((gpointer)object, &return_value, TRUE, error))
+    return;
 
   coil_value_build_string(return_value, buffer, format, error);
 }
@@ -184,7 +202,10 @@ coil_expr_to_string(CoilExpr         *self,
   expr_build_string(self, buffer, format, &internal_error);
 
   if (G_UNLIKELY(internal_error))
+  {
+    g_propagate_error(error, internal_error);
     return NULL;
+  }
 
   return g_string_free(buffer, FALSE);
 }
@@ -196,8 +217,19 @@ exprval_to_strval(const GValue *exprval,
   g_return_if_fail(G_IS_VALUE(exprval));
   g_return_if_fail(G_IS_VALUE(strval));
 
-  CoilExpr *expr = COIL_EXPR(g_value_get_object(exprval));
-  gchar    *string = coil_expr_to_string(expr, &default_string_format, NULL);
+  CoilExpr *expr;
+  gchar    *string;
+  GError   *internal_error = NULL;
+
+  expr = COIL_EXPR(g_value_get_object(exprval));
+  string = coil_expr_to_string(expr, &default_string_format, &internal_error);
+
+  if (G_UNLIKELY(internal_error))
+  {
+    g_warning("%s: %s", G_STRLOC, internal_error->message);
+    g_error_free(internal_error);
+    return;
+  }
 
   g_value_take_string(strval, string);
 }
