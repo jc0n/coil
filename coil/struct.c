@@ -718,8 +718,10 @@ coil_struct_create_containers(CoilStruct     *self,
                               GError        **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
-  g_return_val_if_fail(path && *path == '@'
-      && path_len >= COIL_ROOT_PATH_LEN, NULL);
+  g_return_val_if_fail(path, NULL);
+  g_return_val_if_fail(*path == '@', NULL);
+  g_return_val_if_fail(path_len >= COIL_ROOT_PATH_LEN, NULL);
+  g_return_val_if_fail(path_len <= COIL_PATH_LEN, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   if (path_len == COIL_ROOT_PATH_LEN)

@@ -320,6 +320,8 @@ parser_has_errors(CoilParser *const parser)
 %pure_parser
 %parse-param { CoilParser *yyctx }
 
+%token ERROR
+
 %token EXTEND_SYM
 %token INCLUDE_SYM
 %token MODULE_SYM
@@ -1036,6 +1038,9 @@ void yyerror(YYLTYPE        *yylocp,
 {
   g_return_if_fail(parser != NULL);
   g_return_if_fail(yylocp != NULL);
+
+  if (parser->error)
+    return;
 
   parser->errors = g_list_prepend(parser->errors,
     coil_error_new(COIL_ERROR_PARSE,
