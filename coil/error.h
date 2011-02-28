@@ -32,7 +32,7 @@ typedef struct _CoilLocation
 
 #define COIL_TYPE_LOCATION (coil_location_get_type())
 
-#define COIL_LOCATION_FORMAT "line %d in %s "
+#define COIL_LOCATION_FORMAT "line %d in file %s "
 #define COIL_LOCATION_FORMAT_ARGS(loc)                            \
         (loc).first_line, (loc).filepath
 /*
@@ -106,12 +106,10 @@ typedef struct _CoilLocation
                         */
 
 #define coil_struct_error(err, node, format, args...) \
-  g_set_error(err, \
-              COIL_ERROR, \
-              COIL_ERROR_STRUCT, \
-              "(in struct %s) " format, \
-              coil_struct_get_path(node)->path, \
-              ##args)
+  coil_expandable_error(err, COIL_ERROR_STRUCT, \
+                        node, "Struct error (%s): " format, \
+                        coil_struct_get_path(node)->path, \
+                        ##args)
 
 #define coil_link_error(err, link, format, args...) \
         coil_expandable_error(err, COIL_ERROR_LINK, \

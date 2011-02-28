@@ -195,7 +195,17 @@ make_path_from_import_arg(CoilInclude  *self,
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilPath *path;
+#if 0
+  gchar *str;
+  GValue strvalue = {0, };
 
+  g_value_init(&strvalue, G_TYPE_STRING);
+  if (g_value_transform(argvalue, &strvalue))
+  {
+    str = (gchar *)g_value_get_string(&strvalue);
+    path = coil_path_take_strings(str, 0, NULL, 0, 0);
+  }
+#else
   if (G_VALUE_HOLDS(path_value, COIL_TYPE_PATH))
   {
     path = (CoilPath *)g_value_dup_boxed(path_value);
@@ -213,8 +223,10 @@ make_path_from_import_arg(CoilInclude  *self,
     gchar *str = g_value_dup_string(path_value);
     path = coil_path_take_strings(str, 0, NULL, 0, 0);
   }
+#endif
   else
-    g_error("Invalid include argument type '%s' in import argument list.",
+    g_error("Invalid include argument type '%s' in import argument list. "
+            "All import arguments are treated as strings.",
             G_VALUE_TYPE_NAME(path_value));
 
   return path;
@@ -224,7 +236,7 @@ static void
 expand_import_arg(GValue  *arg,
                   GError **error)
 {
-  g_return_if_fail(arg || G_IS_VALUE(arg));
+  g_return_if_fail(G_IS_VALUE(arg));
 
   /* XXX: bubble up through g_list_foreach call on error */
   if (G_UNLIKELY(error != NULL && *error != NULL))
@@ -240,7 +252,10 @@ expand_import_arg(GValue  *arg,
     const GValue *return_value = NULL;
 
     if (!coil_expand(object, &return_value, TRUE, error))
+    {
+      g_object_unref(object);
       return;
+    }
 
     if (G_UNLIKELY(!return_value))
       g_error("Expecting return value from expansion of type '%s'.",
@@ -254,14 +269,13 @@ expand_import_arg(GValue  *arg,
 
 static gboolean
 process_import_arg(CoilInclude *self,
-                  CoilStruct  *root,
-                  GValue      *arg,
-                  GError     **error)
+                   CoilStruct  *root,
+                   GValue      *arg,
+                   GError     **error)
 {
   CoilPath     *path;
   CoilStruct   *container = COIL_EXPANDABLE(self)->container;
   GError       *internal_error = NULL;
-/*  GValue       *value_copy;*/
   const GValue *import_value;
   gboolean      result = FALSE;
 
@@ -323,12 +337,38 @@ process_import_arg(CoilInclude *self,
 
 #endif
 
-  CoilStruct *source = COIL_STRUCT(g_value_get_object(import_value));
+  CoilStruct *source = COIL_STRUCT(g_value_dup_object(import_value));
   result = coil_struct_merge(source, container, FALSE, error);
+  g_object_unref(source);
 
 done:
   coil_path_free(path);
   return result;
+}
+
+static GList *
+expand_import_arglist(const GList   *list,
+                      GError       **error)
+{
+  GError *internal_error = NULL;
+  GList  *lp;
+
+  list = copy_value_list(list);
+
+  for (lp = (GList *)list;
+       lp; lp = g_list_next(lp))
+  {
+    expand_import_arg((GValue *)lp->data, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+    {
+      free_value_list((GList *)list);
+      g_propagate_error(error, internal_error);
+      return NULL;
+    }
+  }
+
+  return (GList *)list;
 }
 
 static gboolean
@@ -344,11 +384,8 @@ process_import_list(CoilInclude  *self,
   GList              *list, *expanded_list;
   GError             *internal_error = NULL;
 
-  expanded_list = copy_value_list(priv->import_list);
-
-  g_list_foreach(expanded_list,
-                 (GFunc)expand_import_arg,
-                 (gpointer)&internal_error);
+  expanded_list = expand_import_arglist(priv->import_list,
+                                        &internal_error);
 
   if (G_UNLIKELY(internal_error))
     goto error;
@@ -357,29 +394,24 @@ process_import_list(CoilInclude  *self,
        list != NULL;
        list = g_list_delete_link(list, list))
   {
-    GValue *arg = (GValue *)list->data;
-
-    if (G_VALUE_HOLDS(arg, COIL_TYPE_LIST))
+    GValue *value = (GValue *)list->data;
+/*
+    if (G_VALUE_HOLDS(value, COIL_TYPE_LIST))
     {
-      GList *inner_list;
+      GList *inner_list = (GList *)g_value_get_boxed(value);
 
-      inner_list = copy_value_list((GList *)g_value_get_boxed(arg));
-      g_list_foreach(inner_list,
-                     (GFunc)expand_import_arg,
-                     (gpointer)&internal_error);
-
+      inner_list = expand_import_arglist(inner_list, &internal_error);
       expanded_list = g_list_concat(expanded_list, inner_list);
 
       if (G_UNLIKELY(internal_error))
         goto error;
     }
-    else
-    {
-      if (!process_import_arg(self, root, arg, error))
-        goto error;
-    }
+    else */
 
-    free_value(arg);
+    if (!process_import_arg(self, root, value, error))
+      goto error;
+
+    free_value(value);
   }
 
   return TRUE;
@@ -395,6 +427,82 @@ error:
 }
 
 
+static const gchar *
+expand_filepath(CoilInclude *self,
+                GError     **error)
+{
+  CoilIncludePrivate *const priv = self->priv;
+  const gchar        *this_filepath, *filepath = NULL;
+
+  /* TODO(jcon): I can't wait to refactor locations so
+   *            I dont have to do stuff like this */
+  this_filepath = COIL_EXPANDABLE(self)->location.filepath;
+
+  if (G_VALUE_HOLDS(priv->filepath_value, COIL_TYPE_EXPANDABLE))
+  {
+    const GValue *return_value = NULL;
+
+    if (!coil_expand_value(priv->filepath_value, &return_value,
+                           TRUE, error))
+      return FALSE;
+
+    g_value_unset(priv->filepath_value);
+    g_value_init(priv->filepath_value, G_VALUE_TYPE(return_value));
+    g_value_copy(return_value, priv->filepath_value);
+  }
+
+  if (G_VALUE_HOLDS(priv->filepath_value, G_TYPE_GSTRING))
+  {
+    GString *buf = g_value_get_boxed(priv->filepath_value);
+    filepath = (gchar *)buf->str;
+  }
+  else if (G_VALUE_HOLDS(priv->filepath_value, G_TYPE_STRING))
+  {
+    filepath = (gchar *)g_value_get_string(priv->filepath_value);
+  }
+#if 0
+  else if (g_value_type_transformable(priv->filepath_value, G_TYPE_STRING))
+  {
+
+  }
+#endif
+  else
+  {
+    coil_include_error(error, self,
+                       "include path must expand to type string. "
+                       "Found type '%s'.",
+                       G_VALUE_TYPE_NAME(priv->filepath_value));
+    return FALSE;
+  }
+
+  if (this_filepath)
+  {
+    if (G_UNLIKELY(strcmp(filepath, this_filepath) == 0))
+    {
+      coil_include_error(error, self, "a file cannot import itself");
+      return FALSE;
+    }
+
+    if (!g_path_is_absolute(filepath))
+    {
+      gchar *dirname, *fullpath;
+
+      dirname = g_path_get_dirname(this_filepath);
+      fullpath = g_build_filename(dirname, filepath, NULL);
+
+      g_free(dirname);
+
+      g_value_unset(priv->filepath_value);
+      g_value_init(priv->filepath_value, G_TYPE_STRING);
+      g_value_take_string(priv->filepath_value, fullpath);
+
+      filepath = fullpath;
+    }
+  }
+
+  return filepath;
+}
+
 static gboolean
 include_expand(gconstpointer   include,
                const GValue  **return_value,
@@ -408,82 +516,15 @@ include_expand(gconstpointer   include,
   CoilExpandable     *const super = COIL_EXPANDABLE(include);
   CoilStruct         *container = super->container;
   CoilStruct         *root = NULL;
-  gchar              *filepath;
+  const gchar        *filepath;
   GError             *internal_error = NULL;
 
   if (priv->is_expanded)
     return TRUE;
 
-  if (G_VALUE_HOLDS(priv->filepath_value, COIL_TYPE_EXPANDABLE))
-  {
-    const GValue *value = priv->filepath_value;
+  if (!(filepath = expand_filepath(self, error)))
+    return FALSE;
 
-    coil_expand_value((const GValue **)&value,
-                      TRUE, &internal_error);
-
-    if (G_UNLIKELY(internal_error))
-      goto error;
-
-    g_assert(value);
-    g_value_unset(priv->filepath_value);
-    g_value_init(priv->filepath_value, G_VALUE_TYPE(value));
-    g_value_copy(value, priv->filepath_value);
-  }
-
-  if (G_VALUE_HOLDS(priv->filepath_value, G_TYPE_GSTRING))
-  {
-    GString *buf = g_value_get_boxed(priv->filepath_value);
-    filepath = (gchar *)buf->str;
-  }
-  else if (G_VALUE_HOLDS(priv->filepath_value, G_TYPE_STRING))
-  {
-    filepath = (gchar *)g_value_get_string(priv->filepath_value);
-  }
-  else
-  {
-    coil_include_error(error, self,
-                       "include path must expand to type string. "
-                       "Found type '%s'.",
-                       G_VALUE_TYPE_NAME(priv->filepath_value));
-    goto error;
-  }
-
-  if (super->location.filepath)
-  {
-    const gchar *this_filepath = super->location.filepath;
-
-    if (G_UNLIKELY(strcmp(filepath, this_filepath) == 0))
-    {
-      coil_include_error(error, include,
-                        "a file cannot import itself");
-
-      goto error;
-    }
-
-    if (!g_path_is_absolute(filepath))
-    {
-      gchar *dirname = g_path_get_dirname(this_filepath);
-      filepath = g_build_filename(dirname, filepath, NULL);
-      g_free(dirname);
-
-      if (priv->filepath_value)
-      {
-        g_value_unset(priv->filepath_value);
-        g_value_init(priv->filepath_value, G_TYPE_STRING);
-        g_value_take_string(priv->filepath_value, filepath);
-      }
-    }
-  }
-
-#ifdef COIL_INCLUDE_CACHING
-  root = include_cache_lookup(filepath, &internal_error);
-
-  if (root != NULL)
-    g_object_ref(root);
-  else if (G_UNLIKELY(internal_error))
-    goto error;
-  else
-#endif
   if (G_UNLIKELY(!g_file_test(filepath,
                               G_FILE_TEST_IS_REGULAR |
                               G_FILE_TEST_EXISTS)))
@@ -494,20 +535,34 @@ include_expand(gconstpointer   include,
 
     goto error;
   }
-  else
-  {
-    root = coil_parse_file(filepath, &internal_error);
-
-    if (root == NULL)
-      goto error;
-  }
-
-  g_assert(root != NULL);
 
 #ifdef COIL_INCLUDE_CACHING
-  GObject *gc_object = G_OBJECT(coil_struct_get_root(container));
-  include_cache_save(gc_object, filepath, root);
+  root = include_cache_lookup(filepath, &internal_error);
+
+  if (G_UNLIKELY(internal_error)) goto error;
+
+  if (root)
+    g_object_ref(root);
+  else
+  {
+    GObject *gc_object;
+
+    root = coil_parse_file(filepath, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+      goto error;
+
+    gc_object = G_OBJECT(coil_struct_get_root(container));
+    include_cache_save(gc_object, filepath, root);
+  }
+#else
+  root = coil_parse_file(filepath, &internal_error);
+
+  if (G_UNLIKELY(internal_error))
+    goto error;
 #endif
+
+  g_assert(COIL_IS_STRUCT(root));
 
   if (priv->import_list == NULL)
   {
@@ -516,11 +571,8 @@ include_expand(gconstpointer   include,
     if (G_UNLIKELY(internal_error))
       goto error;
   }
-  else
-  {
-    if (!process_import_list(self, root, error))
-      goto error;
-  }
+  else if (!process_import_list(self, root, error))
+    goto error;
 
   g_object_unref(root);
   priv->is_expanded = TRUE;
@@ -546,56 +598,118 @@ coil_include_equals(gconstpointer   e1,
 }
 
 static void
-include_build_string(gconstpointer   include,
-                     GString        *const buffer,
-                     GError        **error)
+include_build_string(gconstpointer     include,
+                     GString          *const buffer,
+                     CoilStringFormat *format,
+                     GError          **error)
 {
   g_return_if_fail(COIL_IS_INCLUDE(include));
   g_return_if_fail(buffer);
+  g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  coil_include_build_string(COIL_INCLUDE(include), buffer, error);
+  coil_include_build_string(COIL_INCLUDE(include), buffer, format, error);
+}
+
+static void
+build_legacy_string(CoilInclude      *self,
+                    GString          *const buffer,
+                    CoilStringFormat *format,
+                    GError          **error)
+{
+  g_return_if_fail(COIL_IS_INCLUDE(self));
+  g_return_if_fail(buffer);
+  g_return_if_fail(format);
+  g_return_if_fail(error == NULL || *error == NULL);
+
+  CoilIncludePrivate *priv = self->priv;
+  GList              *import_list = priv->import_list;
+  GError             *internal_error = NULL;
+
+  g_assert(import_list);
+
+  do
+  {
+    g_string_append_len(buffer, COIL_STATIC_STRLEN("@file: ["));
+
+    coil_value_build_string(priv->filepath_value, buffer,
+                            format, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+      goto error;
+
+    g_string_append_c(buffer, ' ');
+
+    coil_value_build_string((GValue *)import_list->data, buffer,
+                            format, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+      goto error;
+
+    g_string_append_c(buffer, ']');
+  } while ((import_list = g_list_next(import_list)));
+
+  return;
+
+error:
+  g_propagate_error(error, internal_error);
 }
 
 COIL_API(void)
-coil_include_build_string(CoilInclude *self,
-                          GString     *const buffer,
-                          GError     **error)
+coil_include_build_string(CoilInclude      *self,
+                          GString          *const buffer,
+                          CoilStringFormat *format,
+                          GError          **error)
 {
 
   g_return_if_fail(COIL_IS_INCLUDE(self));
   g_return_if_fail(buffer != NULL);
+  g_return_if_fail(format != NULL);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  const CoilIncludePrivate *priv = self->priv;
-  GError                   *internal_error = NULL;
+  CoilIncludePrivate *priv = self->priv;
+  GList              *import_list = priv->import_list;
+  GError             *internal_error = NULL;
+  gboolean            whitespace = !(format->options & COMPACT);
 
-  g_string_append_len(buffer, COIL_STATIC_STRLEN("@file: "));
-
-  if (priv->import_list != NULL)
-    g_string_append_len(buffer, COIL_STATIC_STRLEN("[ "));
-
-  coil_value_build_string(priv->filepath_value, buffer, &internal_error);
-
-  if (G_UNLIKELY(internal_error))
-    goto error;
-
-  if (priv->import_list != NULL)
+  if (format->options & LEGACY)
   {
-    register const GList *list;
-    for (list = priv->import_list;
-         list != NULL; list = g_list_next(list))
+    guint num_imports;
+
+    num_imports = g_list_length((GList *)import_list);
+    if (num_imports > 1)
     {
-      GValue *value = (GValue *)list->data;
-      coil_value_build_string(value, buffer, &internal_error);
-
-      if (G_UNLIKELY(internal_error))
-        goto error;
-
-      g_string_append_c(buffer, ' ');
+      build_legacy_string(self, buffer, format, error);
+      return;
     }
+  }
 
-    g_string_append_len(buffer, COIL_STATIC_STRLEN(" ]"));
+  g_string_append_len(buffer, COIL_STATIC_STRLEN("@file:"));
+
+  if (whitespace)
+    g_string_append_c(buffer, ' ');
+
+  if (priv->import_list)
+  {
+    GList *argument_list;
+
+    argument_list = g_list_append(NULL, priv->filepath_value);
+    argument_list = g_list_concat(argument_list, import_list);
+
+    coil_list_build_string(argument_list, buffer, format, &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+      goto error;
+
+    import_list = g_list_delete_link(argument_list, argument_list);
+  }
+  else
+  {
+    coil_value_build_string(priv->filepath_value, buffer,
+                            format, &internal_error);
+
+    if (G_UNLIKELY(error))
+      goto error;
   }
 
   return;
@@ -605,14 +719,15 @@ error:
 }
 
 COIL_API(gchar *)
-coil_include_to_string(CoilInclude *self,
-                       GError     **error)
+coil_include_to_string(CoilInclude      *self,
+                       CoilStringFormat *format,
+                       GError          **error)
 {
   g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   GString *buffer = g_string_sized_new(128);
-  coil_include_build_string(self, buffer, error);
+  coil_include_build_string(self, buffer, format, error);
 
   return g_string_free(buffer, FALSE);
 }

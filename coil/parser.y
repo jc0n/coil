@@ -15,6 +15,7 @@
 #include "struct.h"
 #include "include.h"
 #include "link.h"
+#include "expression.h"
 
 #include "parser_defs.h"
 #include "parser.h"
@@ -207,9 +208,11 @@ parser_push_container(CoilParser *parser)
                                                 FALSE, /* has failed lookup */
                                                 &parser->error);
 
-  if (G_UNLIKELY(new_container == NULL))
+  if (G_UNLIKELY(parser->error))
   {
-    PUSH_CONTAINER(parser, NULL);
+    if (new_container)
+      g_object_unref(new_container);
+
     return FALSE;
   }
 
@@ -217,7 +220,9 @@ parser_push_container(CoilParser *parser)
                "accumulate", TRUE,
                NULL);
 
+  g_object_ref(new_container);
   PUSH_CONTAINER(parser, new_container);
+
   return TRUE;
 }
 
@@ -229,6 +234,8 @@ parser_pop_container(CoilParser *parser)
   g_object_set(container,
                "accumulate", FALSE,
                NULL);
+
+  g_object_unref(container);
 }
 
 /* arguments can take the following form..
@@ -250,13 +257,16 @@ parser_handle_include(CoilParser   *parser,
 
   if (G_UNLIKELY(include_args == NULL))
   {
-    parser_error(parser, "No filename specified for @include.");
+    parser_error(parser, "No filename specified for include/import.");
     return FALSE;
   }
 
   CoilStruct *container = PEEK_CONTAINER(parser);
   GValue     *filepath_value = (GValue *)include_args->data;
   GList      *import_list = g_list_delete_link(include_args, include_args);
+
+  /* TODO(jcon): consider passing entire argument list
+                 instead of breaking it up above */
 
   CoilInclude *include = coil_include_new("filepath_value", filepath_value,
                                           "import_list", import_list,
@@ -266,7 +276,9 @@ parser_handle_include(CoilParser   *parser,
 
   coil_struct_add_dependency(container, include, &parser->error);
 
-  return parser->error ? FALSE : TRUE;
+  g_object_unref(include);
+
+  return G_UNLIKELY(parser->error) ? FALSE : TRUE;
 }
 
 static CoilPath *
@@ -299,55 +311,6 @@ parser_has_errors(CoilParser *const parser)
   g_return_val_if_fail(parser, TRUE);
   return parser->errors != NULL;
 }
-
-#ifdef COIL_DEBUG
-static void
-parser_handle_debug(CoilParser *parser,
-                    CoilPath   *path)
-{
-  const GValue *value;
-  gchar        *value_str;
-  const gchar  *arg = path->path;
-  guint8        arg_len = path->path_len;
-
-  if (arg_len == 5
-    && (!strcmp(arg, "clear") || !strcmp(arg, "empty")))
-  {
-    GError *internal_error = NULL;
-          coil_struct_empty(parser->root, &internal_error);
-    g_error("%s", internal_error->message);
-  }
-  else
-  {
-    value = coil_struct_lookup_path(PEEK_CONTAINER(parser),
-                                    path, TRUE,
-                                    &parser->error);
-
-    if (!value && G_UNLIKELY(parser->error))
-    {
-      coil_path_unref(path);
-      return;
-    }
-
-    value_str = coil_value_to_string(value, &parser->error);
-
-    if (G_UNLIKELY(parser->error))
-    {
-      coil_path_unref(path);
-      return;
-    }
-
-    g_print("----[Debug '%s']----\n", arg);
-    g_print("%s\n", value_str);
-    g_print("----[/Debug]----\n");
-
-    g_free(value_str);
-  }
-
-  coil_path_unref(path);
-}
-#endif
-
 %}
 %expect 1
 %error-verbose
@@ -357,10 +320,8 @@ parser_handle_debug(CoilParser *parser,
 %pure_parser
 %parse-param { CoilParser *yyctx }
 
-%token DEBUG_SYM
 %token EXTEND_SYM
 %token INCLUDE_SYM
-%token LINK_SYM
 %token MODULE_SYM
 %token PACKAGE_SYM
 
@@ -422,7 +383,7 @@ parser_handle_debug(CoilParser *parser,
 %type <doubleval> DOUBLE
 %type <longint> INTEGER
 
-%type <value> STRING_EXPRESSION
+%type <gstring> STRING_EXPRESSION
 %type <gstring> STRING_LITERAL
 
 %type <value> link
@@ -433,6 +394,7 @@ parser_handle_debug(CoilParser *parser,
 %type <value> value
 
 %destructor { g_free($$); } <string>
+%destructor { g_string_free($$, TRUE); } <gstring>
 %destructor { coil_path_unref($$); } <path>
 %destructor { coil_path_list_free($$); } <path_list>
 %destructor { free_value($$); } <value>
@@ -455,22 +417,7 @@ statement
   : builtin_property
   | deletion
   | assignment
-  | debugging
   | error { parser_handle_error(YYCTX); }
-;
-
-debugging
-  : DEBUG_SYM path
-  {
-#ifdef COIL_DEBUG
-    parser_handle_debug(YYCTX, $2);
-
-    if (G_UNLIKELY(YYCTX->error))
-      YYERROR;
-#else
-  coil_path_unref($2);
-#endif
-  }
 ;
 
 deletion
@@ -540,14 +487,17 @@ container_context_inherit
   {
     CoilStruct *container, *context;
 
+    context = PEEK_CONTAINER(YYCTX);
+
     if (!parser_push_container(YYCTX))
       YYERROR;
 
     container = PEEK_CONTAINER(YYCTX);
-    context = PEEK_NTH_CONTAINER(YYCTX, 1);
 
     if (!coil_struct_extend_paths(container, $1, context, &YYCTX->error))
       YYERROR;
+
+    coil_path_list_free($1);
   }
   context '}'
 ;
@@ -578,6 +528,8 @@ extend_property
 
     if (!coil_struct_extend_paths(container, $2, NULL, &YYCTX->error))
       YYERROR;
+
+    coil_path_list_free($2);
   }
 ;
 
@@ -736,8 +688,8 @@ path
 string
   : STRING_LITERAL
   { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }
-/*  | STRING_EXPRESSION
-  { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }*/
+  | STRING_EXPRESSION
+  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1)); }
 ;
 
 primative
@@ -812,6 +764,8 @@ track_prototype(GSignalInvocationHint *ihint,
   if (root == parser->root)
   {
     ParserNotify *notify;
+
+    g_object_ref(prototype);
     g_hash_table_insert(parser->prototypes, prototype, prototype);
 
     notify = g_new(ParserNotify, 1);
@@ -845,10 +799,13 @@ coil_parser_init(CoilParser *const parser,
 //  yydebug = 0;
 #endif
 
-  parser->prototypes = g_hash_table_new(g_direct_hash, g_direct_equal);
+  parser->prototypes = g_hash_table_new_full(g_direct_hash, g_direct_equal,
+                                             NULL, g_object_unref);
+
   parser->root = coil_struct_new(NULL, NULL);
   parser->scanner = scanner;
 
+  g_object_ref(parser->root);
   g_queue_push_head(&parser->containers, parser->root);
 
   parser->prototype_hook_id =
@@ -856,8 +813,6 @@ coil_parser_init(CoilParser *const parser,
                                coil_struct_prototype_quark(),
                                (GSignalEmissionHook)track_prototype,
                                (gpointer)parser, NULL);
-
-  g_assert(parser->prototype_hook_id);
 }
 
 static CoilStruct *
@@ -867,14 +822,17 @@ coil_parser_finish(CoilParser *parser,
   g_return_val_if_fail(parser, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
+  CoilStruct *container;
+
   parser_post_processing(parser);
 
   g_signal_remove_emission_hook(g_signal_lookup("create", COIL_TYPE_STRUCT),
                                 parser->prototype_hook_id);
 
-  g_hash_table_unref(parser->prototypes);
+  g_hash_table_destroy(parser->prototypes);
 
-  g_queue_clear(&parser->containers);
+  while ((container = g_queue_pop_head(&parser->containers)))
+    g_object_unref(container);
 
   if (parser->path)
     coil_path_unref(parser->path);

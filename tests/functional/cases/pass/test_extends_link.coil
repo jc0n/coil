@@ -1,0 +1,6 @@
+a.b.c: 123
+another_link: a
+link: another_link
+
+test: link {}
+expected.b.c: 123

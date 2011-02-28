@@ -8,6 +8,7 @@
 
 #include "error.h"
 #include "path.h"
+#include "value.h"
 
 #define COIL_TYPE_EXPANDABLE          \
         (coil_expandable_get_type())
@@ -73,9 +74,10 @@ struct _CoilExpandableClass
                   gconstpointer  other,
                   GError        **error);
 
-  void  (*build_string) (gconstpointer   self,
-                         GString        *buffer,
-                         GError        **error);
+  void  (*build_string) (gconstpointer     self,
+                         GString          *buffer,
+                         CoilStringFormat *format,
+                         GError          **error);
 };
 
 G_BEGIN_DECLS
@@ -89,13 +91,15 @@ coil_expandable_copy(gconstpointer     object,
                      GError          **error);
 
 void
-coil_expandable_build_string(CoilExpandable *self,
-                             GString        *const buffer,
-                             GError        **error);
+coil_expandable_build_string(CoilExpandable   *self,
+                             GString *const    buffer,
+                             CoilStringFormat *format,
+                             GError          **error);
 
 gchar *
-coil_expandable_to_string(CoilExpandable *self,
-                          GError        **error);
+coil_expandable_to_string(CoilExpandable   *self,
+                          CoilStringFormat *format,
+                          GError          **error);
 
 gboolean
 coil_expandable_equals(gconstpointer  e1,
@@ -114,7 +118,8 @@ coil_is_expanded(CoilExpandable *self);
 
  /* const expandable pointer */
 gboolean
-coil_expand_value(const GValue **value_ptr,
+coil_expand_value(const GValue  *value,
+                  const GValue **return_value,
                   gboolean       recursive,
                   GError       **error);
 

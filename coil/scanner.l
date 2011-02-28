@@ -7,6 +7,7 @@
 %option noyywrap
 %option bison-bridge
 %option bison-locations
+%option never-interactive
 
 %{
 #define YY_USER_ACTION                                          \
@@ -34,13 +35,94 @@
 
 #include "parser_defs.h"
 #include "parser.h"
+
+static GString *
+copy_compressed_string(const gchar *str,
+                             guint  len)
+{
+  GString     *buffer;
+  const gchar *s;
+  guint        n;
+
+  if (len == 0)
+    return g_string_sized_new(2);
+
+  buffer = g_string_sized_new(len + 1);
+
+  for (s = str, n = len; n > 0; s++, n--)
+  {
+    if (*s == '\\')
+    {
+      s++; n--;
+      switch (*s)
+      {
+        case '\0':
+          g_warning("%s: trailing \\", G_STRLOC);
+          return buffer;
+
+        case '$':
+          g_string_append(buffer, "\\$");
+          break;
+
+        case 'n':
+          g_string_append_c(buffer, '\n');
+          break;
+
+        case 'r':
+          g_string_append_c(buffer, '\r');
+          break;
+
+        case 't':
+          g_string_append_c(buffer, '\t');
+          break;
+
+        default:
+          g_string_append_c(buffer, *s);
+          break;
+      }
+    }
+    else
+      g_string_append_c(buffer, *s);
+  }
+
+  return buffer;
+}
+
+#define REMOVE_STRING_TOKEN_QUOTES(s, len) \
+  G_STMT_START { \
+  if (len > 1) \
+  { \
+    const gchar *e = (s + len) - 1; \
+    while (s < e && *e == *s \
+      && (*s == '\'' || *s == '\"' )) \
+    { \
+      s++; \
+      e--; \
+    } \
+    len = (e - s) + 1; \
+  } \
+  } G_STMT_END
+
 %}
 
+/* basic tokens */
 D [0-9]
 DOUBLE "-"?(({D}+\.{D}*)|({D}*\.{D}+))
 INTEGER "-"?{D}+
 COMMENT "#"[^\n]*
 
+TRUE (?i:"true")
+FALSE (?i:"false")
+NONE (?i:"none")
+
+INCLUDE (?i:(("@file"|"@include")[s]?))
+EXTEND (?i:"@extend"[s]?)
+PACKAGE (?i:"@package")
+
+/* module token */
+MODULE ("@"[a-zA-Z]+)
+
+/* keys and paths */
 ROOT "@root"
 
 KEY "-"*[a-zA-Z\_][a-zA-Z0-9_\-]*
@@ -50,53 +132,52 @@ ROOT_PATH {ROOT}
 ABSOLUTE_PATH {ROOT}({KEY_DELIM}{KEY})*
 RELATIVE_PATH {KEY_DELIM}?{KEY}({KEY_DELIM}{KEY})*
 REFERENCE_PATH {KEY_DELIM}{2,}{RELATIVE_PATH}
+PATH ({ABSOLUTE_PATH}|{RELATIVE_PATH}|{REFERENCE_PATH})
 
-ESC "\\".
+/* single and multiline string literals */
+ESC_CHR "\\".
 NEWLINE ("\r"|"\n"|"\r\n")
 WHITESPACE [:space:]
 
-DQ_CHR {ESC}|[^\\"]
-SQ_CHR {ESC}|[^\\\']
+DQ_CHR ({ESC_CHR}|[^\\"])
+SQ_CHR ({ESC_CHR}|[^\\\'])
 
 MULTILINE_STRING0 [']{3}({SQ_CHR}|[']{1,2}[^'])*[']{3}
 MULTILINE_STRING1 ["]{3}({DQ_CHR}|["]{1,2}[^\"])*["]{3}
 MULTILINE_STRING ({MULTILINE_STRING0}|{MULTILINE_STRING1})
 
-_STRING0 [']{SQ_CHR}*[']
-_STRING1 ["]{DQ_CHR}*["]
-STRING ({_STRING0}|{_STRING1})
+SQ_STRING [']{SQ_CHR}*[']
+DQ_STRING ["]{DQ_CHR}*["]
 
-MODULE ("@"[a-zA-Z]+)
+STRING_LITERAL ({SQ_STRING}|{DQ_STRING}|{MULTILINE_STRING})
 
-TRUE (?i:"true")
-FALSE (?i:"false")
-NONE (?i:"none")
+/* expressions */
+EXPR_VAR "${"{PATH}"}"
 
-INCLUDE (?i:(("@file"|"@include")[s]?))
-EXTEND (?i:"@extend"[s]?)
-PACKAGE (?i:"@package")
-DEBUG (?i:"@"?("debug"|"dump"))
-LINK (?i:"link")
+EXPR_DQ_CHR ({ESC_CHR}|[^\\"$])
+EXPR_SQ_CHR ({ESC_CHR}|[^\\'$])
 
+/* single line expressions */
+EXPR0 ["]{EXPR_DQ_CHR}*{EXPR_VAR}({EXPR_DQ_CHR}|{EXPR_VAR})*["]
+EXPR1 [']{EXPR_SQ_CHR}*{EXPR_VAR}({EXPR_SQ_CHR}|{EXPR_VAR})*[']
+
+/* multiline expressions */
+EXPR_DQ_ML_CHR ({EXPR_DQ_CHR}|["]{1,2}[^"\\$])
+EXPR_SQ_ML_CHR ({EXPR_DQ_CHR}|[']{1,2}[^'\\$])
+
+EXPR2 ["]{3}{EXPR_DQ_ML_CHR}*{EXPR_VAR}({EXPR_DQ_ML_CHR}|{EXPR_VAR})*["]{3}
+EXPR3 [']{3}{EXPR_SQ_ML_CHR}*{EXPR_VAR}({EXPR_SQ_ML_CHR}|{EXPR_VAR})*[']{3}
+
+STRING_EXPRESSION ({EXPR0}|{EXPR1}|{EXPR2}|{EXPR3})
 %%
 
 {COMMENT} { ; }
-
-{DEBUG} {
-#ifdef COIL_DEBUG
-  return DEBUG_SYM;
-#else
-  yymore();
-#endif
-}
 
 {PACKAGE} { return PACKAGE_SYM; }
 
 {INCLUDE} { return INCLUDE_SYM; }
 
 {EXTEND} { return EXTEND_SYM; }
-
-{LINK}/"(" { return LINK_SYM; }
 
 {NONE} { return NONE_SYM; }
 
@@ -134,13 +215,23 @@ LINK (?i:"link")
   return INTEGER;
 }
 
-{MULTILINE_STRING} {
-  yylval->gstring = g_string_new_len(yytext + 3, yyleng - 6);
-  return STRING_LITERAL;
+{STRING_EXPRESSION} {
+  const gchar *str = yytext;
+  guint        len = yyleng;
+
+  REMOVE_STRING_TOKEN_QUOTES(str, len);
+  yylval->gstring = copy_compressed_string(str, len);
+
+  return STRING_EXPRESSION;
 }
 
-{STRING} {
-  yylval->gstring = g_string_new_len(yytext + 1, yyleng - 2);
+{STRING_LITERAL} {
+  const gchar *str = yytext;
+  guint        len = yyleng;
+
+  REMOVE_STRING_TOKEN_QUOTES(str, len);
+  yylval->gstring = copy_compressed_string(str, len);
+
   return STRING_LITERAL;
 }
 

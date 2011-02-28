@@ -1,0 +1,5 @@
+# Test for out of order dynamic expansion
+test.value: "${..important_value}"
+expected.value: '42'
+
+important_value: 42

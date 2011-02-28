@@ -1,0 +1,5 @@
+a.b.c: "Hello"
+d.e.f: 123
+
+test.value: "${..a.b.c} World ${..d.e.f}"
+expected.value: "Hello World 123"

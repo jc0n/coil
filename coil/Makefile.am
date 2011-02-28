@@ -20,6 +20,7 @@ libcoil_@LIBCOIL_API_VERSION@_la_SOURCES = \
 				coil.c \
 				error.c \
 				expandable.c \
+				expression.c \
 				include.c \
 				link.c \
 				list.c \
@@ -43,6 +44,7 @@ libcoil_include_HEADERS=\
 				coil.h \
 				error.h \
 				expandable.h \
+				expression.h \
 				include.h \
 				link.h \
 				list.h \
@@ -53,7 +55,7 @@ libcoil_include_HEADERS=\
 				scanner.h \
 				strings_extra.h \
 				struct.h \
-				struct_private.h \
+				struct_table.h \
 				value.h
 
 bin_PROGRAMS = coildebug

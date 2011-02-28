@@ -127,9 +127,12 @@ expect_pass(const gchar *filepath)
 
     if (result)
     {
+      gchar *string;
+
       g_assert_no_error(error);
-      gchar *string = coil_struct_to_string(root, &error);
+      string = coil_struct_to_string(root, &default_string_format, &error);
       g_assert_no_error(error);
+
       g_print("Failed: \n\n%s\n", string);
       g_free(string);
     }
