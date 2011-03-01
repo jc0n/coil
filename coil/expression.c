@@ -127,9 +127,6 @@ expr_expand(gconstpointer  object,
   new_value(priv->expanded_value, G_TYPE_STRING,
             take_string, g_string_free(buffer, FALSE));
 
-  g_string_free(priv->expr, TRUE);
-  priv->expr = NULL;
-
   priv->is_expanded = TRUE;
 
 done:
@@ -210,6 +207,30 @@ coil_expr_to_string(CoilExpr         *self,
   return g_string_free(buffer, FALSE);
 }
 
+static CoilExpandable *
+expr_copy(gconstpointer     _self,
+          const CoilStruct *container,
+          GError          **error)
+{
+  g_return_val_if_fail(COIL_IS_EXPANDABLE(_self), NULL);
+  g_return_val_if_fail(COIL_IS_STRUCT(container), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilExpr        *copy, *self;
+  CoilExprPrivate *priv;
+  GString         *buf;
+
+  self = COIL_EXPR(_self);
+  priv = self->priv;
+  buf = priv->expr;
+
+  copy = coil_expr_new(g_string_new_len(buf->str, buf->len),
+                       "container", container,
+                       NULL);
+
+  return COIL_EXPANDABLE(copy);
+}
+
 static void
 exprval_to_strval(const GValue *exprval,
                         GValue *strval)
@@ -235,13 +256,19 @@ exprval_to_strval(const GValue *exprval,
 }
 
 CoilExpr *
-coil_expr_new(GString *string)
+coil_expr_new(GString     *string, /* steals */
+              const gchar *first_property_name,
+              ...)
 {
+  va_list          args;
   GObject         *object;
   CoilExpr        *self;
   CoilExprPrivate *priv;
 
-  object = g_object_new(COIL_TYPE_EXPR, NULL);
+  va_start(args, first_property_name);
+  object = g_object_new_valist(COIL_TYPE_EXPR, first_property_name, args);
+  va_end(args);
+
   self = COIL_EXPR(object);
   priv = self->priv;
   priv->expr = string;
@@ -287,6 +314,7 @@ coil_expr_class_init(CoilExprClass *klass)
   expandable_class->expand = expr_expand;
   expandable_class->equals = expr_equals;
   expandable_class->build_string = expr_build_string;
+  expandable_class->copy = expr_copy;
 
   g_value_register_transform_func(COIL_TYPE_EXPR, G_TYPE_STRING,
                                   exprval_to_strval);

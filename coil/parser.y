@@ -691,7 +691,7 @@ string
   : STRING_LITERAL
   { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }
   | STRING_EXPRESSION
-  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1)); }
+  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL)); }
 ;
 
 primative
