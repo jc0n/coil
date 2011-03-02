@@ -857,6 +857,8 @@ coil_parser_finish(CoilParser *parser,
     }
   }
 
+  g_assert_cmpint(G_OBJECT(parser->root)->ref_count, ==, 1);
+
   return parser->root;
 }
 

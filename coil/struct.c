@@ -1337,6 +1337,8 @@ coil_struct_add_dependency(CoilStruct     *self,
     if (!coil_struct_has_same_root(self, container))
       g_error("Adding dependency in '%s' from a different @root.",
           self->priv->path->path);
+
+    g_object_unref(container);
   }
 
   g_object_ref(object);
@@ -1573,6 +1575,7 @@ coil_struct_iter_next(CoilStructIter *iter,
 
 #ifdef COIL_DEBUG
   const CoilStruct *self = iter->node;
+  g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(iter->version == self->priv->version, FALSE);
 #endif
 

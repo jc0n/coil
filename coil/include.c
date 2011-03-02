@@ -264,6 +264,7 @@ expand_import_arg(GValue  *arg,
     g_value_unset(arg);
     g_value_init(arg, G_VALUE_TYPE(return_value));
     g_value_copy(return_value, arg);
+    g_object_unref(object);
   }
 }
 
@@ -758,9 +759,9 @@ coil_include_set_property(GObject      *object,
     case PROP_FILEPATH_VALUE: /* XXX: steals */
     {
       if (priv->filepath_value)
-        g_value_unset(priv->filepath_value);
+        free_value(priv->filepath_value);
 
-      priv->filepath_value = g_value_get_pointer(value);
+      priv->filepath_value = (GValue *)g_value_get_pointer(value);
       break;
     }
 
