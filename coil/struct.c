@@ -718,8 +718,10 @@ coil_struct_create_containers(CoilStruct     *self,
                               GError        **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
-  g_return_val_if_fail(path && *path == '@'
-      && path_len >= COIL_ROOT_PATH_LEN, NULL);
+  g_return_val_if_fail(path, NULL);
+  g_return_val_if_fail(*path == '@', NULL);
+  g_return_val_if_fail(path_len >= COIL_ROOT_PATH_LEN, NULL);
+  g_return_val_if_fail(path_len <= COIL_PATH_LEN, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   if (path_len == COIL_ROOT_PATH_LEN)
@@ -1335,6 +1337,8 @@ coil_struct_add_dependency(CoilStruct     *self,
     if (!coil_struct_has_same_root(self, container))
       g_error("Adding dependency in '%s' from a different @root.",
           self->priv->path->path);
+
+    g_object_unref(container);
   }
 
   g_object_ref(object);
@@ -1571,6 +1575,7 @@ coil_struct_iter_next(CoilStructIter *iter,
 
 #ifdef COIL_DEBUG
   const CoilStruct *self = iter->node;
+  g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(iter->version == self->priv->version, FALSE);
 #endif
 
@@ -1625,33 +1630,30 @@ coil_struct_merge(CoilStruct  *src,
   StructEntry     *entry, *existing_entry;
   gboolean         different_roots = FALSE;
   guint            hash;
+  GValue          *value_copy = NULL;
+  CoilPath        *path = NULL;
+  GError          *internal_error = NULL;
 
   if (struct_is_definitely_empty(src))
     return TRUE;
 
   if (!coil_struct_expand(src, error))
-    return FALSE;
+    goto error;
 
   /* XXX: if roots are different then we need a
    * full recursive expand on source
    * also intelligently copy only
    * the real value's from expanded values in the loop below
    */
-  if (!coil_struct_has_same_root(src, dst))
-  {
-    different_roots = TRUE;
-    if (!coil_struct_expand_recursive(src, error))
-      return FALSE;
-  }
+  different_roots = !coil_struct_has_same_root(src, dst);
+  if (different_roots
+    && !coil_struct_expand_recursive(src, error))
+    goto error;
 
   coil_struct_iter_init(&it, src);
 
   while (coil_struct_iter_next(&it, &entry))
   {
-    GValue   *value_copy;
-    CoilPath *path;
-
-    // check if value exists in dst or key is marked deleted
     hash = hash_relative_path(dst->priv->hash,
                               entry->path->key,
                               entry->path->key_len);
@@ -1663,6 +1665,7 @@ coil_struct_merge(CoilStruct  *src,
                                          path->path,
                                          path->path_len);
 
+    /* check if value exists in dst or key is marked deleted */
     if (existing_entry && !overwrite)
     {
       /* merge values if old and new entries are structs */
@@ -1677,11 +1680,10 @@ coil_struct_merge(CoilStruct  *src,
 
         g_object_set(_dst, "accumulate", TRUE, NULL);
 
-        if (!coil_struct_merge(_src, _dst, overwrite, error))
+        if (!coil_struct_merge(_src, _dst, overwrite, &internal_error))
         {
           g_object_set(_dst, "accumulate", FALSE, NULL);
-          coil_path_unref(path);
-          return FALSE;
+          goto error;
         }
 
         g_object_set(_dst, "accumulate", FALSE, NULL);
@@ -1701,31 +1703,26 @@ coil_struct_merge(CoilStruct  *src,
 
     /* entry does not exist OR we're overwriting it */
 
-    if (G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
-    {
-      CoilStruct *node = COIL_STRUCT(g_value_get_object(entry->value));
-      CoilStruct *node_copy = coil_struct_deep_copy(node, dst, error);
-
-      if (!node_copy)
-      {
-        coil_path_unref(path);
-        return FALSE;
-      }
-
-      new_value(value_copy, COIL_TYPE_STRUCT, take_object, node_copy);
-    }
-    else if (different_roots
+    if ((!different_roots
         && G_VALUE_HOLDS(entry->value, COIL_TYPE_EXPANDABLE))
+        || G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
     {
-      /* TODO(jcon): implement expandable->copy protocol for this reason
-       * should not have to expand to copy */
+      CoilExpandable *obj, *copy;
+
+      obj = COIL_EXPANDABLE(g_value_get_object(entry->value));
+      copy = coil_expandable_copy(obj, dst, &internal_error);
+
+      if (G_UNLIKELY(copy == NULL))
+        goto error;
+
+      new_value(value_copy, G_VALUE_TYPE(entry->value), take_object, copy);
+    }
+    else if (G_VALUE_HOLDS(entry->value, COIL_TYPE_EXPANDABLE))
+    {
       const GValue *real_value;
 
       if (!coil_expand_value(entry->value, &real_value, FALSE, error))
-      {
-        coil_path_unref(path);
-        return FALSE;
-      }
+        goto error;
 
       if (!real_value)
       {
@@ -1740,13 +1737,22 @@ coil_struct_merge(CoilStruct  *src,
       value_copy = copy_value(entry->value);
 
     if (!struct_insert_internal(dst, path, value_copy, TRUE, error))
-    {
-      coil_path_unref(path);
-      return FALSE;
-    }
+      goto error;
   }
 
   return TRUE;
+
+error:
+  if (path)
+    coil_path_unref(path);
+
+  if (value_copy)
+    free_value(value_copy);
+
+  if (internal_error)
+    g_propagate_error(error, internal_error);
+
+  return FALSE;
 }
 
 static gboolean

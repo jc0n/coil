@@ -1,0 +1,36 @@
+template: {
+  currency: 'dollars'
+  status: '${name} has \$${amount} ${currency}'
+}
+
+billy: template {
+  name: 'Billy'
+  amount: 10
+}
+
+jimmy: template {
+  name: 'Jimmy'
+  amount: 20
+}
+
+yoda-template: template {
+  status: '${amount} ${currency} ${name} have'
+}
+
+yoda: yoda-template {
+  name: 'I'
+  amount: 30
+  currency: 'starbucks'
+}
+
+test: {
+  one: ..billy.status
+  two: ..jimmy.status
+  three: ..yoda.status
+}
+
+expected: {
+  one: 'Billy has $10 dollars'
+  two: 'Jimmy has $20 dollars'
+  three: '30 starbucks I have'
+}

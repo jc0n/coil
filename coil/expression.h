@@ -42,7 +42,9 @@ G_BEGIN_DECLS
 GType coil_expr_get_type(void) G_GNUC_CONST;
 
 CoilExpr *
-coil_expr_new(GString *expr_string);
+coil_expr_new(GString *expr_string,
+              const gchar *first_property_name,
+              ...);
 
 G_END_DECLS
 

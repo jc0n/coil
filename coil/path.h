@@ -32,7 +32,7 @@ typedef struct _CoilPath
 #define COIL_PATH_BUFLEN (COIL_PATH_LEN + 1) /* +1 for '\0' */
 
 #define COIL_PATH_MAX_PARTS \
-  ((int)((COIL_PATH_LEN - COIL_ROOT_PATH_LEN - 3) / 2))
+  ((gint)((COIL_PATH_LEN - COIL_ROOT_PATH_LEN) / 2))
 
 #define COIL_SPECIAL_CHAR '@'
 #define COIL_SPECIAL_CHAR_S "@"

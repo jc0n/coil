@@ -320,6 +320,8 @@ parser_has_errors(CoilParser *const parser)
 %pure_parser
 %parse-param { CoilParser *yyctx }
 
+%token ERROR
+
 %token EXTEND_SYM
 %token INCLUDE_SYM
 %token MODULE_SYM
@@ -689,7 +691,7 @@ string
   : STRING_LITERAL
   { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }
   | STRING_EXPRESSION
-  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1)); }
+  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL)); }
 ;
 
 primative
@@ -854,6 +856,8 @@ coil_parser_finish(CoilParser *parser,
       parser->errors = g_list_delete_link(parser->errors, parser->errors);
     }
   }
+
+  g_assert_cmpint(G_OBJECT(parser->root)->ref_count, ==, 1);
 
   return parser->root;
 }
@@ -1036,6 +1040,9 @@ void yyerror(YYLTYPE        *yylocp,
 {
   g_return_if_fail(parser != NULL);
   g_return_if_fail(yylocp != NULL);
+
+  if (parser->error)
+    return;
 
   parser->errors = g_list_prepend(parser->errors,
     coil_error_new(COIL_ERROR_PARSE,

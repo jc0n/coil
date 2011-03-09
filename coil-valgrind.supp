@@ -1,0 +1,7 @@
+{
+  Supress glib type initialization leaks
+  Memcheck:Leak
+  fun:g_type_init
+  fun:coil_init
+  fun:main
+}

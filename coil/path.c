@@ -73,8 +73,10 @@ coil_path_take_strings(gchar         *path,
                        CoilPathFlags  flags)
 
 {
-  g_return_val_if_fail(path && *path, NULL);
-  g_return_val_if_fail(path_len, NULL);
+  g_return_val_if_fail(path, NULL);
+  g_return_val_if_fail(*path, NULL);
+  g_return_val_if_fail(path_len > 0, NULL);
+  g_return_val_if_fail(path_len <= COIL_PATH_LEN, NULL);
   g_return_val_if_fail((key && key_len) || !(key || key_len), NULL);
   g_return_val_if_fail((!(flags & COIL_PATH_IS_ROOT)
       || (flags & COIL_PATH_IS_ABSOLUTE && flags & COIL_PATH_IS_ROOT)), NULL);
@@ -150,7 +152,8 @@ coil_path_new_len(const gchar  *buffer,
                   guint8        buf_len)
 {
   g_return_val_if_fail(buffer || *buffer, NULL);
-  g_return_val_if_fail(buf_len, NULL);
+  g_return_val_if_fail(buf_len > 0, NULL);
+  g_return_val_if_fail(buf_len <= COIL_PATH_LEN, NULL);
 
   if (buffer[0] == COIL_PATH_DELIM
      && buffer[1] != COIL_PATH_DELIM)
@@ -539,7 +542,8 @@ coil_path_resolve(const CoilPath *path, /* any path */
     return coil_path_ref((CoilPath *)path);
 
   const gchar *qualifier, *e;
-  guint8       path_len, prefix_len, qualifier_len;
+  guint8       prefix_len, qualifier_len;
+  guint16      path_len;
 
   qualifier = path->path;
   e = prefix->path + prefix->path_len;

@@ -322,6 +322,16 @@ _expandable_build_string(gconstpointer     self,
 }
 
 static void
+coil_expandable_finalize(GObject *object)
+{
+  CoilExpandable        *const self = COIL_EXPANDABLE(object);
+ /* CoilExpandablePrivate *const priv = self->priv; */
+
+  /* TODO(jcon): refactor */
+  g_free(self->location.filepath);
+}
+
+static void
 coil_expandable_class_init(CoilExpandableClass *klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
@@ -330,6 +340,7 @@ coil_expandable_class_init(CoilExpandableClass *klass)
 
   gobject_class->set_property = coil_expandable_set_property;
   gobject_class->get_property = coil_expandable_get_property;
+  gobject_class->finalize = coil_expandable_finalize;
 
   /*
    * XXX: Override virtuals in sub-classes

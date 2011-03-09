@@ -103,6 +103,26 @@ copy_compressed_string(const gchar *str,
   } \
   } G_STMT_END
 
+#define TOKEN_ERROR(parser, fmt, args...) \
+  G_STMT_START { \
+    parser->error = g_error_new(COIL_ERROR, COIL_ERROR_PARSE, fmt, ##args); \
+    return ERROR; \
+  } G_STMT_END
+
+/* TODO(jcon): add line numbers */
+#define HANDLE_PATH_TOKEN() \
+  G_STMT_START { \
+    if (yyleng > COIL_PATH_LEN) \
+    { \
+      gchar snippet[32]; \
+      memset(&snippet, 0, sizeof(snippet)); \
+      strncpy(snippet, yytext, 27); \
+      strcat(snippet, "..."); \
+      TOKEN_ERROR(yyextra, "Path '%s' too long (%d), limited to %d characters.", \
+                  snippet, yyleng, COIL_PATH_LEN); \
+    } \
+    yylval->path = coil_path_new_len(yytext, yyleng); \
+  } G_STMT_END
 %}
 
 /* basic tokens */
@@ -186,22 +206,22 @@ STRING_EXPRESSION ({EXPR0}|{EXPR1}|{EXPR2}|{EXPR3})
 {FALSE} { return FALSE_SYM; }
 
 {ROOT_PATH} {
-  yylval->path = coil_path_new_len(yytext, yyleng);
+  HANDLE_PATH_TOKEN();
   return ROOT_PATH;
 }
 
 {ABSOLUTE_PATH} {
-  yylval->path = coil_path_new_len(yytext, yyleng);
+  HANDLE_PATH_TOKEN();
   return ABSOLUTE_PATH;
 }
 
 {RELATIVE_PATH} {
-  yylval->path = coil_path_new_len(yytext, yyleng);
+  HANDLE_PATH_TOKEN();
   return RELATIVE_PATH;
 }
 
 {REFERENCE_PATH} {
-  yylval->path = coil_path_new_len(yytext, yyleng);
+  HANDLE_PATH_TOKEN();
   return REFERENCE_PATH;
 }
 

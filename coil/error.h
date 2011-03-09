@@ -121,11 +121,16 @@ typedef struct _CoilLocation
         g_error_matches(err, COIL_ERROR, (code))
 
 #define coil_path_error(err, _path, format, args...) \
+        G_STMT_START { \
+        gchar buf[(_path)->path_len + 1]; \
+        memcpy(buf, (_path)->path, (_path)->path_len); \
+        buf[sizeof(buf)] = '\0'; \
         g_set_error(error, \
                     COIL_ERROR, \
                     COIL_ERROR_PATH, \
                     "path error (%s): " format, \
-                    (_path)->path, ##args)
+                    buf, ##args); \
+        } G_STMT_END
 
 #define coil_propagate_error g_propagate_error
 #define coil_propagate_prefixed_error g_propagate_prefixed_error
