@@ -1,5 +1,12 @@
-1. Run ./autogen.sh to generate the build files.
+For a default build run the following:
 
-2. make
+/autogen.sh <configure-args>
+make
+make test
 
-3. make test
+For debug build
+
+autoreconf -vfi
+CFLAGS='-g -O0' ./configure --enable-debug
+make
+make test
