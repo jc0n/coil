@@ -951,7 +951,7 @@ COIL_API(CoilStruct *)
 coil_parse_string(const gchar *string,
                   GError     **error)
 {
-  return coil_parse_string_len(string, 0, error);
+  return coil_parse_string_len(string, strlen(string), error);
 }
 
 COIL_API(CoilStruct *)
