@@ -12,7 +12,6 @@
 static gchar **files = NULL;
 static gchar **attributes = NULL;
 static gchar **blocks = NULL;
-static gchar *expand = NULL;
 static gboolean flatten = FALSE;
 static gboolean permissive = FALSE;
 static gboolean compat = FALSE;
@@ -29,10 +28,6 @@ static GOptionEntry entries[] =
 
   {"flatten", 'f', 0, G_OPTION_ARG_NONE, &flatten,
       "Show key-values on separate, fully-qualified lines", NULL},
-
-  {"expand", 0, 0, G_OPTION_ARG_STRING, &expand,
-      "Control expanded types. Prefix types with - to remove. Default is all." \
-      " Valid types are all, strings", NULL},
 
   {"permissive", 0, 0, G_OPTION_ARG_NONE, &permissive,
       "Ignore minor errors during parsing.", NULL},
@@ -207,22 +202,15 @@ print_files(void)
 
     if (G_UNLIKELY(error))
     {
-      if (permissive)
-      {
-        g_printerr("Continuing despite errors: %s", error->message);
-        g_error_free(error);
-        error = NULL;
+      if (!permissive)
+        goto error;
 
-        if (parsed)
-        {
-          g_object_unref(parsed);
-          parsed = NULL;
-        }
+      g_printerr("Continuing despite errors: %s", error->message);
+      g_error_free(error);
+      error = NULL;
 
+      if (!parsed)
         continue;
-      }
-
-      goto error;
     }
 
     /* TODO(jcon): Modify parser to accept pre-existing root */

@@ -413,13 +413,21 @@ coil
 context
   : /* empty */
   | context statement
+  |  error
+  {
+    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+
+    if (!coil_struct_is_root(container))
+      parser_pop_container(YYCTX);
+
+    parser_handle_error(YYCTX);
+  }
 ;
 
 statement
   : builtin_property
   | deletion
   | assignment
-  | error { parser_handle_error(YYCTX); }
 ;
 
 deletion
@@ -472,11 +480,6 @@ assignment_value
 
 container
   : container_declaration { parser_pop_container(YYCTX); }
-  |  error
-  {
-    parser_pop_container(YYCTX);
-    parser_handle_error(YYCTX);
-  }
 ;
 
 container_declaration
