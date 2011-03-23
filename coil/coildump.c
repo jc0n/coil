@@ -237,6 +237,10 @@ print_files(void)
         goto error;
 
       print_struct(parsed, buffer, &format, &error);
+
+      if (G_UNLIKELY(error))
+        goto error;
+
       g_string_truncate(buffer, 0);
     }
 
