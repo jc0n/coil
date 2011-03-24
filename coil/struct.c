@@ -68,7 +68,7 @@ typedef enum
   /* TODO(jcon): INSERT */
   /* TODO(jcon): DELETE */
   /* TODO(jcon): EXPAND */
-  /* TODO(jcon): NEW_DEPENDENCY */
+  ADD_DEPENDENCY,
   /* */
   LAST_SIGNAL
 } StructSignals;
@@ -1317,10 +1317,26 @@ coil_struct_add_dependency(CoilStruct     *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
+  GType              type = G_OBJECT_TYPE(object);
+  GError            *internal_error = NULL;
 
-  if (!struct_check_dependency_type(G_OBJECT_TYPE(object)))
+  if (!struct_check_dependency_type(type))
+  {
     g_error("Adding invalid dependency type '%s'.",
         G_OBJECT_TYPE_NAME(object));
+  }
+
+  g_signal_emit(self,
+                struct_signals[ADD_DEPENDENCY],
+                g_type_qname(type),
+                object,
+                &internal_error);
+
+  if (G_UNLIKELY(internal_error))
+  {
+    g_propagate_error(error, internal_error);
+    return FALSE;
+  }
 
   if (COIL_IS_STRUCT(object))
   {
@@ -2855,10 +2871,18 @@ coil_struct_class_init (CoilStructClass *klass)
 
   struct_signals[MODIFY] =
     g_signal_newv("modify",
+                  G_TYPE_FROM_CLASS(klass),
+                  G_SIGNAL_NO_RECURSE,
+                  NULL, NULL, NULL,
+                  coil_cclosure_marshal_POINTER__VOID,
+                  G_TYPE_POINTER, 0, NULL);
+
+  struct_signals[ADD_DEPENDENCY] =
+    g_signal_new("add-dependency",
                  G_TYPE_FROM_CLASS(klass),
-                 G_SIGNAL_NO_RECURSE,
-                 NULL, NULL, NULL,
-                 coil_cclosure_marshal_POINTER__VOID,
-                 G_TYPE_POINTER, 0, NULL);
+                 G_SIGNAL_DETAILED,
+                 0, NULL, NULL,
+                 coil_cclosure_marshal_POINTER__OBJECT,
+                 G_TYPE_POINTER, 1, G_TYPE_OBJECT);
 }
 
