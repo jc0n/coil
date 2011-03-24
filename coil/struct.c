@@ -2171,6 +2171,152 @@ coil_struct_get_values(CoilStruct *self,
   return g_queue_peek_head_link(&result_list);
 }
 
+/* TODO(jcon): allow de-duplicating branches */
+static GNode *
+dependency_treev(CoilStruct *self,
+                 GNode      *tree,
+                 guint       ntypes,
+                 GType      *allowed_types,
+                 GError    **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
+  g_return_val_if_fail(!(tree == NULL ^ visited == NULL), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilStructPrivate *priv = self->priv;
+  CoilStructIter     it;
+  StructEntry       *entry;
+  GList             *list;
+  GError            *internal_error = NULL;
+
+  if (tree == NULL)
+    tree = g_node_new(NULL);
+
+  list = g_queue_peek_head_link(&priv->dependencies);
+
+  while (list)
+  {
+    GNode          *branch;
+    CoilExpandable *object = COIL_EXPANDABLE(list->data);
+
+    if (ntypes > 0)
+    {
+      guint i;
+      for (i = 0; i < ntypes; i++)
+        if (G_TYPE_CHECK_INSTANCE_TYPE(object, allowed_types[i]))
+          goto found;
+
+      goto next;
+    }
+
+found:
+    branch = g_node_append_data(tree, object);
+
+    /* TODO(jcon): consider implementing dependency protocol
+     * for CoilObjects */
+    if (COIL_IS_STRUCT(object))
+    {
+      CoilStruct *node = COIL_STRUCT(object);
+
+      dependency_treev(node, branch, ntypes, allowed_types, &internal_error);
+
+      if (G_UNLIKELY(internal_error))
+        goto error;
+    }
+    else if (COIL_IS_INCLUDE(object))
+    {
+      CoilInclude *include = COIL_INCLUDE(object);
+      CoilStruct  *root;
+
+      /* TODO(jcon): encapsulate this in include dependency protocol */
+      root = coil_include_get_root_node(include, &internal_error);
+
+      if (G_UNLIKELY(internal_error))
+        goto error;
+
+      dependency_treev(root, branch, ntypes, allowed_types, &internal_error);
+
+      if (G_UNLIKELY(internal_error))
+        goto error;
+    }
+
+next:
+    list = g_list_next(list);
+  }
+
+  coil_struct_iter_init(&it, self);
+
+  while (coil_struct_iter_next(&it, &entry))
+  {
+    if (G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
+    {
+      CoilStruct *node;
+
+      node = COIL_STRUCT(g_value_get_object(entry->value));
+      dependency_treev(node, tree, ntypes, allowed_types, &internal_error);
+
+      if (G_UNLIKELY(internal_error))
+        goto error;
+    }
+  }
+
+  return tree;
+
+error:
+  if (internal_error)
+    g_propagate_error(error, internal_error);
+
+  return NULL;
+}
+
+static GNode *
+dependency_tree_valist(CoilStruct *self,
+                       guint       ntypes,
+                       va_list     args)
+{
+  GType   *allowed_types;
+  GNode   *result;
+  GError **error = NULL;
+
+  if (ntypes > 0)
+  {
+    guint  i;
+    allowed_types = g_new(GType, ntypes);
+
+    for (i = 0; i < ntypes; i++)
+      allowed_types[i] = va_arg(args, GType);
+  }
+  else
+    allowed_types = NULL;
+
+  error = va_arg(args, GError **);
+
+  result = dependency_treev(self, NULL,
+                            ntypes, allowed_types,
+                            error);
+
+  g_free(allowed_types);
+
+  return result;
+}
+
+GNode *
+coil_struct_dependency_tree(CoilStruct *self,
+                            guint       ntypes,
+                            ...) /* GType, ... [GError **] */
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
+
+  GNode  *result;
+  va_list args;
+
+  va_start(args, ntypes);
+  result = dependency_tree_valist(self, ntypes, args);
+  va_end(args);
+
+  return result;
+}
+
 /*
  * coil_struct_get_size: get the size of a struct
  *

@@ -253,6 +253,11 @@ GList *
 coil_struct_get_values(CoilStruct *self,
                        GError    **error);
 
+GNode *
+coil_struct_dependency_tree(CoilStruct *self,
+                            guint       n_types,
+                            ...);
+
 guint
 coil_struct_get_size(CoilStruct *self,
                      GError    **error);
