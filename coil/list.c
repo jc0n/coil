@@ -53,7 +53,7 @@ coil_list_build_string(const GList      *list,
   gchar         delim[128];
   guint8        dlen = 1;
   guint         orig_indent_level = format->indent_level;
-  gboolean      whitespace = !(format->options & COMPACT);
+//  gboolean      whitespace = !(format->options & COMPACT);
   const GValue *value;
 
   if (list == NULL)
@@ -64,25 +64,21 @@ coil_list_build_string(const GList      *list,
 
   memset(delim, 0, sizeof(delim));
 
-  if (format->options & COMMAS_IN_LIST)
-  {
-    delim[0] = ',';
+  delim[0] = (format->options & COMMAS_IN_LIST) ? ',' : ' ';
 
-    if (format->options & BLANK_LINE_AFTER_COMMA)
-    {
-      format->indent_level += format->block_indent;
-      delim[dlen++] = '\n';
-      memset(delim + dlen, ' ',
-             MIN(format->indent_level, sizeof(delim)));
-      dlen += format->indent_level;
-    }
-    else if (whitespace)
-      delim[dlen++] = ' ';
+  if (format->options & BLANK_LINE_AFTER_ITEM)
+  {
+    format->indent_level += format->block_indent;
+    delim[dlen++] = '\n';
+    memset(delim + dlen, ' ',
+           MIN(format->indent_level, sizeof(delim)));
+    dlen += format->indent_level;
   }
-  else
-    delim[0] = ' ';
 
   g_string_append_c(buffer, '[');
+
+  if (format->options & BLANK_LINE_AFTER_ITEM)
+    g_string_append_len(buffer, delim, dlen);
 
   do
   {
@@ -100,7 +96,9 @@ coil_list_build_string(const GList      *list,
 
   } while ((list = g_list_next(list)));
 
-  g_string_truncate(buffer, buffer->len - dlen);
+  if (!(format->options & LIST_ON_BLANK_LINE))
+    g_string_truncate(buffer, buffer->len - dlen);
+
   g_string_append_c(buffer, ']');
 
   /* restore indent at this scope */

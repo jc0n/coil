@@ -2226,14 +2226,20 @@ struct_build_string_internal(CoilStruct       *self,
   }
   else
   {
-    gboolean hug_brace = (format->options & BRACE_ON_PATH_LINE);
-    gboolean bl_after_brace = (format->options & BLANK_LINE_AFTER_BRACE);
-    gboolean bl_after_struct = (format->options & BLANK_LINE_AFTER_STRUCT);
-    gchar    indent[128];
+    gboolean br_on_bl;
+    gchar   *nl_after_brace, *nl_after_struct;
+    gchar    indent[128], brace_indent[128];
     guint    indent_len = format->indent_level;
+
+    br_on_bl = (format->options & BRACE_ON_BLANK_LINE);
+    nl_after_brace = (format->options & BLANK_LINE_AFTER_BRACE) ? "\n" : "";
+    nl_after_struct = (format->options & BLANK_LINE_AFTER_STRUCT) ? "\n" : "";
 
     memset(indent, ' ', MIN(indent_len, sizeof(indent)));
     indent[indent_len] = '\0';
+
+    memset(brace_indent, ' ', MIN(format->brace_indent, sizeof(brace_indent)));
+    brace_indent[format->brace_indent] = '\0';
 
     format->indent_level += format->block_indent;
 
@@ -2246,19 +2252,27 @@ struct_build_string_internal(CoilStruct       *self,
       {
         CoilStruct *node;
 
-        g_string_append_printf(buffer, "%s%s: %s{%s",
-                               indent, path->key,
-                               (hug_brace) ? "" : "\n",
-                               (bl_after_brace) ? "\n" : "");
+        g_string_append_printf(buffer,
+                               "%s%s: ",
+                               indent,
+                               path->key);
+
+        if (br_on_bl)
+          g_string_append_printf(buffer, "\n%s", indent);
+
+        g_string_append_printf(buffer, "%s{%s",
+                               brace_indent, nl_after_brace);
 
         node = COIL_STRUCT(g_value_get_object(value));
 
         struct_build_string_internal(node, context, buffer,
                                      format, &internal_error);
 
-        g_string_append_printf(buffer, "\n%s}%s",
+        g_string_append_printf(buffer,
+                               "\n%s%s}%s",
                                indent,
-                               (bl_after_struct) ? "\n" : "");
+                               brace_indent,
+                               nl_after_struct);
       }
       else
       {

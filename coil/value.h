@@ -31,14 +31,17 @@ typedef enum {
 
   ESCAPE_QUOTES              = 1 << 3,
 
-  BLANK_LINE_AFTER_COMMA     = 1 << 4,
+  BLANK_LINE_AFTER_ITEM      = 1 << 4,
   BLANK_LINE_AFTER_BRACE     = 1 << 5,
   BLANK_LINE_AFTER_STRUCT    = 1 << 6,
-  COMMAS_IN_LIST             = 1 << 7,
-  BRACE_ON_PATH_LINE         = 1 << 8,
 
-  DONT_EXPAND                = 1 << 9,
-  DONT_QUOTE_STRINGS         = 1 << 10,
+  COMMAS_IN_LIST             = 1 << 7,
+
+  BRACE_ON_BLANK_LINE         = 1 << 8,
+  LIST_ON_BLANK_LINE          = 1 << 9,
+
+  DONT_EXPAND                = 1 << 10,
+  DONT_QUOTE_STRINGS         = 1 << 11,
 
 } CoilStringFormatOptions;
 
@@ -47,8 +50,8 @@ typedef struct _CoilStringFormat
 {
   CoilStringFormatOptions options;
 
-  guint                   block_indent;
-  guint                   brace_indent;
+  guint8                   block_indent;
+  guint8                   brace_indent;
 
   guint                   multiline_len;
 

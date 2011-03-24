@@ -8,7 +8,6 @@
 
 CoilStringFormat default_string_format = {
     ( LEGACY
-    | BRACE_ON_PATH_LINE
     | BLANK_LINE_AFTER_BRACE
     | BLANK_LINE_AFTER_STRUCT
     | ESCAPE_QUOTES
