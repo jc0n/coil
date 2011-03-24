@@ -33,10 +33,12 @@ G_DEFINE_TYPE(CoilInclude, coil_include, COIL_TYPE_EXPANDABLE);
 
 struct _CoilIncludePrivate
 {
-  GValue   *filepath_value; /* (expandable -> string) OR string */
-  GList    *import_list; /* list of (expandable -> string) or strings */
+  GValue     *filepath_value; /* (expandable -> string) OR string */
+  GList      *import_list; /* list of (expandable -> string) or strings */
 
-  gboolean  is_expanded : 1;
+  CoilStruct *root;
+
+  gboolean    is_expanded : 1;
 };
 
 typedef enum
@@ -505,18 +507,16 @@ expand_filepath(CoilInclude *self,
 }
 
 static gboolean
-include_expand(gconstpointer   include,
-               const GValue  **return_value,
-               GError        **error)
+include_load_root(CoilInclude *self,
+                  GError     **error)
 {
-  g_return_val_if_fail(COIL_IS_INCLUDE(include), FALSE);
+  g_return_val_if_fail(COIL_IS_INCLUDE(self), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilInclude        *const self = COIL_INCLUDE(include);
-  CoilIncludePrivate *const priv = self->priv;
-  CoilExpandable     *const super = COIL_EXPANDABLE(include);
+  CoilIncludePrivate *priv = self->priv;
+  CoilExpandable     *const super = COIL_EXPANDABLE(self);
   CoilStruct         *container = super->container;
-  CoilStruct         *root = NULL;
+  CoilStruct         *root;
   const gchar        *filepath;
   GError             *internal_error = NULL;
 
@@ -540,21 +540,22 @@ include_expand(gconstpointer   include,
 #ifdef COIL_INCLUDE_CACHING
   root = include_cache_lookup(filepath, &internal_error);
 
-  if (G_UNLIKELY(internal_error)) goto error;
+  if (G_UNLIKELY(internal_error))
+    goto error;
 
   if (root)
     g_object_ref(root);
   else
   {
-    GObject *gc_object;
+    GObject *notify_object;
 
     root = coil_parse_file(filepath, &internal_error);
 
     if (G_UNLIKELY(internal_error))
       goto error;
 
-    gc_object = G_OBJECT(coil_struct_get_root(container));
-    include_cache_save(gc_object, filepath, root);
+    notify_object = G_OBJECT(coil_struct_get_root(container));
+    include_cache_save(notify_object, filepath, root);
   }
 #else
   root = coil_parse_file(filepath, &internal_error);
@@ -563,10 +564,72 @@ include_expand(gconstpointer   include,
     goto error;
 #endif
 
-  g_assert(COIL_IS_STRUCT(root));
+  priv->root = root;
+  return TRUE;
+
+error:
+  if (internal_error)
+    g_propagate_error(error, internal_error);
+
+  priv->root = NULL;
+  return FALSE;
+}
+
+COIL_API(CoilStruct *)
+coil_include_get_root_node(CoilInclude *self,
+                           GError     **error)
+{
+  g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilIncludePrivate *priv = self->priv;
+
+  if (priv->root == NULL
+    && !include_load_root(self, error))
+    return NULL;
+
+  return priv->root;
+}
+
+COIL_API(CoilStruct *)
+coil_include_dup_root_node(CoilInclude *self,
+                           GError     **error)
+{
+  g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilStruct *root;
+
+  root = coil_include_get_root_node(self, error);
+  if (root)
+    g_object_ref(root);
+
+  return root;
+}
+
+static gboolean
+include_expand(gconstpointer   include,
+               const GValue  **return_value,
+               GError        **error)
+{
+  g_return_val_if_fail(COIL_IS_INCLUDE(include), FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+
+  CoilInclude        *const self = COIL_INCLUDE(include);
+  CoilIncludePrivate *const priv = self->priv;
+  CoilStruct         *root;
+  GError             *internal_error = NULL;
+
+  root = coil_include_dup_root_node(self, &internal_error);
+
+  if (G_UNLIKELY(internal_error))
+    goto error;
 
   if (priv->import_list == NULL)
   {
+    CoilExpandable *const super = COIL_EXPANDABLE(self);
+    CoilStruct     *container = super->container;
+
     coil_struct_merge(root, container, FALSE, &internal_error);
 
     if (G_UNLIKELY(internal_error))
@@ -581,7 +644,7 @@ include_expand(gconstpointer   include,
   return TRUE;
 
 error:
-  if (root != NULL)
+  if (root)
     g_object_unref(root);
 
   if (internal_error)
@@ -655,6 +718,8 @@ build_legacy_string(CoilInclude      *self,
 error:
   g_propagate_error(error, internal_error);
 }
+
+
 
 COIL_API(void)
 coil_include_build_string(CoilInclude      *self,
@@ -741,6 +806,9 @@ coil_include_dispose(GObject *object)
 
   free_value(priv->filepath_value);
   free_value_list(priv->import_list);
+
+  if (priv->root)
+    g_object_unref(priv->root);
 
   G_OBJECT_CLASS(coil_include_parent_class)->dispose(object);
 }
