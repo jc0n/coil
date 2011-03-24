@@ -30,6 +30,7 @@ struct _CoilStructPrivate
 
   GQueue               entries;
   GQueue               dependencies;
+  GList               *last_expand_ptr;
 
   guint                size;
   guint                hash;
@@ -343,8 +344,12 @@ struct_is_expanded(gconstpointer s)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(s), FALSE);
 
-  CoilStruct *self = COIL_STRUCT(s);
-  return g_queue_is_empty(&self->priv->dependencies);
+  CoilStruct        *self = COIL_STRUCT(s);
+  CoilStructPrivate *priv = self->priv;
+  GQueue            *deps = &priv->dependencies;
+
+  return g_queue_is_empty(deps) ||
+    priv->last_expand_ptr == g_queue_peek_tail_link(deps);
 }
 
 /*
@@ -1838,6 +1843,7 @@ struct_expand(gconstpointer    object,
   CoilStruct        *self = COIL_STRUCT(object);
   CoilStructPrivate *priv = self->priv;
   CoilExpandable    *dependency;
+  GList             *list;
 
   g_return_val_if_fail(!priv->is_prototype, FALSE);
 
@@ -1848,16 +1854,23 @@ struct_expand(gconstpointer    object,
    * (theoretically). */
   g_object_set(self, "accumulate", TRUE, NULL);
 
-  while ((dependency = g_queue_pop_head(&priv->dependencies)))
+  if (priv->last_expand_ptr == NULL)
+    list = g_queue_peek_head_link(&priv->dependencies);
+  else
+    list = g_list_next(priv->last_expand_ptr);
+
+  while (list)
   {
+    dependency = COIL_EXPANDABLE(list->data);
+    priv->last_expand_ptr = list;
+
     if (!struct_expand_dependency(self, dependency, error))
     {
-      g_object_unref(dependency);
       g_object_set(self, "accumulate", FALSE, NULL);
       return FALSE;
     }
 
-    g_object_unref(dependency);
+    list = g_list_next(list);
   }
 
 #ifdef COIL_DEBUG
