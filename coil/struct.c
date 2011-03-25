@@ -509,24 +509,28 @@ struct_insert_internal(CoilStruct    *self,
   GError            *internal_error = NULL;
   guint              hash;
 
-  /*g_debug("%s: self=%p path=%s", __FUNCTION__, self, path->path);*/
-
   if (!priv->is_accumulating)
   {
     g_signal_emit(self, struct_signals[MODIFY],
                   0, (gpointer *)&internal_error);
 
     if (G_UNLIKELY(internal_error))
-    {
-      g_propagate_error(error, internal_error);
       goto error;
+  }
+
+  /* TODO(jcon): dont check value for struct more than once */
+  if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
+  {
+    CoilStruct *object;
+    object = COIL_STRUCT(g_value_get_object(value));
+    if (coil_struct_is_ancestor(object, self))
+    {
+       g_error("Attempting to insert ancestor struct '%s' into '%s'.",
+               coil_struct_get_path(object)->path,
+               coil_struct_get_path(self)->path);
     }
   }
 
-//  if (!priv->size)
-//    goto new_entry;
-
-  /*g_debug("%s: priv->hash=%d", __FUNCTION__, priv->hash);*/
   hash = hash_relative_path(priv->hash, path->key, path->key_len);
 
   if (priv->size
@@ -563,10 +567,7 @@ struct_insert_internal(CoilStruct    *self,
           g_object_set(dst, "accumulate", FALSE, NULL);
 
           if (G_UNLIKELY(internal_error))
-          {
-            g_propagate_error(error, internal_error);
             goto error;
-          }
 
           coil_path_unref(path);
           free_value(value);
@@ -588,8 +589,8 @@ struct_insert_internal(CoilStruct    *self,
                       "never defined.", path->path);
           goto error;
         }
-      }
-    }
+      } /* ...coil_struct_is_prototype */
+    } /* ... old_value && G_VALUE_HOLDS */
     else if (!replace)
     {
        coil_struct_error(error, self,
@@ -619,6 +620,7 @@ struct_insert_internal(CoilStruct    *self,
    * the path will be different so we need up update that and
    * also update children */
 
+  /* TODO(jcon): implement set_container in expandable */
   if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
   {
     CoilStruct *object = COIL_STRUCT(g_value_get_object(value));
@@ -656,8 +658,12 @@ struct_insert_internal(CoilStruct    *self,
   return TRUE;
 
 error:
+  if (internal_error)
+    g_propagate_error(error, internal_error);
+
   coil_path_unref(path);
   free_value(value);
+
   return FALSE;
 }
 
