@@ -61,7 +61,7 @@ copy_compressed_string(const gchar *str,
           return buffer;
 
         case '$':
-          g_string_append(buffer, "\\$");
+          g_string_append_len(buffer, "\\$", 2);
           break;
 
         case 'n':

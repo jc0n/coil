@@ -73,7 +73,7 @@ expr_expand(gconstpointer  object,
 
   CoilExpr        *const self = COIL_EXPR(object);
   CoilExprPrivate *const priv = self->priv;
-  CoilStringFormat format;
+  CoilStringFormat format = default_string_format;
   GString         *expr = priv->expr, *buffer;
   const gchar     *s, *p;
   GError          *internal_error = NULL;
@@ -83,9 +83,9 @@ expr_expand(gconstpointer  object,
 
   buffer = g_string_sized_new(128);
 
-  memcpy(&format, &default_string_format, sizeof(format));
   format.indent_level = 0;
-  format.options |= ESCAPE_QUOTES | DONT_QUOTE_STRINGS;
+  format.options &= ~ESCAPE_QUOTES;
+  format.options |= DONT_QUOTE_STRINGS;
 
   for (s = expr->str; *s; s++)
   {

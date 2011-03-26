@@ -118,58 +118,72 @@ free_string_list(GList *list)
   }
 }
 
+static GString *
+buffer_string_append_escaped(GString     *buffer,
+                             const gchar *string,
+                             gssize       length)
+{
+  g_return_if_fail(buffer);
+  g_return_if_fail(string);
+  g_return_if_fail(length > 0);
+
+  const gchar *p;
+
+  for (p = string; length-- > 0; string++)
+    switch (*string)
+    {
+      case '\0':
+        g_warning("unexpected nul '\\0' byte");
+        return buffer;
+
+      case '\'':
+      case '$':
+        g_string_append_len(buffer, p, string - p);
+        g_string_append_c(buffer, '\\');
+        p = string;
+    }
+
+  g_string_append_len(buffer, p, string - p);
+
+  return buffer;
+}
+
 static void
-append_quoted_string(GString *const    buffer,
+buffer_string_append(GString *const    buffer,
                      const gchar      *string,
                      guint             length,
-                     gchar             quote_char,
                      CoilStringFormat *format)
 {
   g_return_if_fail(buffer);
   g_return_if_fail(string);
+  g_return_if_fail(length > 0);
   g_return_if_fail(format);
 
-  gboolean multiline = FALSE;
-  gboolean quote_string = !(format->options & DONT_QUOTE_STRINGS);
-
-  if (quote_string)
-  {
-    if ((length > format->multiline_len
-      || memchr(string, '\n', length) != NULL))
-    {
-      multiline = TRUE;
-      g_string_append_len(buffer, COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE));
-    }
-    else
-      g_string_append_c(buffer, quote_char);
-  }
+  GString *(*append_func)(GString *, const gchar *, gssize);
 
   if (format->options & ESCAPE_QUOTES)
+    append_func = buffer_string_append_escaped;
+  else
+    append_func = g_string_append_len;
+
+  if (format->options & DONT_QUOTE_STRINGS)
   {
-    guint        n;
-    const gchar *p;
+    append_func(buffer, string, length);
+    return;
+  }
 
-    for (p = string, n = length; n--; string++)
-    {
-      if (*string == quote_char)
-      {
-        g_string_append_len(buffer, p, string - p);
-        g_string_append_c(buffer, '\\');
-        p = string;
-      }
-    }
-
-    g_string_append(buffer, p);
+  if (length > format->multiline_len
+    || memchr(string, '\n', length) != NULL)
+  {
+    g_string_append_len(buffer, COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE));
+    append_func(buffer, string, length);
+    g_string_append_len(buffer, COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE));
   }
   else
-    g_string_append_len(buffer, string, length);
-
-  if (quote_string)
   {
-    if (multiline)
-      g_string_append_len(buffer, COIL_STATIC_STRLEN(COIL_MULTILINE_QUOTE));
-    else
-      g_string_append_c(buffer, quote_char);
+    g_string_append_c(buffer, '\'');
+    append_func(buffer, string, length);
+    g_string_append_c(buffer, '\'');
   }
 }
 
@@ -206,7 +220,7 @@ coil_value_build_string(const GValue     *value,
       string = g_value_get_string(value);
       length = strlen(string);
 
-      append_quoted_string(buffer, string, length, '\'', format);
+      buffer_string_append(buffer, string, length, format);
       return;
     }
 
@@ -227,7 +241,7 @@ coil_value_build_string(const GValue     *value,
     if (type == G_TYPE_GSTRING)
     {
       const GString *gstring = (GString *)g_value_get_boxed(value);
-      append_quoted_string(buffer, gstring->str, gstring->len, '\'', format);
+      buffer_string_append(buffer, gstring->str, gstring->len, format);
       return;
     }
 
