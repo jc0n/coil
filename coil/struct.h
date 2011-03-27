@@ -210,7 +210,15 @@ coil_struct_iter_init(CoilStructIter   *iter,
 
 gboolean
 coil_struct_iter_next(CoilStructIter  *iter,
-                      StructEntry    **entry);
+                      const CoilPath **path,
+                      const GValue   **value);
+
+gboolean
+coil_struct_iter_next_expand(CoilStructIter  *iter,
+                             const CoilPath **path,
+                             const GValue   **value,
+                             gboolean         recursive,
+                             GError         **error);
 
 gboolean
 coil_struct_merge(CoilStruct  *src,

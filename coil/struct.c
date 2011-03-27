@@ -1593,9 +1593,9 @@ coil_struct_iter_init(CoilStructIter   *iter,
   iter->position = g_queue_peek_head_link(&priv->entries);
 }
 
-COIL_API(gboolean)
-coil_struct_iter_next(CoilStructIter *iter,
-                      StructEntry   **entry)
+static gboolean
+struct_iter_next_entry(CoilStructIter *iter,
+                       StructEntry   **entry)
 {
   g_return_val_if_fail(iter, FALSE);
   g_return_val_if_fail(entry, FALSE);
@@ -1614,33 +1614,49 @@ coil_struct_iter_next(CoilStructIter *iter,
 
   return TRUE;
 }
-/*
+
 COIL_API(gboolean)
-coil_struct_iter_next_value(CoilStructIter *iter,
-                            const GValue  **value,
-                            gboolean        expand_value,
-                            GError        **error)
+coil_struct_iter_next(CoilStructIter  *iter,
+                      const CoilPath **path,
+                      const GValue   **value)
+{
+  g_return_val_if_fail(iter, FALSE);
+  g_return_val_if_fail(path || value, FALSE);
+
+  StructEntry *entry;
+
+  if (!struct_iter_next_entry(iter, &entry))
+    return FALSE;
+
+  if (path)
+    *path = entry->path;
+
+  if (value)
+    *value = entry->value;
+
+  return TRUE;
+}
+
+COIL_API(gboolean)
+coil_struct_iter_next_expand(CoilStructIter  *iter,
+                             const CoilPath **path,
+                             const GValue   **value,
+                             gboolean         recursive,
+                             GError         **error)
 {
   g_return_val_if_fail(iter, FALSE);
   g_return_val_if_fail(value, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-#ifdef COIL_DEBUG
-  const CoilStruct *self = iter->node;
-  g_return_val_if_fail(iter->version == self->priv->version, FALSE);
-#endif
-
-  if (!iter->position)
+  if (!coil_struct_iter_next(iter, path, value))
     return FALSE;
 
-  *value = (GValue *)((StructEntry *)iter->position->data)->value;
-
-  if (expand_value)
-     return coil_expand_value(value, FALSE, error);
+  /* stop iteration on error */
+  if (G_VALUE_HOLDS(*value, COIL_TYPE_EXPANDABLE))
+    return coil_expand_value(*value, value, recursive, error);
 
   return TRUE;
 }
-*/
 
 COIL_API(gboolean)
 coil_struct_merge(CoilStruct  *src,
@@ -1679,7 +1695,7 @@ coil_struct_merge(CoilStruct  *src,
 
   coil_struct_iter_init(&it, src);
 
-  while (coil_struct_iter_next(&it, &entry))
+  while (struct_iter_next_entry(&it, &entry))
   {
     hash = hash_relative_path(dst->priv->hash,
                               entry->path->key,
@@ -1922,7 +1938,7 @@ coil_struct_expand_recursive(CoilStruct  *self,
     return TRUE;
 
   coil_struct_iter_init(&it, self);
-  while (coil_struct_iter_next(&it, (StructEntry **)&entry))
+  while (struct_iter_next_entry(&it, (StructEntry **)&entry))
   {
     const GValue *value = entry->value;
     if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
@@ -2252,7 +2268,7 @@ next:
 
   coil_struct_iter_init(&it, self);
 
-  while (coil_struct_iter_next(&it, &entry))
+  while (struct_iter_next_entry(&it, &entry))
   {
     if (G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
     {
@@ -2378,7 +2394,7 @@ struct_build_string_internal(CoilStruct       *self,
     const CoilPath *context_path = coil_struct_get_path(context);
     const guint     path_offset = context_path->path_len + 1;
 
-    while (coil_struct_iter_next(&it, &entry))
+    while (struct_iter_next_entry(&it, &entry))
     {
       value = entry->value;
       path = entry->path;
@@ -2424,7 +2440,7 @@ struct_build_string_internal(CoilStruct       *self,
 
     format->indent_level += format->block_indent;
 
-    while (coil_struct_iter_next(&it, &entry))
+    while (struct_iter_next_entry(&it, &entry))
     {
       value = entry->value;
       path = entry->path;
@@ -2609,7 +2625,7 @@ coil_struct_deep_copy(CoilStruct       *self,
 
     /* iterate keys in order */
     coil_struct_iter_init(&it, self);
-    while (coil_struct_iter_next(&it, &entry))
+    while (struct_iter_next_entry(&it, &entry))
     {
       const GValue   *value = entry->value;
       const CoilPath *path = entry->path;
