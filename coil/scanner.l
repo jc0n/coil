@@ -103,25 +103,16 @@ copy_compressed_string(const gchar *str,
   } \
   } G_STMT_END
 
-#define TOKEN_ERROR(parser, fmt, args...) \
-  G_STMT_START { \
-    parser->error = g_error_new(COIL_ERROR, COIL_ERROR_PARSE, fmt, ##args); \
-    return ERROR; \
-  } G_STMT_END
-
 /* TODO(jcon): add line numbers */
 #define HANDLE_PATH_TOKEN() \
   G_STMT_START { \
     if (yyleng > COIL_PATH_LEN) \
     { \
-      gchar snippet[32]; \
-      memset(&snippet, 0, sizeof(snippet)); \
-      strncpy(snippet, yytext, 27); \
-      strcat(snippet, "..."); \
-      TOKEN_ERROR(yyextra, "Path '%s' too long (%d), limited to %d characters.", \
-                  snippet, yyleng, COIL_PATH_LEN); \
+      path_length_error(yytext, yyleng, &yyextra->error); \
+      return ERROR; \
     } \
-    yylval->path = coil_path_new_len(yytext, yyleng); \
+    gchar *path = g_strndup(yytext, yyleng); \
+    yylval->path = coil_path_take_strings(path, yyleng, NULL, 0, 0); \
   } G_STMT_END
 %}
 

@@ -103,11 +103,13 @@ void
 coil_path_debug(CoilPath *p);
 #endif
 
+void
+path_length_error(const gchar *path,
+                  guint        path_len,
+                  GError     **error);
+
 GType
 coil_path_get_type(void) G_GNUC_CONST;
-
-CoilPath *
-coil_path_alloc(void) G_GNUC_WARN_UNUSED_RESULT;
 
 void
 coil_path_list_free(GList *list);
@@ -121,10 +123,12 @@ coil_path_take_strings(gchar         *path,
 
 CoilPath *
 coil_path_new_len(const gchar  *buffer,
-                  guint8        buf_len);
+                  guint         buf_len,
+                  GError      **error);
 
 CoilPath *
-coil_path_new(const gchar *buffer);
+coil_path_new(const gchar *buffer,
+              GError     **error);
 
 CoilPath *
 coil_path_copy(const CoilPath *p);
@@ -148,42 +152,48 @@ coil_path_unref(CoilPath *p);
 
 CoilPath *
 coil_path_concat(const CoilPath *container,
-                 const CoilPath *key) G_GNUC_WARN_UNUSED_RESULT;
+                 const CoilPath *key,
+                 GError        **error) G_GNUC_WARN_UNUSED_RESULT;
 
 CoilPath *
-coil_path_build_new_vlen(guint8       path_len,
-                         const gchar *base,
-                         va_list      args);
+coil_build_path_valist(GError **error,
+                       const gchar *first_key,
+                       va_list  args);
 
 CoilPath *
-coil_path_build_new_len(guint8       path_len,
-                        const gchar *base,
-                        ...);
-
-CoilPath *
-coil_path_build_new(const gchar *base,
-                    ...);
+coil_build_path(GError     **error,
+                const gchar *first_key,
+                ...) G_GNUC_NULL_TERMINATED;
 
 gboolean
-coil_validate_path_strn(const gchar *path,
-                        guint8       path_len);
+coil_validate_path_len(const gchar *path,
+                       guint        path_len);
 
 gboolean
-coil_validate_path_str(const gchar *path);
+coil_validate_path(const gchar *path);
 
 gboolean
-coil_validate_path(const CoilPath *path);
+coil_validate_key_len(const gchar *key,
+                      guint        key_len);
 
 gboolean
-coil_validate_key_strn(const gchar *key,
-                       guint8       key_len);
+coil_validate_key(const gchar *key);
 
 gboolean
-coil_validate_key_str(const gchar *key);
+coil_check_key(const gchar *key,
+               guint        key_len,
+               GError     **error);
 
-void
-coil_path_change_container(CoilPath      **path,
-                           const CoilPath *ctnr);
+gboolean
+coil_check_path(const gchar *path,
+                guint        path_len,
+                GError     **error);
+
+
+gboolean
+coil_path_change_container(CoilPath      **path_ptr,
+                           const CoilPath *container,
+                           GError        **error);
 
 CoilPath *
 coil_path_resolve(const CoilPath *path,

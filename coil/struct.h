@@ -129,18 +129,25 @@ coil_struct_insert_path(CoilStruct *self,
 gboolean
 coil_struct_insert(CoilStruct  *self,
                    gchar       *path_str, /* steals */
-                   guint8       path_len,
+                   guint        path_len,
                    GValue      *value, /* steals */
                    gboolean     replace,
                    GError     **error);
 
 gboolean
-coil_struct_insert_key(CoilStruct  *self,
-                       const gchar *key,
-                       guint8       key_len,
-                       GValue      *value, /* steals */
-                       gboolean     replace,
-                       GError     **error);
+coil_struct_insert_fast(CoilStruct  *self,
+                        gchar       *path_str, /* steals */
+                        guint8       path_len,
+                        GValue      *value, /* steals */
+                        gboolean     replace,
+                        GError     **error);
+gboolean
+coil_struct_insert_key(CoilStruct   *self,
+                       const gchar  *key,
+                       guint         key_len,
+                       GValue       *value, /* steals */
+                       gboolean      replace,
+                       GError      **error);
 
 gboolean
 coil_struct_delete_path(CoilStruct     *self,
@@ -150,15 +157,15 @@ coil_struct_delete_path(CoilStruct     *self,
 
 gboolean
 coil_struct_delete(CoilStruct  *self,
-                   const gchar *path_str,
-                   guint8       path_len,
+                   const gchar *path,
+                   guint        path_len,
                    gboolean     strict,
                    GError     **error);
 
 gboolean
 coil_struct_delete_key(CoilStruct  *self,
                        const gchar *key,
-                       guint8       key_len,
+                       guint        key_len,
                        gboolean     strict,
                        GError     **error);
 
@@ -169,16 +176,22 @@ coil_struct_mark_deleted_path(CoilStruct *self,
                               GError    **error);
 
 gboolean
+coil_struct_mark_deleted_fast(CoilStruct  *self,
+                              gchar       *path_str, /* steal */
+                              guint8       path_len,
+                              gboolean     force,
+                              GError     **error);
+
+gboolean
 coil_struct_mark_deleted(CoilStruct  *self,
                          gchar       *path_str, /* steal */
-                         guint8       path_len,
+                         guint        path_len,
                          gboolean     force,
                          GError     **error);
 
 gboolean
 coil_struct_mark_deleted_key(CoilStruct  *self,
                              const gchar *key,
-                             guint8       key_len,
                              gboolean     force,
                              GError     **error);
 
@@ -242,14 +255,21 @@ coil_struct_lookup_path(CoilStruct     *self,
 const GValue *
 coil_struct_lookup_key(CoilStruct  *self,
                        const gchar *key,
-                       guint8       key_len,
+                       guint        key_len,
                        gboolean     expand_value,
                        GError     **error);
 
 const GValue *
+coil_struct_lookup_fast(CoilStruct  *self,
+                        const gchar *path_str,
+                        guint8       path_len,
+                        gboolean     expand_value,
+                        GError     **error);
+
+const GValue *
 coil_struct_lookup(CoilStruct  *self,
                    const gchar *path_str,
-                   guint8       path_len,
+                   guint        path_len,
                    gboolean     expand_value,
                    GError     **error);
 

@@ -288,12 +288,8 @@ parser_make_path_from_string(CoilParser  *parser,
   g_return_val_if_fail(parser, NULL);
   g_return_val_if_fail(gstring, NULL);
 
-  if (!coil_validate_path_strn(gstring->str, gstring->len))
+  if (!coil_check_path(gstring->str, gstring->len, &parser->error))
   {
-    parser_error(parser,
-                 "Expecting valid path in string but found '%s' instead.",
-                 gstring->str);
-
     g_string_free(gstring, TRUE);
     return NULL;
   }
