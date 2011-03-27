@@ -2194,12 +2194,12 @@ coil_struct_get_values(CoilStruct *self,
 }
 
 /* TODO(jcon): allow de-duplicating branches */
-static GNode *
-dependency_treev(CoilStruct *self,
-                 GNode      *tree,
-                 guint       ntypes,
-                 GType      *allowed_types,
-                 GError    **error)
+COIL_API(GNode *)
+coil_struct_dependency_treev(CoilStruct *self,
+                             GNode      *tree,
+                             guint       ntypes,
+                             GType      *allowed_types,
+                             GError    **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
   g_return_val_if_fail(!(tree == NULL ^ visited == NULL), NULL);
@@ -2240,7 +2240,9 @@ found:
     {
       CoilStruct *node = COIL_STRUCT(object);
 
-      dependency_treev(node, branch, ntypes, allowed_types, &internal_error);
+      coil_struct_dependency_treev(node, branch,
+                                   ntypes, allowed_types,
+                                   &internal_error);
 
       if (G_UNLIKELY(internal_error))
         goto error;
@@ -2256,7 +2258,9 @@ found:
       if (G_UNLIKELY(internal_error))
         goto error;
 
-      dependency_treev(root, branch, ntypes, allowed_types, &internal_error);
+      coil_struct_dependency_treev(root, branch,
+                                   ntypes, allowed_types,
+                                   &internal_error);
 
       if (G_UNLIKELY(internal_error))
         goto error;
@@ -2275,7 +2279,9 @@ next:
       CoilStruct *node;
 
       node = COIL_STRUCT(g_value_get_object(entry->value));
-      dependency_treev(node, tree, ntypes, allowed_types, &internal_error);
+      coil_struct_dependency_treev(node, tree,
+                                   ntypes, allowed_types,
+                                   &internal_error);
 
       if (G_UNLIKELY(internal_error))
         goto error;
@@ -2291,10 +2297,10 @@ error:
   return NULL;
 }
 
-static GNode *
-dependency_tree_valist(CoilStruct *self,
-                       guint       ntypes,
-                       va_list     args)
+COIL_API(GNode *)
+coil_struct_dependency_tree_valist(CoilStruct *self,
+                                   guint       ntypes,
+                                   va_list     args)
 {
   GType   *allowed_types;
   GNode   *result;
@@ -2313,16 +2319,16 @@ dependency_tree_valist(CoilStruct *self,
 
   error = va_arg(args, GError **);
 
-  result = dependency_treev(self, NULL,
-                            ntypes, allowed_types,
-                            error);
+  result = coil_struct_dependency_treev(self, NULL,
+                                        ntypes, allowed_types,
+                                        error);
 
   g_free(allowed_types);
 
   return result;
 }
 
-GNode *
+COIL_API(GNode *)
 coil_struct_dependency_tree(CoilStruct *self,
                             guint       ntypes,
                             ...) /* GType, ... [GError **] */
@@ -2333,7 +2339,7 @@ coil_struct_dependency_tree(CoilStruct *self,
   va_list args;
 
   va_start(args, ntypes);
-  result = dependency_tree_valist(self, ntypes, args);
+  result = coil_struct_dependency_tree_valist(self, ntypes, args);
   va_end(args);
 
   return result;

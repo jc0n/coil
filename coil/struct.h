@@ -266,6 +266,18 @@ coil_struct_dependency_tree(CoilStruct *self,
                             guint       n_types,
                             ...);
 
+GNode *
+coil_struct_dependency_valist(CoilStruct *self,
+                              guint       ntypes,
+                              va_list     args);
+
+GNode *
+coil_struct_dependency_treev(CoilStruct *self,
+                             GNode      *tree,
+                             guint       ntypes,
+                             GType      *allowed_types,
+                             GError    **error);
+
 guint
 coil_struct_get_size(CoilStruct *self,
                      GError    **error);
