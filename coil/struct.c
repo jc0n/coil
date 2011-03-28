@@ -206,7 +206,7 @@ struct_change_container(CoilStruct *self,
       priv->root = coil_struct_get_root(new_container);
 
       /* only if our root changes do we use a different entry table */
-      if (coil_struct_has_same_root(self, old_container))
+      if (coil_struct_has_same_root(self, new_container))
         old_table = struct_table_ref(priv->entry_table);
       else
       {
@@ -2350,7 +2350,6 @@ coil_struct_dependency_treev(CoilStruct *self,
                              GError    **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
-  g_return_val_if_fail(!(tree == NULL ^ visited == NULL), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilStructPrivate *priv = self->priv;
