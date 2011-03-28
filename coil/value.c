@@ -123,9 +123,9 @@ buffer_string_append_escaped(GString     *buffer,
                              const gchar *string,
                              gssize       length)
 {
-  g_return_if_fail(buffer);
-  g_return_if_fail(string);
-  g_return_if_fail(length > 0);
+  g_return_val_if_fail(buffer, NULL);
+  g_return_val_if_fail(string, NULL);
+  g_return_val_if_fail(length > 0, NULL);
 
   const gchar *p;
 
