@@ -46,6 +46,12 @@ coil_expr_new(GString *expr_string,
               const gchar *first_property_name,
               ...);
 
+CoilExpr *
+coil_expr_new_valist(GString *expr_string,
+                     const gchar *first_property_name,
+                     va_list      properties);
+
+
 G_END_DECLS
 
 #endif

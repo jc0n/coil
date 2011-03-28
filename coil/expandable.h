@@ -61,7 +61,8 @@ struct _CoilExpandableClass
 
   /* Abstract Methods */
   CoilExpandable *(*copy) (gconstpointer     self,
-                           const CoilStruct *container,
+                           const gchar      *first_property_name,
+                           va_list           properties,
                            GError          **error);
 
   gboolean (*is_expanded) (gconstpointer self);
@@ -87,8 +88,9 @@ coil_expandable_get_type(void) G_GNUC_CONST;
 
 CoilExpandable *
 coil_expandable_copy(gconstpointer     object,
-                     const CoilStruct *container,
-                     GError          **error);
+                     GError          **error,
+                     const gchar      *first_property_name,
+                     ...) G_GNUC_NULL_TERMINATED;
 
 void
 coil_expandable_build_string(CoilExpandable   *self,

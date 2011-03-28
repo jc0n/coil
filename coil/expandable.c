@@ -182,17 +182,24 @@ coil_expand_value(const GValue  *value,
 
 COIL_API(CoilExpandable *)
 coil_expandable_copy(gconstpointer     object,
-                     const CoilStruct *container,
-                     GError          **error)
+                     GError          **error,
+                     const gchar      *first_property_name,
+                     ...)
 {
   g_return_val_if_fail(COIL_IS_EXPANDABLE(object), NULL);
-  g_return_val_if_fail(COIL_IS_STRUCT(container), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  va_list properties;
 
   CoilExpandable      *exp = COIL_EXPANDABLE(object);
   CoilExpandableClass *klass = COIL_EXPANDABLE_GET_CLASS(exp);
+  CoilExpandable      *result;
 
-  return klass->copy(exp, container, error);
+  va_start(properties, first_property_name);
+  result = klass->copy(exp, first_property_name, properties, error);
+  va_end(properties);
+
+  return result;
 }
 
 static void
@@ -271,7 +278,8 @@ coil_expandable_init(CoilExpandable *self)
 
 static CoilExpandable *
 _expandable_copy(gconstpointer      self,
-                 const CoilStruct  *container,
+                 const gchar       *first_property_name,
+                 va_list            properties,
                  GError           **error)
 {
   g_error("Bad implementation of expandable->copy() in '%s' class.",

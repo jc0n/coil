@@ -68,7 +68,12 @@ GQuark
 coil_struct_prototype_quark(void) G_GNUC_CONST;
 
 CoilStruct *
-coil_struct_new(const gchar *first_property_name, ...) G_GNUC_NULL_TERMINATED;
+coil_struct_new(const gchar *first_property_name,
+                ...) G_GNUC_NULL_TERMINATED;
+
+CoilStruct *
+coil_struct_new_valist(const gchar *first_property_name,
+                       va_list      properties);
 
 CoilStruct *
 coil_struct_create_containers(CoilStruct  *self,
@@ -314,10 +319,16 @@ coil_struct_to_string(CoilStruct       *self,
                       GError          **error);
 
 CoilStruct *
-coil_struct_deep_copy(CoilStruct       *self,
-                      const CoilStruct *new_container,
-                      GError          **error);
+coil_struct_copy(CoilStruct       *self,
+                 GError          **error,
+                 const gchar      *first_property_name,
+                 ...) G_GNUC_NULL_TERMINATED;
 
+CoilStruct *
+coil_struct_copy_valist(CoilStruct  *self,
+                        const gchar *first_property_name,
+                        va_list      properties,
+                        GError     **error);
 gboolean
 coil_struct_equals(gconstpointer e1,
                    gconstpointer e2,

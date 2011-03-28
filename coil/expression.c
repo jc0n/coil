@@ -209,24 +209,20 @@ coil_expr_to_string(CoilExpr         *self,
 
 static CoilExpandable *
 expr_copy(gconstpointer     _self,
-          const CoilStruct *container,
+          const gchar      *first_property_name,
+          va_list           properties,
           GError          **error)
 {
   g_return_val_if_fail(COIL_IS_EXPANDABLE(_self), NULL);
-  g_return_val_if_fail(COIL_IS_STRUCT(container), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  CoilExpr        *copy, *self;
-  CoilExprPrivate *priv;
-  GString         *buf;
+  CoilExpr        *self = COIL_EXPR(_self);
+  CoilExpr        *copy;
+  CoilExprPrivate *priv = self->priv;
+  GString         *string;
 
-  self = COIL_EXPR(_self);
-  priv = self->priv;
-  buf = priv->expr;
-
-  copy = coil_expr_new(g_string_new_len(buf->str, buf->len),
-                       "container", container,
-                       NULL);
+  string = g_string_new_len(priv->expr->str, priv->expr->len);
+  copy = coil_expr_new_valist(string, first_property_name, properties);
 
   return COIL_EXPANDABLE(copy);
 }
@@ -255,19 +251,31 @@ exprval_to_strval(const GValue *exprval,
   g_value_take_string(strval, string);
 }
 
-CoilExpr *
+COIL_API(CoilExpr *)
 coil_expr_new(GString     *string, /* steals */
               const gchar *first_property_name,
               ...)
 {
-  va_list          args;
+  CoilExpr *result;
+  va_list   properties;
+
+  va_start(properties, first_property_name);
+  result = coil_expr_new_valist(string, first_property_name, properties);
+  va_end(properties);
+
+  return result;
+}
+
+COIL_API(CoilExpr *)
+coil_expr_new_valist(GString     *string,
+                     const gchar *first_property_name,
+                     va_list      properties)
+{
   GObject         *object;
   CoilExpr        *self;
   CoilExprPrivate *priv;
 
-  va_start(args, first_property_name);
-  object = g_object_new_valist(COIL_TYPE_EXPR, first_property_name, args);
-  va_end(args);
+  object = g_object_new_valist(COIL_TYPE_EXPR, first_property_name, properties);
 
   self = COIL_EXPR(object);
   priv = self->priv;
