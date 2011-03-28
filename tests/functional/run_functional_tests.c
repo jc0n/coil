@@ -107,7 +107,7 @@ expect_pass(const gchar *filepath)
     /* just check syntax
      * expand everything to catch expand errors
      */
-    coil_struct_expand_recursive(root, &error);
+    coil_struct_expand_items(root, TRUE, &error);
     g_assert_no_error(error);
   }
   else if (test == NULL)
@@ -154,7 +154,7 @@ expect_fail(const gchar *filepath)
   /* expand file to catch intentional expand errors */
   /* TODO: add specific error checking */
   if (root && error == NULL)
-    coil_struct_expand_recursive(root, &error);
+    coil_struct_expand_items(root, TRUE, &error);
 
   g_assert(error != NULL);
 }

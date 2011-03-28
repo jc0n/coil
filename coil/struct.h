@@ -245,8 +245,9 @@ coil_struct_merge(CoilStruct  *src,
                   GError     **error);
 
 gboolean
-coil_struct_expand_recursive(CoilStruct  *self,
-                             GError     **error);
+coil_struct_expand_items(CoilStruct  *self,
+                         gboolean     recursive,
+                         GError     **error);
 
 #define coil_struct_expand(self, error) \
   coil_expand(self, NULL, FALSE, error)

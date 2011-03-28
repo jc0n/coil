@@ -1889,7 +1889,7 @@ coil_struct_merge(CoilStruct  *src,
    * the real value's from expanded values in the loop below
    */
   force_expand = !coil_struct_has_same_root(src, dst);
-  if (force_expand && !coil_struct_expand_recursive(src, error))
+  if (force_expand && !coil_struct_expand_items(src, TRUE, error))
     return FALSE;
 
   coil_struct_iter_init(&it, src);
@@ -2027,31 +2027,36 @@ struct_expand(gconstpointer    object,
 }
 
 COIL_API(gboolean)
-coil_struct_expand_recursive(CoilStruct  *self,
-                             GError     **error)
+coil_struct_expand_items(CoilStruct  *self,
+                         gboolean     recursive,
+                         GError     **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilStructIter     it;
-  const StructEntry *entry;
+  CoilStructIter  it;
+  const GValue   *value;
 
   if (!coil_struct_expand(self, error))
     return FALSE;
 
-  if (!self->priv->size)
+  if (struct_is_definitely_empty(self))
     return TRUE;
 
   coil_struct_iter_init(&it, self);
-  while (struct_iter_next_entry(&it, (StructEntry **)&entry))
+  while (coil_struct_iter_next(&it, NULL, &value))
   {
-    const GValue *value = entry->value;
     if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
     {
-      CoilExpandable *object = COIL_EXPANDABLE(g_value_get_object(value));
-      if ((COIL_IS_STRUCT(object)
-          && !coil_struct_expand_recursive(COIL_STRUCT(object), error))
-          || !coil_expand(object, NULL, TRUE, error))
+      CoilExpandable *object;
+      object = COIL_EXPANDABLE(g_value_get_object(value));
+
+      if (!coil_expand(object, NULL, TRUE, error))
+        return FALSE;
+
+      if (recursive
+          && COIL_IS_STRUCT(object)
+          && !coil_struct_expand_items(COIL_STRUCT(object), TRUE, error))
         return FALSE;
     }
   }
@@ -2756,7 +2761,7 @@ coil_struct_copy_valist(CoilStruct  *self,
 
   copy = coil_struct_new_valist(first_property_name, properties);
 
-  if (!coil_struct_expand_recursive(self, error))
+  if (!coil_struct_expand_items(self, TRUE, error))
     goto error;
 
   if (!struct_is_definitely_empty(self))
