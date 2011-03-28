@@ -185,7 +185,7 @@ expr_build_string(gconstpointer     object,
   coil_value_build_string(return_value, buffer, format, error);
 }
 
-static gchar *
+COIL_API(gchar *)
 coil_expr_to_string(CoilExpr         *self,
                     CoilStringFormat *format,
                     GError          **error)
