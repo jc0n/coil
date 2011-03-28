@@ -68,12 +68,14 @@ GQuark
 coil_struct_prototype_quark(void) G_GNUC_CONST;
 
 CoilStruct *
-coil_struct_new(const gchar *first_property_name,
-                ...) G_GNUC_NULL_TERMINATED;
+coil_struct_new(GError **error,
+                const gchar *first_property_name,
+                ...);
 
 CoilStruct *
 coil_struct_new_valist(const gchar *first_property_name,
-                       va_list      properties);
+                       va_list      properties,
+                       GError     **error);
 
 CoilStruct *
 coil_struct_create_containers(CoilStruct  *self,

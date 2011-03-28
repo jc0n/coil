@@ -729,7 +729,8 @@ struct_create_container(CoilStruct  *self,
  */
   }
 
-  container = coil_struct_new("container", self,
+  container = coil_struct_new(NULL,
+                              "container", self,
                               "path", path,
                               "hash", hash,
                               "is-prototype", prototype,
@@ -2759,7 +2760,9 @@ coil_struct_copy_valist(CoilStruct  *self,
 
   CoilStruct *copy;
 
-  copy = coil_struct_new_valist(first_property_name, properties);
+  copy = coil_struct_new_valist(first_property_name, properties, error);
+  if (copy == NULL)
+    return NULL;
 
   if (!coil_struct_expand_items(self, TRUE, error))
     goto error;
@@ -2970,14 +2973,15 @@ coil_struct_init (CoilStruct *self)
 }
 
 COIL_API(CoilStruct *)
-coil_struct_new(const gchar *first_property_name,
+coil_struct_new(GError     **error,
+                const gchar *first_property_name,
                 ...)
 {
   va_list     properties;
   CoilStruct *result;
 
   va_start(properties, first_property_name);
-  result = coil_struct_new_valist(first_property_name, properties);
+  result = coil_struct_new_valist(first_property_name, properties, error);
   va_end(properties);
 
   return result;
@@ -2985,7 +2989,8 @@ coil_struct_new(const gchar *first_property_name,
 
 COIL_API(CoilStruct *)
 coil_struct_new_valist(const gchar *first_property_name,
-                       va_list      properties)
+                       va_list      properties,
+                       GError     **error)
 {
   GObject           *object;
   CoilStruct        *self;
@@ -3003,6 +3008,23 @@ coil_struct_new_valist(const gchar *first_property_name,
   super = COIL_EXPANDABLE(self);
   container = super->container;
   path = priv->path;
+
+  if (path && COIL_PATH_IS_RELATIVE(path))
+  {
+    const CoilPath *container_path;
+    CoilPath       *abspath;
+
+    container_path = coil_struct_get_path(container);
+    abspath = coil_path_concat(container_path, path, error);
+    if (abspath == NULL)
+    {
+      coil_path_unref(path);
+      return NULL;
+    }
+
+    coil_path_unref(path);
+    path = abspath;
+  }
 
   if (container && path
       && path->flags & COIL_PATH_IS_ABSOLUTE)
