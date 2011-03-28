@@ -429,12 +429,6 @@ coil_build_path(GError     **error,
   return result;
  }
 
-/**
- * Check that a path is valid
- *
- * @param a coil path string
- * @return TRUE if path is valid.
- */
 COIL_API(gboolean)
 coil_validate_path_len(const gchar *path,
                        guint        path_len)
@@ -459,12 +453,6 @@ coil_validate_path(const gchar *path)
   return coil_validate_path_len(path, strlen(path));
 }
 
-/**
- * Check that a key is valid
- *
- * @param a coil key string
- * @return TRUE if key is valid
- */
 COIL_API(gboolean)
 coil_validate_key_len(const gchar *key,
                       guint        key_len)
@@ -739,50 +727,6 @@ coil_path_resolve(const CoilPath *path, /* any path */
   return resolved;
 }
 
-/*
- * Compute the relative path from two absolute paths.
- *
- * This function takes two absolute paths and computes the optimal
- * relative path to reach the second given the first. Where <i>path</i> is
- * the destination and <i>base</i> is the source.
- *
- * Example output:
- *
- * prefix: @root.asdf.bxd          (*p1)
- * path: @root.asdf.bhd.xxx.yyy  (*p2)
- * result: ..bhd.xxx.yyy
- *
- *
- * prefix: @root.asdf.bxd.xxx.yyy  (*p1)
- * path: @root.asdf.bhd          (*p2)
- * result: ....bhd
- *
- * prefix: @root.asdf.bhd          (!*p1)
- * path: @root.asdf.bhd.xyz      (*p2)
- * result: xyz
- *
- *
- * prefix: @root.asdf.bhd.xyz      (*p1)
- * path: @root.asdf.bhd          (!*p2)
- * result: ...bhd
- *
- * prefix: @root.asdf.asdf         (!*p1)
- * path: @root.asdf.asdf         (!*p2)
- * result: ..asdf
- *
- * prefix: @root.asdf (*p1)
- * path: @root.xyz  (*p2)
- * result: ..xyz
- *
- * prefix: @root.asdf (!*p1)
- * path: @root.asdf (!*p2)
- * result: ..asdf
- *
- * @param an absolute path and source of the result
- * @param an absolute path and destination of the result relative to <i>base</i>
- * @return a relative path to reach <i>path</i> from <i>base</i>
- *
- */
 COIL_API(CoilPath *) /* new reference */
 coil_path_relativize(const CoilPath *target, /* absolute path */
                      const CoilPath *container) /* absolute path */
@@ -862,56 +806,3 @@ backref:
   return relative;
 }
 
-/*
-static gboolean
-path_has_container(const gchar *path,
-                   const gchar *base,
-                   gboolean     strict)
-{
-  register const gchar *p1, *p2;
-  gboolean has_prefix = FALSE;
-
-  g_return_val_if_fail(path != NULL, FALSE);
-  g_return_val_if_fail(base != NULL, FALSE);
-
-  if (COIL_PATH_IS_ROOT(base))
-    return !COIL_PATH_IS_ROOT(path);
-
-  p1 = path;
-  p2 = base;
-
-  while (*p1 != 0
-    && *p1 == *p2)
-  {
-    p1++;
-    p2++;
-  }
-
-  has_prefix = (*p1 == COIL_PATH_DELIM && *p2 == 0);
-
-  if (strict)
-    has_prefix &= (strchr(p1, COIL_PATH_DELIM) == NULL);
-
-  return has_prefix;
-}
-
-COIL_API(gboolean)
-coil_path_is_descendent(const gchar *path,
-                        const gchar *maybe_container)
-{
-  g_return_val_if_fail(path != NULL, FALSE);
-  g_return_val_if_fail(maybe_container != NULL, FALSE);
-
-  return path_has_container(path, maybe_container, FALSE);
-}
-
-COIL_API(gboolean)
-coil_path_has_container(const gchar *path,
-                        const gchar *maybe_container)
-{
-  g_return_val_if_fail(path != NULL, FALSE);
-  g_return_val_if_fail(maybe_container != NULL, FALSE);
-
-  return path_has_container(path, maybe_container, TRUE);
-}
-*/
