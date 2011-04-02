@@ -42,6 +42,7 @@ libcoil_@LIBCOIL_API_VERSION@_la_CPPFLAGS=$(AM_CPPFLAGS) -Wno-unused-function
 libcoil_includedir=$(includedir)/libcoil-$(LIBCOIL_API_VERSION)
 libcoil_include_HEADERS=\
 				coil.h \
+				common.h \
 				error.h \
 				expandable.h \
 				expression.h \
