@@ -62,6 +62,8 @@ AC_CONFIG_FILES([
     libcoil-0.1.pc
     Makefile
     coil/Makefile
+    python/Makefile
+    python/tests/Makefile
     tests/Makefile
     tests/functional/Makefile
 ])
@@ -92,6 +94,7 @@ COIL_ARG_ENABLE(include-caching, whether to cache included files,
 
 if test "$COIL_INCLUDE_CACHING" = "yes"; then
   AC_DEFINE([COIL_INCLUDE_CACHING], [1], [ ])
+  CFLAGS="-O0 -g"
 else
   AC_DEFINE([COIL_INCLUDE_CACHING], [0], [ ])
 fi
@@ -118,6 +121,32 @@ if test "$COIL_STRICT_FILE_CONTEXT" = "yes"; then
   AC_DEFINE([COIL_STRICT_FILE_CONTEXT], [1], [ ])
 else
   AC_DEFINE([COIL_STRICT_FILE_CONTEXT], [0], [ ])
+fi
+
+dnl
+dnl Language Bindings
+dnl
+
+COIL_ARG_WITH(python, whether to build python support,
+              [Build python binding],  yes)
+
+if test "$COIL_PYTHON" = "yes"; then
+  AM_CHECK_PYTHON_HEADERS(,[AC_MSG_ERROR(could not find Python headers)])
+  AM_PATH_PYTHON(2.6)
+
+  PKG_CHECK_MODULES(PYGOBJECT, [pygobject-2.0 >= 2.0],
+                    [have_pygobject=yes], [have_pygobject=no])
+
+  if test "x$have_pygobject" = "xno"; then
+    AC_MSG_ERROR($PYGOBJECT_PKG_ERRORS)
+  fi
+
+  AC_SUBST(PYGOBJECT_LIBS)
+  AC_SUBST(PYGOBJECT_CFLAGS)
+
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, true)
+else
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, false)
 fi
 
 dnl
