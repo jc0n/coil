@@ -40,6 +40,8 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_FILES([
     Makefile
     coil/Makefile
+    bindings/Makefile
+    bindings/python/Makefile
     tests/Makefile
     tests/functional/Makefile
     tests/benchmark/Makefile
@@ -106,6 +108,20 @@ if test "$COIL_STRICT_FILE_CONTEXT" = "yes"; then
   AC_DEFINE([COIL_STRICT_FILE_CONTEXT], [1], [ ])
 else
   AC_DEFINE([COIL_STRICT_FILE_CONTEXT], [0], [ ])
+fi
+
+dnl
+dnl Language Bindings
+dnl
+
+COIL_ARG_WITH(python, whether to build python support,
+              [Build python binding],  yes)
+
+if test "$COIL_PYTHON" = "yes"; then
+  AM_CHECK_PYTHON_HEADERS(,[AC_MSG_ERROR(could not find Python headers)])
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, true)
+else
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, false)
 fi
 
 dnl

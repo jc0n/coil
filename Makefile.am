@@ -2,7 +2,7 @@ include $(top_srcdir)/Makefile.decl
 
 ACLOCAL_AMFLAGS=-I m4
 
-SUBDIRS = coil tests
+SUBDIRS = coil tests bindings
 
 EXTRA_DIST += \
 		m4 \
