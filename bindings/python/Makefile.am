@@ -1,6 +1,11 @@
 include $(top_srcdir)/Makefile.decl
 
-AM_CPPFLAGS = $(PYTHON_INCLUDES) $(GLIB_CFLAGS) -I$(top_srcdir)/coil
+AM_CPPFLAGS = $(PYTHON_INCLUDES) \
+							$(GLIB_CFLAGS) \
+							-I$(top_srcdir)/coil \
+							-Wall \
+							-Werror \
+							-fno-strict-aliasing
 
 pkgpythondir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
 pkgpyexecdir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
