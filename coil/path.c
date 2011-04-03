@@ -628,57 +628,57 @@ coil_path_change_container(CoilPath      **path_ptr,
 
 COIL_API(CoilPath *) /* new reference */
 coil_path_resolve(const CoilPath *path, /* any path */
-                  const CoilPath *prefix, /* absolute path */
+                  const CoilPath *context, /* absolute path */
                   GError        **error)
 {
   g_return_val_if_fail(path && path->path && path->path_len, NULL);
-  g_return_val_if_fail(prefix && prefix->path && prefix->path_len, NULL);
-  g_return_val_if_fail(path != prefix, NULL);
+  g_return_val_if_fail(context && context->path && context->path_len, NULL);
+  g_return_val_if_fail(path != context, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  if (G_UNLIKELY(COIL_PATH_IS_RELATIVE(prefix)))
+  if (G_UNLIKELY(COIL_PATH_IS_RELATIVE(context)))
     g_error("Error resolving path '%s', "
         "Prefix path argument '%s', must be an absolute path.",
-        path->path, prefix->path);
+        path->path, context->path);
 
   if (COIL_PATH_IS_ABSOLUTE(path))
     return coil_path_ref((CoilPath *)path);
 
   const gchar *qualifier, *e;
-  guint8       prefix_len, qualifier_len;
+  guint8       context_len, qualifier_len;
   guint16      path_len;
 
   qualifier = path->path;
-  e = prefix->path + prefix->path_len;
+  e = context->path + context->path_len;
 
   if (*qualifier == COIL_PATH_DELIM)
   {
     while (*++qualifier == COIL_PATH_DELIM)
       while (*--e != COIL_PATH_DELIM)
-        if (G_UNLIKELY(e < prefix->path))
+        if (G_UNLIKELY(e < context->path))
         {
           coil_path_error(error, path,
               "reference passed root while resolving against '%s'.",
-              prefix->path);
+              context->path);
 
           return NULL;
         }
 
-    prefix_len = e - prefix->path;
+    context_len = e - context->path;
     qualifier_len = path->path_len - (qualifier - path->path);
-    path_len = (qualifier_len) ? prefix_len + qualifier_len + 1 : prefix_len;
+    path_len = (qualifier_len) ? context_len + qualifier_len + 1 : context_len;
   }
   else
   {
-    prefix_len = prefix->path_len;
+    context_len = context->path_len;
     qualifier_len = path->path_len;
-    path_len = prefix_len + qualifier_len + 1;
+    path_len = context_len + qualifier_len + 1;
   }
 
   if (G_UNLIKELY(path_len > COIL_PATH_LEN))
   {
     gchar *p;
-    p = g_strjoin(COIL_PATH_DELIM_S, prefix->path, qualifier, NULL);
+    p = g_strjoin(COIL_PATH_DELIM_S, context->path, qualifier, NULL);
     path_length_error(p, path_len, error);
     g_free(p);
 
@@ -712,7 +712,7 @@ coil_path_resolve(const CoilPath *path, /* any path */
 
     resolved->path = g_new(gchar, path_len + 1);
 
-    p = mempcpy(resolved->path, prefix->path, prefix_len);
+    p = mempcpy(resolved->path, context->path, context_len);
     *p++ = COIL_PATH_DELIM;
     memcpy(p, qualifier, qualifier_len);
 
@@ -726,6 +726,28 @@ coil_path_resolve(const CoilPath *path, /* any path */
 
   return resolved;
 }
+
+COIL_API(gboolean)
+coil_path_resolve_into(CoilPath      **path,
+                       const CoilPath *context,
+                       GError        **error)
+{
+  g_return_val_if_fail(path || *path, FALSE);
+  g_return_val_if_fail(context, FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+
+  CoilPath *abspath;
+
+  abspath = coil_path_resolve(*path, context, error);
+  if (abspath == NULL)
+    return FALSE;
+
+  coil_path_unref(*path);
+  *path = abspath;
+
+  return TRUE;
+}
+
 
 COIL_API(CoilPath *) /* new reference */
 coil_path_relativize(const CoilPath *target, /* absolute path */

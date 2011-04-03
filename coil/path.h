@@ -197,8 +197,13 @@ coil_path_change_container(CoilPath      **path_ptr,
 
 CoilPath *
 coil_path_resolve(const CoilPath *path,
-                  const CoilPath *prefix,
+                  const CoilPath *context,
                   GError        **error) G_GNUC_WARN_UNUSED_RESULT;
+
+gboolean
+coil_path_resolve_into(CoilPath      **path,
+                       const CoilPath *context,
+                       GError        **error);
 
 CoilPath *
 coil_path_relativize(const CoilPath  *path,
