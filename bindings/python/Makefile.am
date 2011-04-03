@@ -5,6 +5,7 @@ AM_CPPFLAGS = $(PYTHON_INCLUDES) \
 							-I$(top_srcdir)/coil \
 							-Wall \
 							-Werror \
+							-O0 -g \
 							-fno-strict-aliasing
 
 pkgpythondir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@

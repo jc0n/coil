@@ -75,7 +75,6 @@ coil_path_from_pystring(PyObject  *o,
 {
   gchar      *str;
   Py_ssize_t  len;
-  CoilPath   *path;
 
   if (PyString_AsStringAndSize(o, &str, &len) < 0)
     return NULL;
@@ -129,7 +128,7 @@ coil_value_from_pyobject(PyObject *o)
     PyErr_SetString(PyExc_TypeError, "Unsupported coil value type");
   }
 
-  /*
+#if 0
       case &PyLong_Type:
         new_value(value, G_TYPE_LONG, set_long, (glong)PyLong_AsLong(obj));
         break;
@@ -144,7 +143,7 @@ coil_value_from_pyobject(PyObject *o)
         PyErr_SetString(PyExc_TypeError, "Unsupported coil value type");
         return NULL;
     }
-/*
+
     case &PyInt_Type:
     case &PyLong_Type:
     case &PyFloat_Type:
@@ -172,6 +171,7 @@ coil_value_from_pyobject(PyObject *o)
     case &PyFrozenSet_Type:
     case &PyCode_Type:
     */
+#endif
 
   return value;
 }
@@ -291,7 +291,7 @@ void
 cCoil_error(GError **error)
 {
   g_return_if_fail(error && *error);
-  g_return_if_fail((*error)->domain != COIL_ERROR);
+  g_return_if_fail((*error)->domain == COIL_ERROR);
 
   PyObject *e = NULL;
   PyObject *msg = NULL;
