@@ -552,9 +552,11 @@ struct_insert_internal(CoilStruct     *self,
     object = COIL_STRUCT(g_value_get_object(value));
     if (coil_struct_is_ancestor(object, self))
     {
-       g_error("Attempting to insert ancestor struct '%s' into '%s'.",
-               coil_struct_get_path(object)->path,
-               coil_struct_get_path(self)->path);
+       coil_struct_error(error, self,
+                         "Attempting to insert ancestor struct '%s' into '%s'.",
+                         coil_struct_get_path(object)->path,
+                         coil_struct_get_path(self)->path);
+       goto error;
     }
   }
 
