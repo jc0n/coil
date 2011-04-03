@@ -12,6 +12,17 @@
 #include "error.h"
 #include "path.h"
 
+CoilPath _coil_root_path = {
+  (gchar *)COIL_ROOT_PATH,
+  (guint8)COIL_ROOT_PATH_LEN,
+  (gchar *)NULL,
+  (guint8)0,
+  (COIL_STATIC_PATH |
+   COIL_PATH_IS_ROOT |
+   COIL_PATH_IS_ABSOLUTE),
+  1,
+};
+
 /* TODO: proper error handling */
 
 static CoilPath *
@@ -571,8 +582,7 @@ coil_path_change_container(CoilPath      **path_ptr,
   g_return_val_if_fail(!COIL_PATH_IS_BACKREF(path), FALSE);
   g_return_val_if_fail(path->key && path->key_len, FALSE);
 
-  if (path->ref_count > 1
-    || path->flags & COIL_STATIC_PATH)
+  if (path->ref_count > 1 || path->flags & COIL_STATIC_PATH)
   {
     CoilPath *old = path;
 
@@ -599,7 +609,7 @@ coil_path_change_container(CoilPath      **path_ptr,
     if (path->flags & COIL_STATIC_KEY)
     {
       p = path->path + container->path_len;
-      path->key = memmove(p + 1, path->key, path->key_len);
+      path->key = (gchar *)memmove(p + 1, path->key, path->key_len);
       *p = COIL_PATH_DELIM;
       memcpy(path->path, container->path, container->path_len);
     }
@@ -636,6 +646,12 @@ coil_path_resolve(const CoilPath *path, /* any path */
   g_return_val_if_fail(path != context, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
+  CoilPath    *resolved;
+  const gchar *qualifier, *e;
+  gchar       *p;
+  guint8       context_len, qualifier_len;
+  guint16      path_len;
+
   if (G_UNLIKELY(COIL_PATH_IS_RELATIVE(context)))
     g_error("Error resolving path '%s', "
         "Prefix path argument '%s', must be an absolute path.",
@@ -643,10 +659,6 @@ coil_path_resolve(const CoilPath *path, /* any path */
 
   if (COIL_PATH_IS_ABSOLUTE(path))
     return coil_path_ref((CoilPath *)path);
-
-  const gchar *qualifier, *e;
-  guint8       context_len, qualifier_len;
-  guint16      path_len;
 
   qualifier = path->path;
   e = context->path + context->path_len;
@@ -694,35 +706,22 @@ coil_path_resolve(const CoilPath *path, /* any path */
     return NULL;
   }
 
-  CoilPath *resolved = path_alloc();
-
   if (path_len == COIL_ROOT_PATH_LEN)
-  {
-    resolved->path = COIL_ROOT_PATH;
-    resolved->path_len = COIL_ROOT_PATH_LEN;
-    resolved->key = NULL;
-    resolved->key_len = 0;
-    resolved->flags = COIL_STATIC_PATH
-                    | COIL_PATH_IS_ABSOLUTE
-                    | COIL_PATH_IS_ROOT;
-  }
-  else
-  {
-    register gchar *p;
+    return CoilRootPath;
 
-    resolved->path = g_new(gchar, path_len + 1);
+  resolved = path_alloc();
+  resolved->path = g_new(gchar, path_len + 1);
 
-    p = mempcpy(resolved->path, context->path, context_len);
-    *p++ = COIL_PATH_DELIM;
-    memcpy(p, qualifier, qualifier_len);
+  p = mempcpy(resolved->path, context->path, context_len);
+  *p++ = COIL_PATH_DELIM;
+  memcpy(p, qualifier, qualifier_len);
 
-    resolved->key = &resolved->path[path_len - path->key_len];
-    resolved->path[path_len] = 0;
-    resolved->path_len = path_len;
-    resolved->key_len = path->key_len;
-    resolved->flags = COIL_PATH_IS_ABSOLUTE
-                    | COIL_STATIC_KEY;
-  }
+  resolved->key = &resolved->path[path_len - path->key_len];
+  resolved->path[path_len] = 0;
+  resolved->path_len = path_len;
+  resolved->key_len = path->key_len;
+  resolved->flags = COIL_PATH_IS_ABSOLUTE
+                  | COIL_STATIC_KEY;
 
   return resolved;
 }

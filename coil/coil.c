@@ -6,6 +6,7 @@
 #include "common.h"
 #include "value.h"
 
+/* TODO(jcon): namespace */
 CoilStringFormat default_string_format = {
     ( LEGACY
     | BLANK_LINE_AFTER_BRACE

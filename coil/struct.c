@@ -76,6 +76,11 @@ typedef enum
 static guint
 struct_signals[LAST_SIGNAL] = {0, };
 
+static CoilStruct *
+struct_lookup_container_internal(CoilStruct  *self,
+                                 const gchar *path,
+                                 guint8       path_len,
+                                 GError     **error);
 
 static gboolean
 struct_delete_internal(CoilStruct   *self,
@@ -83,7 +88,12 @@ struct_delete_internal(CoilStruct   *self,
                        const gchar  *path,
                        guint8        path_len,
                        gboolean      strict,
+                       gboolean      reset_container,
                        GError      **error);
+
+static gboolean
+struct_iter_next_entry(CoilStructIter *iter,
+                       StructEntry   **entry);
 
 static GError *
 struct_expand_notify(GObject *instance,
@@ -118,7 +128,7 @@ struct_lookup_internal(CoilStruct     *self,
  *
  * (2) We need to update the path and hash of the struct and its entries.
  *
- * (3) Minimize recomputing hash values.
+ * (3) Minimize recomputing hash values and copying paths.
  */
 
 static gboolean
@@ -126,111 +136,92 @@ struct_change_container(CoilStruct *self,
                         CoilStruct *new_container,
                         CoilPath   *new_path, /* NULL if do not have */
                         guint      *new_hash, /* NULL if do not have */
-                        gboolean    cleanup_old_container,
+                        gboolean    reset_container,
                         GError    **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(new_container == NULL || COIL_IS_STRUCT(new_container), FALSE);
-  g_return_val_if_fail((new_container && new_path && new_hash)
-      || !(new_container || new_path || new_hash), FALSE);
   g_return_val_if_fail(self != new_container, FALSE);
+  g_return_val_if_fail(!coil_struct_is_root(self) || new_path != NULL, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
   CoilExpandable    *const super = COIL_EXPANDABLE(self);
-  CoilPath          *const path = priv->path;
+  CoilStructIter     it;
   CoilStruct        *old_container = super->container;
   StructTable       *old_table = NULL;
-  const GList       *entry_list;
+  StructEntry       *entry;
   GError            *internal_error = NULL;
 
-  if (new_container != old_container)
+  if (new_container == old_container)
+    return TRUE;
+
+  /* remove self from previous container */
+  /* XXX: better have an extra reference */
+  if (reset_container && old_container != NULL)
   {
-    /* remove self from previous container */
-    /* XXX: better have an extra reference */
-    if (cleanup_old_container)
-    {
-      g_assert(G_OBJECT(self)->ref_count > 1);
+    g_assert(G_OBJECT(self)->ref_count > 1);
+    if (!struct_delete_internal(old_container, priv->hash,
+                                priv->path->path, priv->path->path_len,
+                                FALSE, FALSE, &internal_error))
+      goto error;
+  }
 
-      struct_delete_internal(old_container,
-                             priv->hash,
-                             priv->path->path,
-                             priv->path->path_len,
-                             FALSE, NULL);
-    }
-
-    if (new_container == NULL)
-    {
-      /* set self to @root */
-      priv->root = self;
-      priv->hash = 0;
-      priv->path = coil_path_take_strings(COIL_ROOT_PATH, COIL_ROOT_PATH_LEN,
-                                          NULL, 0,
-                                          COIL_PATH_IS_ABSOLUTE |
-                                          COIL_PATH_IS_ROOT |
-                                          COIL_STATIC_PATH);
-
-      old_table = priv->entry_table;
-      priv->entry_table = struct_table_new();
-    }
-    else
-    {
-      /* change the container related properties */
-      if (new_path == NULL)
-      {
-        /* no prebuilt path to use, change path container here */
-        const CoilPath *container_path;
-
-        container_path = coil_struct_get_path(old_container);
-        if (!coil_path_change_container(&priv->path,
-                                        container_path,
-                                        &internal_error))
-          goto error;
-      }
-      else
-      {
-        /* new path already built, use that one */
-        coil_path_unref(priv->path);
-        priv->path = coil_path_ref(new_path);
-      }
-
-      if (new_hash == NULL)
-      {
-        priv->hash = hash_relative_path(new_container->priv->hash,
-                                        path->key,
-                                        path->key_len);
-      }
-      else
-        priv->hash = *new_hash;
-
-      priv->root = coil_struct_get_root(new_container);
-
-      /* only if our root changes do we use a different entry table */
-      if (coil_struct_has_same_root(self, new_container))
-        old_table = struct_table_ref(priv->entry_table);
-      else
-      {
-        old_table = priv->entry_table;
-        priv->entry_table = struct_table_ref(old_container->priv->entry_table);
-      }
-    }
-
-    g_object_set(G_OBJECT(self),
-                 "container", new_container,
-                 NULL);
+  if (new_container == NULL)
+  {
+    /* set self to @root */
+    priv->root = self;
+    priv->hash = 0;
+    priv->path = CoilRootPath;
+    old_table = priv->entry_table;
+    priv->entry_table = struct_table_new();
   }
   else
-    old_table = struct_table_ref(priv->entry_table);
-
-  for (entry_list = g_queue_peek_head_link(&priv->entries);
-       entry_list; entry_list = g_list_next(entry_list))
   {
-    StructEntry *entry;
+    /* change the container related properties */
+    if (new_path)
+    {
+      /* new path already built, use that one */
+      coil_path_unref(priv->path);
+      priv->path = coil_path_ref(new_path);
+    }
+    else if (!coil_path_change_container(&priv->path,
+                                         coil_struct_get_path(new_container),
+                                         &internal_error))
+      goto error;
 
-    entry = (StructEntry *)entry_list->data;
+    if (new_hash)
+      priv->hash = *new_hash;
+    else
+      priv->hash = hash_relative_path(new_container->priv->hash,
+                                      priv->path->key,
+                                      priv->path->key_len);
+
+    priv->root = coil_struct_get_root(new_container);
+
+    /* only if our root changes do we use a different entry table */
+    if (old_container != NULL
+      && coil_struct_has_same_root(self, old_container))
+      old_table = struct_table_ref(priv->entry_table);
+    else
+    {
+      old_table = priv->entry_table;
+      priv->entry_table = struct_table_ref(new_container->priv->entry_table);
+    }
+  }
+
+  g_object_set(G_OBJECT(self),
+               "container", new_container,
+               NULL);
+
+  coil_struct_iter_init(&it, self);
+  while (struct_iter_next_entry(&it, &entry))
+  {
     struct_table_remove_entry(old_table, entry);
 
-    if (!coil_path_change_container(&entry->path, path, &internal_error))
+    if (!coil_path_change_container(&entry->path,
+                                    priv->path,
+                                    &internal_error))
       goto error;
 
     entry->hash = hash_relative_path(priv->hash,
@@ -308,6 +299,31 @@ struct_resolve_path(CoilStruct     *self,
   *return_hash = hash_relative_path(priv->hash, path->path, path->path_len);
   return coil_path_resolve(path, priv->path, error);
 }
+
+static gboolean
+struct_resolve_path_into(CoilStruct *self,
+                         CoilPath  **path,
+                         guint      *return_hash,
+                         GError    **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
+  g_return_val_if_fail(path && *path, FALSE);
+  g_return_val_if_fail(return_hash, FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+
+  CoilPath *resolved;
+
+  resolved = struct_resolve_path(self, *path, return_hash, error);
+  if (resolved == NULL)
+    return FALSE;
+
+  coil_path_unref(*path);
+  *path = resolved;
+
+  return TRUE;
+}
+
+
 
 /*
  * coil_struct_empty: Clear all keys and values in CoilStruct
@@ -985,7 +1001,8 @@ struct_remove_entry(CoilStruct            *self,
                     GError               **error)
 {
   CoilStructPrivate *const priv = self->priv;
-/*
+
+#if 0
   GError            *internal_error = NULL;
   g_signal_emit(self, struct_signals[MODIFY],
                 0, (gpointer *)&internal_error);
@@ -995,8 +1012,9 @@ struct_remove_entry(CoilStruct            *self,
     g_propagate_error(error, internal_error);
     return FALSE;
   }
-*/
-  g_queue_remove(&priv->entries, entry);
+#endif
+
+  g_queue_remove(&priv->entries, (gpointer)entry);
 
 #ifdef COIL_DEBUG
   priv->version++;
@@ -1031,6 +1049,7 @@ struct_delete_internal(CoilStruct   *self,
                        const gchar  *path,
                        guint8        path_len,
                        gboolean      strict,
+                       gboolean      reset_container,
                        GError      **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
@@ -1041,6 +1060,7 @@ struct_delete_internal(CoilStruct   *self,
   g_return_val_if_fail(!struct_is_definitely_empty(self), FALSE);
 
   CoilStructPrivate *const priv = self->priv;
+  CoilStruct        *container;
   StructEntry       *entry;
 
   entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
@@ -1059,21 +1079,23 @@ struct_delete_internal(CoilStruct   *self,
     return TRUE;
   }
 
-  if (G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
-  {
-    GObject *object;
+  /* TODO: when/if values become CoilObjects we should store
+   * the container with each value */
+  container = struct_lookup_container_internal(self, path, path_len, error);
+  if (container == NULL)
+    return FALSE;
 
-    /* if object has external references remove container
-     * make object into a root node */
-    object = g_value_get_object(entry->value);
-    if (object->ref_count > 1
-      && !struct_change_container(COIL_STRUCT(object),
-                                  NULL, NULL, NULL, FALSE,
-                                  error))
+  if (reset_container
+    && G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
+  {
+    GObject *object = g_value_get_object(entry->value);
+    if (!struct_change_container(COIL_STRUCT(object),
+                                 NULL, NULL, NULL, FALSE,
+                                 error))
       return FALSE;
   }
 
-  return struct_delete_entry(self, entry, error);
+  return struct_delete_entry(container, entry, error);
 }
 
 COIL_API(gboolean)
@@ -1103,8 +1125,9 @@ coil_struct_delete_path(CoilStruct     *self,
   }
 
   result = struct_delete_internal(self, hash,
-                                  path->path, path->path_len,
-                                  strict, error);
+                                  resolved_path->path,
+                                  resolved_path->path_len,
+                                  strict, TRUE, error);
 
 error:
   coil_path_unref(resolved_path);
@@ -1163,7 +1186,10 @@ coil_struct_delete_key(CoilStruct  *self,
                          p->path, p->path_len,
                          key, key_len);
 
-  return struct_delete_internal(self, hash, path, path_len, strict, error);
+  return struct_delete_internal(self, hash,
+                                path, path_len,
+                                strict, TRUE,
+                                error);
 }
 
 static gboolean
@@ -2995,11 +3021,8 @@ coil_struct_new_valist(const gchar *first_property_name,
                        GError     **error)
 {
   GObject           *object;
-  CoilStruct        *self;
+  CoilStruct        *self, *container;
   CoilStructPrivate *priv;
-  CoilExpandable    *super;
-  CoilStruct        *container;
-  CoilPath          *path;
 
   object = g_object_new_valist(COIL_TYPE_STRUCT,
                                first_property_name,
@@ -3007,65 +3030,32 @@ coil_struct_new_valist(const gchar *first_property_name,
 
   self = COIL_STRUCT(object);
   priv = self->priv;
-  super = COIL_EXPANDABLE(self);
-  container = super->container;
-  path = priv->path;
+  container = COIL_EXPANDABLE(self)->container;
 
-  if (path && COIL_PATH_IS_RELATIVE(path))
+  if (priv->path)
   {
-    const CoilPath *container_path;
-    CoilPath       *abspath;
-
-    container_path = coil_struct_get_path(container);
-    abspath = coil_path_concat(container_path, path, error);
-    if (abspath == NULL)
+    if (container)
     {
-      coil_path_unref(path);
-      return NULL;
+      priv->root = coil_struct_get_root(container);
+      priv->entry_table = struct_table_ref(container->priv->entry_table);
+      if (!struct_resolve_path_into(container, &priv->path, &priv->hash, error))
+        return NULL;
     }
-
-    coil_path_unref(path);
-    path = abspath;
+    else
+      g_error("path specified with no container");
   }
-
-  if (container && path
-      && path->flags & COIL_PATH_IS_ABSOLUTE)
+  else if (container)
+    g_error("container specified with no path");
+  else
   {
-    priv->root = coil_struct_get_root(container);
-    priv->entry_table = struct_table_ref(container->priv->entry_table);
-
-    if (!priv->hash)
-      priv->hash = hash_relative_path(container->priv->hash,
-                            path->key,
-                            path->key_len);
-  }
-  else if (!(container || path)
-    || (path && (path->flags & COIL_PATH_IS_ROOT)))
-  {
-    /* struct is root */
     priv->root = self;
-
-    if (!path)
-    {
-      priv->path = coil_path_take_strings(COIL_ROOT_PATH,
-                                          COIL_ROOT_PATH_LEN,
-                                          NULL, 0,
-                                          COIL_STATIC_PATH |
-                                          COIL_PATH_IS_ABSOLUTE |
-                                          COIL_PATH_IS_ROOT);
-    }
-
-    priv->hash = 0;
     priv->entry_table = struct_table_new();
+    priv->hash = 0;
+    priv->path = CoilRootPath;
   }
-  else if (!container)
-    g_error("Must specify container argument for non-root struct.");
-  else if (!path)
-    g_error("Must specify path argument for non-root struct.");
-  else if (!(path->flags & COIL_PATH_IS_ABSOLUTE))
-    g_error("Path argument must contain an absolute path.");
 
-  g_signal_emit(object, struct_signals[CREATE],
+  g_signal_emit(object,
+                struct_signals[CREATE],
                 priv->is_prototype ? coil_struct_prototype_quark() : 0);
 
   return self;

@@ -20,13 +20,18 @@ typedef enum {
 
 typedef struct _CoilPath
 {
-  gchar         *key;
-  guint8         key_len;
   gchar         *path;
   guint8         path_len;
+  gchar         *key;
+  guint8         key_len;
   CoilPathFlags  flags;
   volatile gint  ref_count;
 } CoilPath;
+
+extern CoilPath _coil_root_path;
+
+#define coil_root_path ((CoilPath *)(&_coil_root_path))
+#define CoilRootPath (coil_path_ref(coil_root_path))
 
 #define COIL_PATH_LEN 255
 #define COIL_PATH_BUFLEN (COIL_PATH_LEN + 1) /* +1 for '\0' */
@@ -46,10 +51,6 @@ typedef struct _CoilPath
 #define COIL_PATH_DELIM '.'
 #define COIL_PATH_DELIM_S "."
 
-#define COIL_PATH_IS_KEY(p) \
-        (((((p)->flags & COIL_STATIC_KEY) && (p)->key == (p)->path) \
-         || !memcmp((p)->key, (p)->path, (p)->key_len)) && (p)->key_len > 0)
-
 #define COIL_PATH_IS_RELATIVE(p) \
         (!((p)->flags & COIL_PATH_IS_ABSOLUTE))
 
@@ -57,7 +58,8 @@ typedef struct _CoilPath
         ((p)->flags & COIL_PATH_IS_ABSOLUTE)
 
 #define COIL_PATH_IS_ROOT(p) \
-        ((p)->flags & COIL_PATH_IS_ROOT)
+        (((p) == coil_root_path) \
+         || (p)->flags & COIL_PATH_IS_ROOT)
 
 #define COIL_PATH_IS_BACKREF(p) \
         ((p)->flags & COIL_PATH_IS_BACKREF)
@@ -95,6 +97,8 @@ typedef struct _CoilPath
     *__p = 0; \
   } \
   G_STMT_END\
+
+
 
 G_BEGIN_DECLS
 
