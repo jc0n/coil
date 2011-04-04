@@ -757,12 +757,25 @@ coil_path_relativize(const CoilPath *target, /* absolute path */
   g_return_val_if_fail(!COIL_PATH_IS_ROOT(target), NULL);
   g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(container), NULL);
 
+  CoilPath    *relative;
+  guint8       prefix_len, tail_len, num_dots;
+  const gchar *delim, *prefix, *path;
+
   if (COIL_PATH_IS_RELATIVE(target))
     return coil_path_ref((CoilPath *)target);
 
-  CoilPath    *relative = path_alloc();
-  guint8       prefix_len, tail_len, num_dots;
-  const gchar *delim, *prefix, *path;
+  relative = path_alloc();
+
+  if (COIL_PATH_IS_ROOT(target))
+  {
+    relative->path_len = container->path_len - (COIL_ROOT_PATH_LEN + 1);
+    relative->path = g_strndup(container->path + COIL_ROOT_PATH_LEN + 1,
+                               relative->path_len);
+    relative->key = NULL;
+    relative->key_len = 0;
+    relative->flags = COIL_PATH_IS_ROOT | COIL_PATH_IS_ABSOLUTE;
+    return relative;
+  }
 
   /* both paths are absolute, start checking after @root */
   prefix = delim = container->path + COIL_ROOT_PATH_LEN;
@@ -805,7 +818,8 @@ coil_path_relativize(const CoilPath *target, /* absolute path */
     num_dots = 2;
     /* count # of parts to remove from prefix path to get to
      * path ie. number of dots to add to relative path */
-    while ((delim = strchr(delim + 1, COIL_PATH_DELIM)) != NULL)
+    path = delim + 1;
+    while ((delim = strchr(delim + 1, COIL_PATH_DELIM)))
       num_dots++;
 
     g_assert(num_dots < COIL_PATH_MAX_PARTS);
