@@ -224,7 +224,9 @@ linkval_to_stringval(const GValue *linkval,
 }
 
 CoilLink *
-coil_link_new(const gchar *first_property_name, ...)
+coil_link_new(GError **error,
+              const gchar *first_property_name,
+              ...)
 {
   va_list          args;
   GObject         *object;
@@ -243,35 +245,13 @@ coil_link_new(const gchar *first_property_name, ...)
   if (self->target_path == NULL)
     g_error("Link must be constructed with a path.");
 
-  /* try to lookup the container of the target path
-   * so we can ref it incase the target container is deleted in the struct
-   */
-#if 0
-  CoilExpandable *super = COIL_EXPANDABLE(object);
-  g_assert(super->container);
-
-  CoilStruct     *container = super->container;
-  const CoilPath *container_path = coil_struct_get_path(container);
-  CoilPath       *target_path;
-  const GValue   *value;
-
-  coil_struct_expand(container, NULL);
-
-  target_path = coil_path_resolve(self->target_path, container_path, NULL);
-  if (target_path)
+  if (COIL_PATH_IS_ROOT(self->target_path))
   {
-    coil_path_unref(self->target_path);
-    self->target_path = target_path;
+    coil_link_error(error, self,
+                    "Cannot link to root path");
 
-    value = coil_struct_lookup_path(container, target_path, FALSE, NULL);
-    if (value && G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
-      priv->target_container = COIL_STRUCT(g_value_dup_object(value));
+    return NULL;
   }
-  /* oh well.. */
-#endif
-
-//  if (!priv->path || !(priv->path->flags & COIL_PATH_IS_ABSOLUTE))
-//    g_error("Link must be constructed with an absolute path.");
 
   return self;
 }

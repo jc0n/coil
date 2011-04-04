@@ -49,8 +49,10 @@ G_BEGIN_DECLS
 GType coil_link_get_type(void) G_GNUC_CONST;
 
 CoilLink *
-coil_link_new(const gchar *first_property_name, ...) G_GNUC_WARN_UNUSED_RESULT
-                                                     G_GNUC_NULL_TERMINATED;
+coil_link_new(GError **error,
+              const gchar *first_property_name,
+              ...) G_GNUC_WARN_UNUSED_RESULT
+                   G_GNUC_NULL_TERMINATED;
 
 const CoilPath *
 coil_link_get_path(const CoilLink *link);
