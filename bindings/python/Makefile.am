@@ -1,5 +1,7 @@
 include $(top_srcdir)/Makefile.decl
 
+SUBDIRS = tests
+
 AM_CPPFLAGS = $(PYTHON_INCLUDES) \
 							$(GLIB_CFLAGS) \
 							-I$(top_srcdir)/coil \
@@ -11,24 +13,35 @@ AM_CPPFLAGS = $(PYTHON_INCLUDES) \
 pkgpythondir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
 pkgpyexecdir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
 
-coilmoduledir = $(pkgpyexecdir)/coil
+ccoildir = $(pkgpyexecdir)/coil
 
-coilmodule_LTLIBRARIES =
+pkgpyexec_LTLIBRARIES =
 
 if BUILD_PYTHON_BINDING
-coilmodule_LTLIBRARIES += coilmodule.la
+pkgpyexec_LTLIBRARIES += ccoil.la
 endif
 
-coilmodule_HEADERS = \
-										coilmodule.h \
-										coilstruct.h
+ccoil_HEADERS = \
+								coilmodule.h \
+								coilstruct.h
 
-coilmodule_la_SOURCES = \
-												coilmodule.c \
-												coilstruct.c
+ccoil_la_SOURCES = \
+	     	  					coilmodule.c \
+			  						coilstruct.c
 
-coilmodule_la_LIBADD = \
-											 @GLIB_LIBS@ \
-											$(top_srcdir)/coil/libcoil-@LIBCOIL_API_VERSION@.la
+ccoil_la_LIBADD = \
+		  						@GLIB_LIBS@ \
+		  						$(top_srcdir)/coil/libcoil-@LIBCOIL_API_VERSION@.la
 
-coilmodule_la_LDFLAGS = -module -avoid-version
+ccoil_la_LDFLAGS = -module -avoid-version
+
+all: $(pkgpyexec_LTLIBRARIES:.la=.so)
+
+clean-local:
+	rm -f $(pkgpyexec_LTLIBRARIES:.la=.so)
+
+cCoil.so: ccoil.so
+	$(LN_S) $@ cCoil.so
+
+.la.so:
+	$(LN_S) .libs/$@ $@ || true

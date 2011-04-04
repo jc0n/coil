@@ -42,6 +42,7 @@ AC_CONFIG_FILES([
     coil/Makefile
     bindings/Makefile
     bindings/python/Makefile
+    bindings/python/tests/Makefile
     tests/Makefile
     tests/functional/Makefile
     tests/benchmark/Makefile
@@ -119,6 +120,7 @@ COIL_ARG_WITH(python, whether to build python support,
 
 if test "$COIL_PYTHON" = "yes"; then
   AM_CHECK_PYTHON_HEADERS(,[AC_MSG_ERROR(could not find Python headers)])
+  AM_PATH_PYTHON(2.6)
   AM_CONDITIONAL(BUILD_PYTHON_BINDING, true)
 else
   AM_CONDITIONAL(BUILD_PYTHON_BINDING, false)
