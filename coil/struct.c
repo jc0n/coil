@@ -668,8 +668,10 @@ struct_insert_internal(CoilStruct     *self,
   /* TODO(jcon): implement set_container in expandable */
   if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
   {
-    CoilStruct *object = COIL_STRUCT(g_value_get_object(value));
-    CoilStruct *container = coil_struct_get_container(object);
+    CoilStruct *object, *container;
+
+    object = COIL_STRUCT(g_value_get_object(value));
+    container = coil_struct_get_container(object);
 
     if (container != self
       && !struct_change_container(object, self,
@@ -733,9 +735,10 @@ struct_create_container(CoilStruct  *self,
   CoilStruct        *container;
   GValue            *value;
 
+#if 0
   if (!coil_struct_is_prototype(self))
   {
-/*    GError *internal_error = NULL;
+    GError *internal_error = NULL;
     g_signal_emit(self, struct_signals[MODIFY],
                 0, (gpointer *)&internal_error);
 
@@ -744,8 +747,8 @@ struct_create_container(CoilStruct  *self,
       g_propagate_error(error, internal_error);
       return NULL;
     }
- */
   }
+#endif
 
   container = coil_struct_new(NULL,
                               "container", self,
@@ -764,6 +767,7 @@ struct_create_container(CoilStruct  *self,
 #ifdef COIL_DEBUG
   priv->version++;
 #endif
+
   priv->size++;
 
   return container;
@@ -945,10 +949,8 @@ coil_struct_insert(CoilStruct  *self,
   if (!coil_check_path(path, path_len, error))
     return FALSE;
 
-  return coil_struct_insert_fast(self,
-                                 path, (guint8)path_len,
-                                 value, replace,
-                                 error);
+  return coil_struct_insert_fast(self, path, (guint8)path_len,
+                                 value, replace, error);
 }
 
 COIL_API(gboolean)
@@ -965,9 +967,8 @@ coil_struct_insert_fast(CoilStruct *self,
   g_return_val_if_fail(value, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  return coil_struct_insert_path(self,
-                                 coil_path_take_strings(path, path_len, NULL, 0, 0),
-                                 value, replace, error);
+  CoilPath *p = coil_path_take_strings(path, path_len, NULL, 0, 0);
+  return coil_struct_insert_path(self, p, value, replace, error);
 }
 
 COIL_API(gboolean)
@@ -1527,7 +1528,7 @@ prototype_cast_notify(GObject    *instance, /* parent */
   g_return_if_fail(COIL_IS_STRUCT(instance));
   g_return_if_fail(data);
 
-  CoilStruct *self, *parent;
+  CoilStruct   *self, *parent;
   ExpandNotify *notify = (ExpandNotify *)data;
 
   self = notify->object;
@@ -1682,6 +1683,7 @@ coil_struct_extend_paths(CoilStruct *self,
   return TRUE;
 }
 
+
 COIL_API(void)
 coil_struct_iter_init(CoilStructIter   *iter,
                       const CoilStruct *self)
@@ -1789,10 +1791,8 @@ struct_merge_item(CoilStruct     *self,
   if (path == NULL)
     goto error;
 
-  entry = struct_table_lookup(priv->entry_table,
-                              hash,
-                              path->path,
-                              path->path_len);
+  entry = struct_table_lookup(priv->entry_table, hash,
+                              path->path, path->path_len);
 
   if (entry && !overwrite)
   {
