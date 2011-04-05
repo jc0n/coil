@@ -541,10 +541,8 @@ struct_insert_internal(CoilStruct     *self,
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(path, FALSE);
-  g_return_val_if_fail(path->flags & COIL_PATH_IS_ABSOLUTE, FALSE);
-  g_return_val_if_fail(!(path->flags & COIL_PATH_IS_ROOT), FALSE);
-  g_return_val_if_fail(g_str_has_prefix(path->path, self->priv->path->path) &&
-      ((path->path_len - path->key_len) - 1) == self->priv->path->path_len, FALSE);
+  g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(path), FALSE);
+  g_return_val_if_fail(!COIL_PATH_IS_ROOT(path), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
