@@ -1468,8 +1468,14 @@ coil_struct_add_dependency(CoilStruct     *self,
                  NULL);
 
     if (!coil_struct_has_same_root(self, container))
-      g_error("Adding dependency in '%s' from a different @root.",
-          self->priv->path->path);
+    {
+      coil_struct_error(error, self,
+                        "Adding dependency in '%s' from a different @root.",
+                        priv->path->path);
+
+      g_object_unref(container);
+      return FALSE;
+    }
 
     g_object_unref(container);
   }
