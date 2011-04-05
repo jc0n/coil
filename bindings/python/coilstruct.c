@@ -7,10 +7,27 @@
 #include "coilmodule.h"
 #include "coilstruct.h"
 
+#if 0
+static GQuark __PyCoilStruct_Quark = 0;
+static GQuark _PyCoilStruct_Quark(void) G_GNUC_CONST;
+
+#define PyCoilStruct_Quark _PyCoilStruct_Quark()
+
+static GQuark
+_PyCoilStruct_Quark(void)
+{
+  if (__PyCoilStruct_Quark == 0)
+    __PyCoilStruct_Quark = g_quark_from_static_string("_PyCoilStruct");
+
+  return __PyCoilStruct_Quark;
+}
+#endif
+
 PyObject *
 cCoil_struct_new(CoilStruct *node)
 {
   PyCoilStruct *self;
+//  PyObject     *obj;
 
   if (node == NULL)
   {
@@ -18,12 +35,25 @@ cCoil_struct_new(CoilStruct *node)
     return Py_None;
   }
 
-  self = PyObject_New(PyCoilStruct, &PyCoilStruct_Type);
-  if (self == NULL)
-    return NULL;
+/*  obj = g_object_get_qdata(G_OBJECT(node), PyCoilStruct_Quark);
+  if (obj == NULL)
+  {
+*/
+    self = PyObject_New(PyCoilStruct, &PyCoilStruct_Type);
+    if (self == NULL)
+      return NULL;
 
-  self->node = node;
-  self->iterator = NULL;
+    self->node = node;
+    self->iterator = NULL;
+/*
+    g_object_set_qdata(G_OBJECT(node), PyCoilStruct_Quark, (gpointer)self);
+  }
+  else
+  {
+    self = (PyCoilStruct *)obj;
+    Py_INCREF(self);
+  }
+*/
 
   return (PyObject *)self;
 }
@@ -274,43 +304,59 @@ struct_dealloc(PyCoilStruct *self)
   PyObject_Del(self);
 }
 
-#if 0
 static PyObject *
 struct_copy(PyCoilStruct *self,
             PyObject     *args,
             PyObject     *kwargs)
 {
   static char  *kwlist[] = {"container", "name", NULL};
-  PyCoilStruct *container = NULL;
-  PyObject     *name = NULL;
-  CoilStruct   *copy, *_container = NULL;
-  const gchar  *_name = NULL;
+  PyCoilStruct *pycontainer = NULL;
+  PyObject     *pyname = NULL;
+  CoilStruct   *copy, *container;
+  CoilPath     *path = NULL;
   GError       *error = NULL;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O!S:cCoil.Struct.copy",
-                                   kwlist, &PyCoilStruct_Type, &container,
-                                   &name))
+                                   kwlist, &PyCoilStruct_Type, &pycontainer,
+                                   &pyname))
     return NULL;
 
-  if (name != NULL
-    && (_name = PyString_AsString(name)) == NULL)
-    return NULL;
-
-  if (container != NULL)
-    _container = container->node;
-
-  /* TODO(jcon): implement name */
-  copy = coil_struct_copy(self->node, &error,
-                          "container", _container,
-                          "name", _name,
-                          NULL);
-  if (copy == NULL)
+  if (pycontainer)
   {
-    cCoil_error(&error);
+    container = pycontainer->node;
+
+    if (pyname)
+    {
+      path = coil_path_from_pystring(pyname, &error);
+      if (path == NULL)
+        goto error;
+    }
+
+    copy = coil_struct_copy(self->node, &error,
+                            "container", container,
+                            "path", path,
+                            NULL);
+
+    coil_path_unref(path);
+  }
+  else if (pyname)
+  {
+    PyErr_SetString(PyExc_ValueError,
+                    "name argument must be specified along with container.");
+
     return NULL;
   }
+  else
+    copy = coil_struct_copy(self->node, &error, NULL, NULL);
+
+  if (copy == NULL)
+    goto error;
 
   return cCoil_struct_new(copy);
+
+error:
+  cCoil_error(&error);
+  return NULL;
 }
 
 static PyObject *
@@ -329,7 +375,24 @@ struct_get_container(PyCoilStruct *self,
   g_object_ref(container);
   return cCoil_struct_new(container);
 }
-#endif
+
+static PyObject *
+struct_get_root(PyCoilStruct *self,
+                PyObject     *ignored)
+{
+  CoilStruct *root;
+
+  root = coil_struct_get_root(self->node);
+  if (root == NULL)
+  {
+    Py_INCREF(Py_None);
+    return Py_None;
+  }
+
+  g_object_ref(root);
+  return cCoil_struct_new(root);
+}
+
 
 static PyObject *
 update_pydict_from_struct(CoilStruct *node,
@@ -564,28 +627,40 @@ error:
   return NULL;
 }
 
-static PyObject *
-struct_has_key(PyCoilStruct *self,
-               PyObject     *args)
+static int
+struct_sq_contains(PyObject *self,
+                   PyObject *arg)
 {
-  PyObject     *pypath;
+  PyObject     *s;
   CoilPath     *path;
   const GValue *value;
   GError       *error = NULL;
 
-  if (!PyArg_ParseTuple(args, "S:cCoil.Struct.has_key", &pypath))
-    return NULL;
+  s = PyObject_Str(arg);
+  if (s == NULL)
+    return -1;
 
-  path = coil_path_from_pystring(pypath, &error);
+  path = coil_path_from_pystring(s, &error);
+  Py_DECREF(s);
+
   if (path == NULL)
-    return NULL;
+    return -1;
 
-  value = coil_struct_lookup_path(self->node, path, FALSE, &error);
+  value = coil_struct_lookup_path(((PyCoilStruct *)self)->node,
+                                  path, FALSE, &error);
   coil_path_unref(path);
-  if (value == NULL)
-    Py_RETURN_FALSE;
 
-  Py_RETURN_TRUE;
+  return (value == NULL) ? 0 : 1;
+}
+
+static PyObject *
+struct_contains(PyCoilStruct *self,
+                PyObject     *arg)
+{
+  if (struct_sq_contains((PyObject *)self, arg))
+     Py_RETURN_TRUE;
+
+  Py_RETURN_FALSE;
 }
 
 static PyObject *
@@ -834,7 +909,7 @@ struct_path(PyCoilStruct *self,
                                    kwlist, &pypath, &pyref))
     return NULL;
 
-  if (pypath)
+  if (pypath && PyString_GET_SIZE(pypath) > 0)
   {
     if (pyref)
     {
@@ -1300,17 +1375,21 @@ struct_iter_next(PyCoilStruct *self)
   return NULL;
 }
 
+
+
 static PyMethodDef struct_methods[] =
 {
-/*  { "copy",          (PyCFunction)struct_copy, METH_NOARGS, NULL},
-  { "container",     (PyCFunction)struct_get_container, METH_NOARGS, NULL}, */
+  { "__contains__",  (PyCFunction)struct_contains, METH_O | METH_COEXIST, NULL},
+
+  { "copy",          (PyCFunction)struct_copy, METH_VARARGS | METH_KEYWORDS, NULL},
+  { "container",     (PyCFunction)struct_get_container, METH_NOARGS, NULL},
   { "dict",          (PyCFunction)struct_to_dict, METH_VARARGS | METH_KEYWORDS, NULL}, /*
   { "expand",        (PyCFunction)struct_expand, METH_VARARGS | METH_KEYWORDS, NULL},
   { "expanditem",    (PyCFunction)struct_expanditem, METH_VARARGS | METH_KEYWORDS, NULL},
   { "expandvalue",   (PyCFunction)struct_expandvalue, METH_VARARGS | METH_KEYWORDS, NULL},
   { "extend",        (PyCFunction)struct_extend, METH_VARARGS | METH_KEYWORDS, NULL}, */
   { "get",           (PyCFunction)struct_get, METH_VARARGS | METH_KEYWORDS, NULL},
-  { "has_key",       (PyCFunction)struct_has_key, METH_VARARGS, NULL},
+  { "has_key",       (PyCFunction)struct_contains, METH_O, NULL},
   { "items",         (PyCFunction)struct_items, METH_VARARGS | METH_KEYWORDS, NULL},
 /*  { "iteritems",     (PyCFunction)struct_iteritems, METH_NOARGS, NULL},
   { "iterkeys",      (PyCFunction)struct_iterkeys, METH_NOARGS, NULL},
@@ -1320,6 +1399,7 @@ static PyMethodDef struct_methods[] =
   { "keys",          (PyCFunction)struct_keys, METH_VARARGS | METH_KEYWORDS, NULL},
   { "merge",         (PyCFunction)struct_merge, METH_VARARGS, NULL},
   { "path",          (PyCFunction)struct_path, METH_VARARGS | METH_KEYWORDS, NULL},
+  { "root",          (PyCFunction)struct_get_root, METH_NOARGS, NULL},
   { "set",           (PyCFunction)struct_set, METH_VARARGS | METH_KEYWORDS, NULL},
   { "string",        (PyCFunction)struct_to_string, METH_VARARGS | METH_KEYWORDS, NULL},
 //  { "unexpanded",    (PyCFunction)struct_unexpanded, METH_VARARGS | METH_KEYWORDS, NULL},
@@ -1330,7 +1410,23 @@ static PyMethodDef struct_methods[] =
   { NULL, NULL, 0, NULL },
 };
 
-PyMappingMethods PyCoilStruct_Mapping =
+static PySequenceMethods
+struct_as_sequence =
+{
+	0,			/* sq_length */
+	0,			/* sq_concat */
+	0,			/* sq_repeat */
+	0,			/* sq_item */
+	0,			/* sq_slice */
+	0,			/* sq_ass_item */
+	0,			/* sq_ass_slice */
+	struct_sq_contains,	/* sq_contains */
+	0,			/* sq_inplace_concat */
+	0,			/* sq_inplace_repeat */
+};
+
+static PyMappingMethods
+struct_as_mapping =
 {
  (lenfunc)struct_mp_size,
  (binaryfunc)struct_mp_get,
@@ -1352,8 +1448,8 @@ PyTypeObject PyCoilStruct_Type =
   (cmpfunc)struct_compare,
   (reprfunc)0,
   0, /* number methods */
-  0, /* sequence methods */
-  &PyCoilStruct_Mapping, /* mapping methods */
+  &struct_as_sequence, /* sequence methods */
+  &struct_as_mapping, /* mapping methods */
   (hashfunc)0,
   (ternaryfunc)0,
   (reprfunc)struct_str,

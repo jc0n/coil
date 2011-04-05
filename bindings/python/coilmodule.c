@@ -526,7 +526,7 @@ static PyMethodDef cCoil_functions[] =
 };
 
 static int
-init_exceptions(PyObject *module_dict)
+init_exceptions(PyObject *d)
 {
   PyObject *bases;
 
@@ -534,16 +534,28 @@ init_exceptions(PyObject *module_dict)
   if (cCoilError == NULL)
     return 0;
 
+  if (PyDict_SetItemString(d, "CoilError", cCoilError) < 0)
+    return 0;
+
   StructError = PyErr_NewException("cCoil.StructError", cCoilError, NULL);
   if (StructError == NULL)
+    return 0;
+
+  if (PyDict_SetItemString(d, "StructError", StructError) < 0)
     return 0;
 
   LinkError = PyErr_NewException("cCoil.LinkError", cCoilError, NULL);
   if (LinkError == NULL)
     return 0;
 
+  if (PyDict_SetItemString(d, "LinkError", LinkError) < 0)
+    return 0;
+
   IncludeError = PyErr_NewException("cCoil.IncludeError", cCoilError, NULL);
   if (IncludeError == NULL)
+    return 0;
+
+  if (PyDict_SetItemString(d, "IncludeError", IncludeError) < 0)
     return 0;
 
   bases = PyTuple_Pack(2, cCoilError, PyExc_KeyError);
@@ -554,14 +566,23 @@ init_exceptions(PyObject *module_dict)
   if (KeyMissingError == NULL)
     return 0;
 
+  if (PyDict_SetItemString(d, "KeyMissingError", KeyMissingError) < 0)
+    return 0;
+
   KeyValueError = PyErr_NewException("cCoil.KeyValueError", bases, NULL);
   if (KeyValueError == NULL)
+    return 0;
+
+  if (PyDict_SetItemString(d, "KeyValueError", KeyValueError) < 0)
     return 0;
 
   Py_DECREF(bases);
 
   ParseError = PyErr_NewException("cCoil.ParseError", cCoilError, NULL);
   if (ParseError == NULL)
+    return 0;
+
+  if (PyDict_SetItemString(d, "ParseError", ParseError) < 0)
     return 0;
 
   return 1;
