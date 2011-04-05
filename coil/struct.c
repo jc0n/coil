@@ -1601,22 +1601,21 @@ coil_struct_extend_path(CoilStruct  *self,
   g_return_val_if_fail(context == NULL || COIL_IS_STRUCT(context), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilExpandable    *dependency;
-  CoilPath          *resolved = NULL;
-  const GValue      *value;
-  guint              hash;
-  GError            *internal_error = NULL;
+  CoilExpandable *dependency;
+  const GValue   *value;
+  guint           hash = 0;
+  GError         *internal_error = NULL;
+
+  coil_path_ref(path);
 
   if (context == NULL)
     context = self;
 
-  resolved = struct_resolve_path(context, path, &hash, error);
-  if (G_UNLIKELY(resolved == NULL))
+  if (!struct_resolve_path_into(context, &path, &hash, error))
     goto error;
 
   value = struct_lookup_internal(context, hash,
-                                 resolved->path,
-                                 resolved->path_len,
+                                 path->path, path->path_len,
                                  FALSE, &internal_error);
 
   if (G_UNLIKELY(internal_error))
@@ -1642,8 +1641,7 @@ coil_struct_extend_path(CoilStruct  *self,
     CoilStruct *container;
 
     container = coil_struct_create_containers(context,
-                                              resolved->path,
-                                              resolved->path_len,
+                                              path->path, path->path_len,
                                               TRUE, TRUE, &internal_error);
 
     if (G_UNLIKELY(container == NULL))
@@ -1652,13 +1650,16 @@ coil_struct_extend_path(CoilStruct  *self,
     dependency = COIL_EXPANDABLE(container);
   }
 
-  coil_path_unref(resolved);
+  coil_path_unref(path);
 
   return coil_struct_add_dependency(self, dependency, error);
 
 error:
-  if (resolved)
-    coil_path_unref(resolved);
+  if (path)
+    coil_path_unref(path);
+
+  if (internal_error)
+    g_propagate_error(error, internal_error);
 
   return FALSE;
 }
