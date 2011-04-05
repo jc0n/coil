@@ -2207,29 +2207,31 @@ struct_lookup_internal(CoilStruct     *self,
 }
 
 COIL_API(const GValue *)
-coil_struct_lookup_path(CoilStruct     *self,
-                        const CoilPath *path,
-                        gboolean        expand_value,
-                        GError        **error)
+coil_struct_lookup_path(CoilStruct *self,
+                        CoilPath   *path,
+                        gboolean    expand_value,
+                        GError    **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
   g_return_val_if_fail(path, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  CoilPath     *resolved_path;
   const GValue *result = NULL;
-  guint         hash;
+  guint         hash = 0;
 
-  if ((resolved_path = struct_resolve_path(self, path, &hash, error)))
+  coil_path_ref(path);
+
+  if (!struct_resolve_path_into(self, &path, &hash, error))
   {
-    result = struct_lookup_internal(self, hash,
-                                    resolved_path->path,
-                                    resolved_path->path_len,
-                                    expand_value, error);
-
-    coil_path_unref(resolved_path);
+    coil_path_unref(path);
+    return FALSE;
   }
 
+  result = struct_lookup_internal(self, hash,
+                                  path->path, path->path_len,
+                                  expand_value, error);
+
+  coil_path_unref(path);
   return result;
 }
 

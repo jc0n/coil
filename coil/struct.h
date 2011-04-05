@@ -255,10 +255,10 @@ coil_struct_expand_items(CoilStruct  *self,
   coil_expand(self, NULL, FALSE, error)
 
 const GValue *
-coil_struct_lookup_path(CoilStruct     *self,
-                        const CoilPath *path,
-                        gboolean        expand_value,
-                        GError        **error);
+coil_struct_lookup_path(CoilStruct *self,
+                        CoilPath   *path,
+                        gboolean    expand_value,
+                        GError    **error);
 
 const GValue *
 coil_struct_lookup_key(CoilStruct  *self,
