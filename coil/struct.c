@@ -2336,25 +2336,22 @@ coil_struct_get_paths(CoilStruct *self,
                       GError    **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilStructIter  it;
+  const CoilPath *path;
+  GQueue          q = G_QUEUE_INIT;
 
   if (!coil_struct_expand(self, error))
     return NULL;
 
-  CoilStructPrivate *const priv = self->priv;
-  GQueue             result_list = G_QUEUE_INIT;
-  const GList       *entry_list;
+  coil_struct_iter_init(&it, self);
 
-  for (entry_list = g_queue_peek_head_link(&priv->entries);
-       entry_list; entry_list = g_list_next(entry_list))
-  {
-    const StructEntry *entry = (StructEntry *)entry_list->data;
-    const CoilPath    *path = entry->path;
-    g_queue_push_tail(&result_list, (gpointer)path);
-  }
+  while (coil_struct_iter_next(&it, &path, NULL))
+    g_queue_push_tail(&q, (gpointer)path);
 
-  return g_queue_peek_head_link(&result_list);
+  return g_queue_peek_head_link(&q);
 }
-
 
 COIL_API(GList *)
 coil_struct_get_values(CoilStruct *self,
@@ -2363,22 +2360,19 @@ coil_struct_get_values(CoilStruct *self,
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
+  CoilStructIter     it;
+  const GValue      *value;
+  GQueue             q = G_QUEUE_INIT;
+
   if (!coil_struct_expand(self, error))
     return NULL;
 
-  CoilStructPrivate *const priv = self->priv;
-  GQueue             result_list = G_QUEUE_INIT;
-  const GList       *entry_list;
+  coil_struct_iter_init(&it, self);
 
-  for (entry_list = g_queue_peek_head_link(&priv->entries);
-       entry_list; entry_list = g_list_next(entry_list))
-  {
-    const StructEntry *entry = (StructEntry *)entry_list->data;
-    const GValue      *value = entry->value;
-    g_queue_push_tail(&result_list, (gpointer)value);
-  }
+  while (coil_struct_iter_next(&it, NULL, &value))
+    g_queue_push_tail(&q, (gpointer)value);
 
-  return g_queue_peek_head_link(&result_list);
+  return g_queue_peek_head_link(&q);
 }
 
 /* TODO(jcon): allow de-duplicating branches */
