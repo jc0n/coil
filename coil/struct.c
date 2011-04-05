@@ -750,18 +750,19 @@ struct_create_container(CoilStruct  *self,
   }
 #endif
 
-  container = coil_struct_new(NULL,
+  container = coil_struct_new(error,
                               "container", self,
                               "path", path,
                               "hash", hash,
                               "is-prototype", prototype,
                               NULL);
 
-  new_value(value, COIL_TYPE_STRUCT,
-            take_object, container);
+  if (container == NULL)
+    return NULL;
+
+  new_value(value, COIL_TYPE_STRUCT, take_object, container);
 
   entry = struct_table_insert(priv->entry_table, hash, path, value);
-
   g_queue_push_tail(&priv->entries, entry);
 
 #ifdef COIL_DEBUG
