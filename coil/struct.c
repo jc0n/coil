@@ -2526,14 +2526,6 @@ coil_struct_dependency_tree(CoilStruct *self,
   return result;
 }
 
-/*
- * coil_struct_get_size: get the size of a struct
- *
- * @self: A CoilStruct instance.
- *
- * Return Value: the number of elements in a struct.
- *
- */
 COIL_API(guint)
 coil_struct_get_size(CoilStruct *self,
                      GError    **error)
@@ -2710,18 +2702,6 @@ _struct_build_string(gconstpointer     object,
                                buffer, format, error);
 }
 
-/*
- * coil_struct_build_string: Convert a CoilStruct into a string.
- *
- * @self: A CoilStruct instance.
- *
- * @prefix: The string to prefix every line
- *
- * @prefix_len: The length of @prefix.
- *
- * Return Value: The string representation of a CoiLStruct
- *
- */
 COIL_API(void)
 coil_struct_build_string(CoilStruct       *self,
                          GString          *const buffer,
@@ -2746,11 +2726,6 @@ coil_struct_to_string(CoilStruct       *self,
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   GString *buffer;
-
-  /* short circuit
-  if (struct_is_definitely_empty(self))
-    return g_strndup(COIL_STATIC_STRLEN("{}"));
-    */
 
   buffer = g_string_sized_new(512);
   struct_build_string_internal(self, NULL, buffer, format, error);
