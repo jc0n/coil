@@ -987,10 +987,9 @@ coil_struct_insert_key(CoilStruct   *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *priv = self->priv;
-  CoilPath          *path, *parent_path;
+  CoilPath          *path;
 
-  parent_path = priv->path;
-  path = coil_build_path(error, parent_path->path, key, NULL);
+  path = coil_build_path(error, priv->path->path, key, NULL);
   if (path == NULL)
     return FALSE;
 
