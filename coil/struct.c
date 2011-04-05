@@ -280,13 +280,13 @@ struct_resolve_path(CoilStruct     *self,
 
   CoilStructPrivate *const priv = self->priv;
 
-  if (path->flags & COIL_PATH_IS_ABSOLUTE)
+  if (COIL_PATH_IS_ABSOLUTE(path))
   {
     *return_hash = hash_absolute_path(path->path, path->path_len);
     return coil_path_ref((CoilPath *)path);
   }
 
-  if (path->flags & COIL_PATH_IS_BACKREF)
+  if (COIL_PATH_IS_BACKREF(path))
   {
     CoilPath *resolved = coil_path_resolve(path, priv->path, error);
 
@@ -1200,7 +1200,7 @@ struct_mark_deleted_internal(CoilStruct  *self,
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(path, FALSE);
-  g_return_val_if_fail(path->flags & COIL_PATH_IS_ABSOLUTE, FALSE);
+  g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(path), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;

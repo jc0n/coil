@@ -290,7 +290,7 @@ struct_table_insert(StructTable *table,
 {
   g_return_val_if_fail(table, NULL);
   g_return_val_if_fail(path, NULL);
-  g_return_val_if_fail(path->flags & COIL_PATH_IS_ABSOLUTE, NULL);
+  g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(path), NULL);
 
   StructEntry *entry, **bucket;
 
