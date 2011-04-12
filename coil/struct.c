@@ -533,9 +533,88 @@ make_prototype_final(CoilStruct *self, gpointer unused)
 }
 
 static gboolean
+insert_with_existing_entry(CoilStruct  *self,
+                           StructEntry *entry,
+                           CoilPath    *path, /* steals */
+                           GValue      *value, /* steals */
+                           gboolean     replace,
+                           GError     **error)
+{
+  /* entry exists for path (value may be null) */
+  GValue *old_value = entry->value;
+
+  if (old_value != NULL
+    && G_VALUE_HOLDS(old_value, COIL_TYPE_STRUCT))
+  {
+    CoilStruct *src, *dst;
+
+    src = COIL_STRUCT(g_value_get_object(value));
+    dst = COIL_STRUCT(g_value_get_object(old_value));
+
+    if (src != dst && coil_struct_is_prototype(dst))
+    {
+
+      if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
+      { /* old value is prototype - new value is not struct */
+        coil_struct_error(error, self,
+                          "Attempting to overwrite struct prototype '%s' "
+                          "with non struct value. This implies struct is used but "
+                          "never defined.",
+                          path->path);
+
+        return FALSE;
+      }
+
+      /* Overwriting a prototype.
+       * Merge the items from struct we're trying to set now
+       * and destroy it (leaving the prototype in place but casting to
+       * non-prototype).
+       */
+
+        /* XXX: maybe move this into merge and emit change signal here */
+//        g_object_set(dst, "accumulate", TRUE, NULL);
+        if (!coil_struct_merge(src, dst, TRUE, error))
+        {
+//          g_object_set(dst, "accumulate", FALSE, NULL);
+          return FALSE;
+        }
+//        g_object_set(dst, "accumulate", FALSE, NULL);
+#if 0
+        g_object_set(self,
+                     "is-prototype", FALSE,
+                     NULL);
+#endif
+
+      coil_path_unref(path);
+      free_value(value);
+      return TRUE;
+    } /* ...src != dst && coil_struct_is_prototype */
+  } /* ... old_value && G_VALUE_HOLDS */
+  else if (!replace)
+  {
+     coil_struct_error(error, self,
+                       "Attempting to insert value at path '%s' "
+                       "which already exists.",
+                       path->path);
+
+     return FALSE;
+  }
+
+  /* entry exists, overwrite value */
+  free_value(old_value);
+  coil_path_unref(entry->path);
+
+  entry->value = value;
+  entry->path = path;
+
+  return TRUE;
+}
+
+static gboolean
 struct_insert_internal(CoilStruct     *self,
                        CoilPath       *path, /* steals */
                        GValue         *value, /* steals */
+                       guint           hash,
                        gboolean        replace, /* TRUE to replace old value */
                        GError        **error)
 {
@@ -546,9 +625,15 @@ struct_insert_internal(CoilStruct     *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
-  StructEntry       *old_entry;
+  StructEntry       *entry;
   GError            *internal_error = NULL;
-  guint              hash;
+  gboolean           value_is_struct = FALSE;
+
+  g_return_val_if_fail(g_str_has_prefix(path->path, priv->path->path),
+                       FALSE);
+
+  g_return_val_if_fail(COIL_PATH_CONTAINER_LEN(path) == priv->path->path_len,
+                       FALSE);
 
   if (!priv->is_accumulating)
   {
@@ -572,99 +657,39 @@ struct_insert_internal(CoilStruct     *self,
                          coil_struct_get_path(self)->path);
        goto error;
     }
+
+    value_is_struct = TRUE;
   }
 
-  hash = hash_relative_path(priv->hash, path->key, path->key_len);
+  entry = struct_table_lookup(priv->entry_table, hash,
+                              path->path, path->path_len);
 
-  if (priv->size
-    && (old_entry = struct_table_lookup(priv->entry_table, hash,
-                                        path->path, path->path_len)))
+  if (entry == NULL)
   {
-    /* entry exists for path (value may be null) */
-    GValue *old_value = old_entry->value;
-
-    if (old_value && G_VALUE_HOLDS(old_value, COIL_TYPE_STRUCT))
-    {
-      CoilStruct *src, *dst;
-      dst = COIL_STRUCT(g_value_get_object(old_value));
-
-      if (coil_struct_is_prototype(dst))
-      {
-      /* Overwriting a prototype.
-       * Merge the items from struct we're trying to set now
-       * and destroy it (leaving the prototype in place but casting to
-       * non-prototype).
-       *
-       * TODO: Consider destroying the prototype instead. We may
-       * be able to pass the defined struct in with the closure to the
-       * signals registered to prototype. More thought on this is needed...
-       */
-        if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
-        {
-          src = COIL_STRUCT(g_value_get_object(value));
-
-          g_object_set(dst, "accumulate", TRUE, NULL);
-
-          coil_struct_merge(src, dst, TRUE, &internal_error);
-
-          g_object_set(dst, "accumulate", FALSE, NULL);
-
-          if (G_UNLIKELY(internal_error))
-            goto error;
-
-          coil_path_unref(path);
-          free_value(value);
-
-          g_object_set(self,
-                       "is-prototype", FALSE,
-                       NULL);
-
-#ifdef COIL_DEBUG
-          priv->version++;
-#endif
-          return TRUE;
-        }
-        else
-        { /* old value is prototype - new value is not struct */
-          coil_struct_error(error, self,
-                      "Attempting to overwrite struct prototype '%s' "
-                      "with non struct value. This implies struct is used but "
-                      "never defined.", path->path);
-          goto error;
-        }
-      } /* ...coil_struct_is_prototype */
-    } /* ... old_value && G_VALUE_HOLDS */
-    else if (!replace)
-    {
-       coil_struct_error(error, self,
-                         "Attempting to insert value at path '%s' "
-                         "which already exists.",
-                         path->path);
-       goto error;
-    }
-
-    /* entry exists, overwrite value */
-    free_value(old_value);
-    coil_path_unref(old_entry->path);
-
-    old_entry->value = value;
-    old_entry->path = path;
-  }
-  else
-  {
-    /* entry does NOT exist for key/path */
-    StructEntry *entry;
     entry = struct_table_insert(priv->entry_table, hash, path, value);
     g_queue_push_tail(&priv->entries, entry);
     priv->size++;
   }
+  else if (value_is_struct
+      && entry->value != NULL
+/*      && G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT)*/
+      && (CoilStruct *)g_value_peek_pointer(value)
+      == (CoilStruct *)g_value_peek_pointer(entry->value))
+  {
+    /* XXX: struct exists in the table but not in our list */
+    g_queue_push_tail(&priv->entries, entry);
+    priv->size++;
+    goto done;
+  }
+  else if (!insert_with_existing_entry(self, entry, path, value, replace, error))
+    goto error;
 
   /* if value is struct,
    * the path will be different so we need up update that and
    * also update children */
 
   /* TODO(jcon): implement set_container in expandable */
-  if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
+  if (value_is_struct)
   {
     CoilStruct *object, *container;
 
@@ -689,6 +714,7 @@ struct_insert_internal(CoilStruct     *self,
     }
   }
 
+done:
 #ifdef COIL_DEBUG
   priv->version++;
 #endif
@@ -887,47 +913,34 @@ coil_struct_insert_path(CoilStruct *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStruct        *container;
-  CoilStructPrivate *const priv = self->priv;
-  CoilPath          *resolved_path = NULL;
+  guint              hash = 0;
 
-  if (!(resolved_path = coil_path_resolve(path, priv->path, error)))
+  if (!struct_resolve_path_into(self, &path, &hash, error))
     goto error;
 
-  if (G_UNLIKELY(path->flags & COIL_PATH_IS_ROOT))
+  if (COIL_PATH_IS_ROOT(path))
   {
     coil_struct_error(error, self,
                       "Cannot assign a value directly to @root.");
+
     goto error;
   }
 
-  if (memchr(path->path, COIL_PATH_DELIM, path->path_len))
-  {
-    container = coil_struct_create_containers(self,
-                                              resolved_path->path,
-                                              COIL_PATH_CONTAINER_LEN(resolved_path),
-                                              TRUE,
-                                              FALSE,
-                                              error);
+  container = coil_struct_create_containers(self, path->path,
+                                            COIL_PATH_CONTAINER_LEN(path),
+                                            TRUE, FALSE, error);
 
-    if (G_UNLIKELY(container == NULL))
-      goto error;
-  }
-  else
-    container = self;
+  if (G_UNLIKELY(container == NULL))
+    goto error;
 
-  coil_path_unref(path);
-
-  return struct_insert_internal(container,
-                                resolved_path,
-                                value,
-                                replace, /* overwrite value */
-                                error);
+  return struct_insert_internal(container, path, value, hash, replace, error);
 
 error:
-  if (resolved_path)
-    coil_path_unref(resolved_path);
-  coil_path_unref(path);
+  if (path)
+    coil_path_unref(path);
+
   free_value(value);
+
   return FALSE;
 }
 
@@ -986,12 +999,15 @@ coil_struct_insert_key(CoilStruct   *self,
 
   CoilStructPrivate *priv = self->priv;
   CoilPath          *path;
+  guint              hash;
+
+  hash = hash_relative_path(priv->hash, key, key_len);
 
   path = coil_build_path(error, priv->path->path, key, NULL);
   if (path == NULL)
     return FALSE;
 
-  return struct_insert_internal(self, path, value, replace, error);
+  return struct_insert_internal(self, path, value, hash, replace, error);
 }
 
 static gboolean
@@ -1098,38 +1114,38 @@ struct_delete_internal(CoilStruct   *self,
 }
 
 COIL_API(gboolean)
-coil_struct_delete_path(CoilStruct     *self,
-                        const CoilPath *path,
-                        gboolean        strict,
-                        GError        **error)
+coil_struct_delete_path(CoilStruct *self,
+                        CoilPath   *path,
+                        gboolean    strict,
+                        GError    **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(path, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  guint              hash;
-  gboolean           result = FALSE;
-  CoilPath          *resolved_path;
+  guint    hash = 0;
+  gboolean result = FALSE;
 
-  resolved_path = struct_resolve_path(self, path, &hash, error);
+  coil_path_ref(path);
 
-  if (!resolved_path)
+  if (!struct_resolve_path_into(self, &path, &hash, error))
     goto error;
 
-  if (G_UNLIKELY(path->flags & COIL_PATH_IS_ROOT))
+  if (COIL_PATH_IS_ROOT(path))
   {
     coil_struct_error(error, self,
-        "Cannot delete '@root' path.");
+                      "Cannot delete '@root' path.");
+
     goto error;
   }
 
   result = struct_delete_internal(self, hash,
-                                  resolved_path->path,
-                                  resolved_path->path_len,
+                                  path->path, path->path_len,
                                   strict, TRUE, error);
 
 error:
-  coil_path_unref(resolved_path);
+  coil_path_unref((CoilPath *)path);
+
   return result;
 }
 
@@ -1194,6 +1210,7 @@ coil_struct_delete_key(CoilStruct  *self,
 static gboolean
 struct_mark_deleted_internal(CoilStruct  *self,
                              CoilPath    *path, /* steal */
+                             guint        hash,
                              gboolean     force,
                              GError     **error)
 {
@@ -1204,7 +1221,6 @@ struct_mark_deleted_internal(CoilStruct  *self,
 
   CoilStructPrivate *const priv = self->priv;
   StructEntry       *entry;
-  guint              hash = hash_relative_path(priv->hash, path->key, path->key_len);
 
   entry = struct_table_lookup(priv->entry_table, hash,
                               path->path, path->path_len);
@@ -1257,37 +1273,30 @@ coil_struct_mark_deleted_path(CoilStruct     *self,
   g_return_val_if_fail(path, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilStructPrivate *const priv = self->priv;
-  CoilStruct        *container;
-  CoilPath          *resolved;
+  CoilStruct *container;
+  guint       hash = 0;
 
-  resolved = coil_path_resolve(path, priv->path, error);
+  if (!struct_resolve_path_into(self, &path, &hash, error))
+    return FALSE;
 
-  if (G_UNLIKELY(resolved == NULL))
-    goto error;
-
-  if (G_UNLIKELY(resolved->flags & COIL_PATH_IS_ROOT))
+  if (COIL_PATH_IS_ROOT(path))
   {
     coil_struct_error(error, self,
         "Cannot mark @root as deleted.");
-    goto error;
+
+    return FALSE;
   }
 
   container = coil_struct_create_containers(self,
-                                            resolved->path,
-                                            COIL_PATH_CONTAINER_LEN(resolved),
+                                            path->path,
+                                            COIL_PATH_CONTAINER_LEN(path),
                                             TRUE, FALSE,
                                             error);
 
   if (G_UNLIKELY(container == NULL))
-    goto error;
+    return FALSE;
 
-  coil_path_unref(path);
-  return struct_mark_deleted_internal(container, resolved, force, error);
-
-error:
-  coil_path_unref(path);
-  return FALSE;
+  return struct_mark_deleted_internal(container, path, hash, force, error);
 }
 
 COIL_API(gboolean)
@@ -1339,12 +1348,15 @@ coil_struct_mark_deleted_key(CoilStruct  *self,
 
   CoilStructPrivate *priv = self->priv;
   CoilPath          *path;
+  guint              hash;
 
   path = coil_build_path(error, priv->path->path, key, NULL);
   if (path == NULL)
     return FALSE;
 
-  return struct_mark_deleted_internal(self, path, force, error);
+  hash = hash_relative_path(priv->hash, path->key, path->key_len);
+
+  return struct_mark_deleted_internal(self, path, hash, force, error);
 }
 
 static gboolean
@@ -1880,7 +1892,7 @@ struct_merge_item(CoilStruct     *self,
   else
     value = copy_value(srcvalue);
 
-  if (!struct_insert_internal(self, path, value, TRUE, error))
+  if (!struct_insert_internal(self, path, value, hash, TRUE, error))
     goto error;
 
   return TRUE;

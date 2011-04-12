@@ -157,10 +157,10 @@ coil_struct_insert_key(CoilStruct   *self,
                        GError      **error);
 
 gboolean
-coil_struct_delete_path(CoilStruct     *self,
-                        const CoilPath *path,
-                        gboolean        strict,
-                        GError        **error);
+coil_struct_delete_path(CoilStruct *self,
+                        CoilPath   *path,
+                        gboolean    strict,
+                        GError    **error);
 
 gboolean
 coil_struct_delete(CoilStruct  *self,
