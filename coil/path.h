@@ -214,12 +214,8 @@ coil_path_relativize(const CoilPath  *path,
                      const CoilPath  *base) G_GNUC_WARN_UNUSED_RESULT;
 
 gboolean
-coil_path_is_descendent(const gchar *path,
-                        const gchar *maybe_container);
-
-gboolean
-coil_path_has_container(const gchar *path,
-                        const gchar *maybe_container);
+coil_path_has_container(const CoilPath *path,
+                        const CoilPath *container);
 
 G_END_DECLS
 #endif

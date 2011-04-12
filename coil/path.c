@@ -841,3 +841,22 @@ backref:
   return relative;
 }
 
+COIL_API(gboolean)
+coil_path_has_container(const CoilPath *path,
+                        const CoilPath *container)
+{
+  g_return_val_if_fail(path, FALSE);
+  g_return_val_if_fail(container, FALSE);
+
+  if (container->path_len >= path->path_len)
+    return FALSE;
+
+  if (!(path->path[container->path_len] == COIL_PATH_DELIM
+    && path->path_len - container->path_len - 1 == path->key_len))
+    return FALSE;
+
+  if (memcmp(path->path, container->path, container->path_len))
+    return FALSE;
+
+  return TRUE;
+}

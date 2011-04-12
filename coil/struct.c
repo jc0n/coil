@@ -757,7 +757,6 @@ struct_create_container(CoilStruct  *self,
   CoilStructPrivate *const priv = self->priv;
   StructEntry       *entry;
   CoilStruct        *container;
-  GValue            *value;
 
 #if 0
   if (!coil_struct_is_prototype(self))
@@ -784,9 +783,9 @@ struct_create_container(CoilStruct  *self,
   if (container == NULL)
     return NULL;
 
-  new_value(value, COIL_TYPE_STRUCT, take_object, container);
+  entry = struct_table_lookup(priv->entry_table, hash,
+                              path->path, path->path_len);
 
-  entry = struct_table_insert(priv->entry_table, hash, path, value);
   g_queue_push_tail(&priv->entries, entry);
 
 #ifdef COIL_DEBUG
@@ -1823,6 +1822,7 @@ struct_merge_item(CoilStruct     *self,
       src  = COIL_STRUCT(g_value_get_object(srcvalue));
       dst = COIL_STRUCT(g_value_get_object(entry->value));
 
+      /* TODO(jcon): move this into merge */
       g_object_set(dst, "accumulate", TRUE, NULL);
 
       if (!coil_struct_merge(src, dst, overwrite, &internal_error))
@@ -2041,6 +2041,7 @@ struct_expand(gconstpointer    object,
 
   /* Since we waited to expand we're not really changing anything
    * (theoretically). */
+  /* TODO(jcon): remove this  -- handle in merge */
   g_object_set(self, "accumulate", TRUE, NULL);
 
   if (priv->last_expand_ptr == NULL)
@@ -3011,6 +3012,9 @@ coil_struct_new_valist(const gchar *first_property_name,
   GObject           *object;
   CoilStruct        *self, *container;
   CoilStructPrivate *priv;
+  StructEntry       *entry;
+  CoilPath          *path;
+  GValue            *value;
 
   object = g_object_new_valist(COIL_TYPE_STRUCT,
                                first_property_name,
@@ -3026,8 +3030,31 @@ coil_struct_new_valist(const gchar *first_property_name,
     {
       priv->root = coil_struct_get_root(container);
       priv->entry_table = struct_table_ref(container->priv->entry_table);
-      if (!struct_resolve_path_into(container, &priv->path, &priv->hash, error))
+
+      if (!coil_path_has_container(priv->path, container->priv->path))
+      {
+        g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
+                    "Invalid path '%s' for struct with container '%s'",
+                    priv->path->path,
+                    container->priv->path->path);
+
         return NULL;
+      }
+
+      path = struct_resolve_path(container, priv->path, &priv->hash, error);
+      if (path == NULL)
+        return NULL;
+
+      /* XXX: add self to the table now
+       *  - makes building a struct with an initial container/path
+       * easier for us to manage otherwise checks are required in
+       * coil_struct_create_containers()
+       *
+       *  - corresponding code to complete insertion is in
+       *  struct_insert_internal()
+       */
+      new_value(value, COIL_TYPE_STRUCT, set_object, self);
+      entry = struct_table_insert(priv->entry_table, priv->hash, path, value);
     }
     else
       g_error("path specified with no container");
