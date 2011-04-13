@@ -457,7 +457,7 @@ cCoil_parse(PyObject *ignored,
       goto error;
 
     root = coil_parse_string_len(buffer, len, &error);
-    if (root == NULL)
+    if (root == NULL || G_UNLIKELY(error))
       goto error;
   }
   else if (PySequence_Check(input))
@@ -544,14 +544,14 @@ init_exceptions(PyObject *d)
   if (PyDict_SetItemString(d, "StructError", StructError) < 0)
     return 0;
 
-  LinkError = PyErr_NewException("cCoil.LinkError", cCoilError, NULL);
+  LinkError = PyErr_NewException("cCoil.LinkError", StructError, NULL);
   if (LinkError == NULL)
     return 0;
 
   if (PyDict_SetItemString(d, "LinkError", LinkError) < 0)
     return 0;
 
-  IncludeError = PyErr_NewException("cCoil.IncludeError", cCoilError, NULL);
+  IncludeError = PyErr_NewException("cCoil.IncludeError", StructError, NULL);
   if (IncludeError == NULL)
     return 0;
 
