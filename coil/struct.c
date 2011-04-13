@@ -2798,10 +2798,7 @@ coil_struct_copy_valist(CoilStruct  *self,
     {
       if (value == NULL)
       {
-        if (!coil_struct_mark_deleted_key(copy,
-                                          path->key,
-                                          FALSE,
-                                          error))
+        if (!coil_struct_mark_deleted_key(copy, path->key, FALSE, error))
           goto error;
 
         continue;
@@ -2811,31 +2808,25 @@ coil_struct_copy_valist(CoilStruct  *self,
       {
         CoilStruct     *obj, *obj_copy;
         const CoilPath *container_path;
+        CoilPath       *node_path;
 
         container_path = coil_struct_get_path(copy);
-        coil_path_ref((CoilPath *)path);
-
-        if (!coil_path_change_container((CoilPath **)&path,
-                                        container_path,
-                                        error))
-        {
-          coil_path_unref((CoilPath *)path);
+        node_path = coil_path_concat(container_path, path, error);
+        if (node_path == NULL)
           goto error;
-        }
 
         obj = COIL_STRUCT(g_value_get_object(value));
         obj_copy = coil_struct_copy(obj, error,
-                                    "path", path,
+                                    "path", node_path,
                                     "container", copy,
                                     NULL);
 
-        coil_path_unref((CoilPath *)path);
+        coil_path_unref(node_path);
 
         if (G_UNLIKELY(obj_copy == NULL))
           goto error;
 
-        new_value(value_copy, COIL_TYPE_STRUCT,
-                  take_object, obj_copy);
+        new_value(value_copy, COIL_TYPE_STRUCT, take_object, obj_copy);
       }
       else if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
       {
@@ -2849,8 +2840,7 @@ coil_struct_copy_valist(CoilStruct  *self,
         if (G_UNLIKELY(obj_copy == NULL))
           goto error;
 
-        new_value(value_copy, G_VALUE_TYPE(value),
-                  take_object, obj_copy);
+        new_value(value_copy, G_VALUE_TYPE(value), take_object, obj_copy);
       }
       else
         value_copy = copy_value(value);
