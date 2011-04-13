@@ -7,131 +7,228 @@
 #include "coilmodule.h"
 #include "coilstruct.h"
 
-#if 0
-static GQuark __PyCoilStruct_Quark = 0;
-static GQuark _PyCoilStruct_Quark(void) G_GNUC_CONST;
+static GQuark struct_wrapper_key = 0;
 
-#define PyCoilStruct_Quark _PyCoilStruct_Quark()
-
-static GQuark
-_PyCoilStruct_Quark(void)
+struct _structiter_object
 {
-  if (__PyCoilStruct_Quark == 0)
-    __PyCoilStruct_Quark = g_quark_from_static_string("_PyCoilStruct");
+  PyObject_HEAD
 
-  return __PyCoilStruct_Quark;
+  PyCoilStruct   *si_struct;
+  CoilStructIter  si_iter;
+};
+
+static void
+struct_free(PyCoilStruct *self)
+{
+  PyObject_GC_Del(self);
 }
-#endif
+
+int
+struct_register_types(PyObject *m,
+                      PyObject *d)
+{
+  PyObject     *gobject_module, *gobject_dict;
+  PyTypeObject *gobject_type;
+
+  struct_wrapper_key = g_quark_from_static_string("_PyCoilStruct");
+
+  gobject_module = pygobject_init(-1, -1, -1);
+  if (gobject_module == NULL)
+    return 0;
+
+  gobject_dict = PyModule_GetDict(gobject_module);
+  if (gobject_dict == NULL)
+    return 0;
+
+  gobject_type = (PyTypeObject *)PyDict_GetItemString(gobject_dict, "GObject");
+  if (gobject_type == NULL)
+    return 0;
+
+  Py_INCREF(gobject_type);
+  Py_DECREF(gobject_module);
+  PyCoilStruct_Type.tp_free = (freefunc)struct_free;
+  PyCoilStruct_Type.tp_base = gobject_type;
+
+  PyType_Register(d, PyCoilStruct_Type, "Struct", 0);
+
+  return 1;
+}
 
 PyObject *
 cCoil_struct_new(CoilStruct *node)
 {
   PyCoilStruct *self;
-//  PyObject     *obj;
 
   if (node == NULL)
-  {
-    Py_INCREF(Py_None);
-    return Py_None;
-  }
+    Py_RETURN_NONE;
 
-/*  obj = g_object_get_qdata(G_OBJECT(node), PyCoilStruct_Quark);
-  if (obj == NULL)
+  self = (PyCoilStruct *)g_object_get_qdata(G_OBJECT(node), struct_wrapper_key);
+  if (self == NULL)
   {
-*/
-    self = PyObject_New(PyCoilStruct, &PyCoilStruct_Type);
+    self = PyObject_GC_New(PyCoilStruct, &PyCoilStruct_Type);
     if (self == NULL)
       return NULL;
 
     self->node = node;
-    self->iterator = NULL;
-/*
-    g_object_set_qdata(G_OBJECT(node), PyCoilStruct_Quark, (gpointer)self);
+    self->iter = NULL;
+
+    g_object_set_qdata_full(G_OBJECT(node), struct_wrapper_key, self, NULL);
+    PyObject_GC_Track((PyObject *)self);
   }
   else
   {
-    self = (PyCoilStruct *)obj;
     Py_INCREF(self);
+    g_assert(self->node);
   }
-*/
 
   return (PyObject *)self;
 }
 
-gboolean
-update_struct_from_pyitems(CoilStruct *node,
-                           PyObject   *obj)
+static int
+struct_clear(PyCoilStruct *self)
 {
-  g_return_val_if_fail(COIL_IS_STRUCT(node), FALSE);
-  g_return_val_if_fail(obj, FALSE);
-
-  Py_ssize_t  i, size;
-  PyObject   *items, *item, *k, *v, *s;
-  CoilPath   *path = NULL;
-  GValue     *value = NULL;
-  GError     *error = NULL;
-
-  if (PyMapping_Check(obj))
-    items = PyMapping_Items(obj);
-  else if (PySequence_Check(obj))
-    items = PySequence_List(obj);
-  else
+  if (self->node)
   {
-    PyErr_SetString(PyExc_ValueError,
-                    "argument must contain iterable items.");
-    return FALSE;
+    g_object_set_qdata_full(G_OBJECT(self->node),
+                            struct_wrapper_key,
+                            NULL, NULL);
+
+    g_object_unref(self->node);
+    self->node = NULL;
   }
 
-  if (items == NULL)
+  Py_CLEAR(self->iter);
+
+  return 0;
+}
+
+static int
+struct_traverse(PyCoilStruct *self,
+                visitproc     visit,
+                void         *arg)
+{
+  Py_VISIT(self->iter);
+  return 0;
+}
+
+static void
+struct_dealloc(PyCoilStruct *self)
+{
+  PyObject_GC_UnTrack((PyObject *)self);
+
+  struct_clear(self);
+
+  PyObject_GC_Del((PyObject *)self);
+}
+
+static long
+struct_hash(PyCoilStruct *self)
+{
+  return (long)self->node;
+}
+
+gboolean
+struct_update_from_pyitems(CoilStruct *node,
+                           PyObject   *items)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(node), FALSE);
+  g_return_val_if_fail(items, FALSE);
+
+  Py_ssize_t      i;
+  PyObject       *it, *item = NULL, *fast = NULL;
+  const CoilPath *node_path;
+  CoilPath       *path = NULL;
+  GValue         *value = NULL;
+  GError         *error = NULL;
+
+  node_path = coil_struct_get_path(node);
+
+  if (PyMapping_Check(items))
+    items = PyMapping_Items(items);
+  else
+    Py_INCREF(items);
+
+  it = PyObject_GetIter(items);
+  if (it == NULL)
     return FALSE;
 
-  size = PyList_GET_SIZE(items);
-  for (i = 0; i < size; i++)
+  for (i = 0; ; i++)
   {
-    item = PyList_GET_ITEM(items, i);
-    k = PyTuple_GET_ITEM(item, 0);
-    v = PyTuple_GET_ITEM(item, 1);
+    PyObject  *k, *v;
+    Py_ssize_t n;
 
-    s = PyObject_Str(k);
-    if (s == NULL)
+    fast = NULL;
+    item = PyIter_Next(it);
+    if (item == NULL)
+    {
+      if (PyErr_Occurred())
+        goto error;
+
+      break;
+    }
+
+    fast = PySequence_Fast(item, "");
+    if (fast == NULL)
+    {
+      if (PyErr_ExceptionMatches(PyExc_TypeError))
+        PyErr_Format(PyExc_TypeError,
+            "cannot convert struct update sequence element "
+            "#%zd to a sequence",
+            i);
       goto error;
+    }
 
-    path = coil_path_from_pystring(s, &error);
-    Py_DECREF(s);
+    n = PySequence_Fast_GET_SIZE(fast);
+    if (n != 2)
+    {
+      PyErr_Format(PyExc_ValueError,
+          "struct update sequence element %zd "
+          "expecting key-value pair length 2, has length %zd",
+          i, n);
+      goto error;
+    }
+
+    k = PySequence_Fast_GET_ITEM(fast, 0);
+    if (!PyString_Check(k))
+    {
+      PyErr_Format(PyExc_ValueError,
+          "struct update expecting string in index 0 of element #%zd, found %s",
+          i, Py_TYPE_NAME(k));
+      goto error;
+    }
+
+    v = PySequence_Fast_GET_ITEM(fast, 1);
+
+    path = coil_path_from_pystring(k, &error);
     if (path == NULL)
       goto error;
 
-    if (!coil_path_resolve_into(&path, coil_struct_get_path(node), &error))
+    if (!coil_path_resolve_into(&path, node_path, &error))
       goto error;
 
     if (PyDict_Check(v))
     {
-      CoilStruct *s = coil_struct_new(&error,
-                                      "container", node,
-                                      "path", path,
-                                      NULL);
+      CoilStruct *s;
 
+      s = coil_struct_new(&error,
+                          "container", node,
+                          "path", path,
+                          NULL);
       if (s == NULL)
         goto error;
 
-      g_object_set(G_OBJECT(s),
-                   "accumulate", TRUE,
-                   NULL);
+      g_object_set(G_OBJECT(s), "accumulate", TRUE, NULL);
       Py_INCREF(v);
-
-      if (!update_struct_from_pyitems(s, v))
+      if (!struct_update_from_pyitems(s, v))
       {
         g_object_unref(s);
         Py_DECREF(v);
         goto error;
       }
-
       Py_DECREF(v);
-      g_object_set(G_OBJECT(s),
-                   "accumulate", FALSE,
-                   NULL);
+      g_object_set(G_OBJECT(s), "accumulate", FALSE, NULL);
 
-      new_value(value, COIL_TYPE_STRUCT, take_object, s);
+      coil_value_init(value, COIL_TYPE_STRUCT, take_object, s);
     }
     else
     {
@@ -140,169 +237,38 @@ update_struct_from_pyitems(CoilStruct *node,
         goto error;
     }
 
-    /* value may exist in another struct */
-    /* copy value before inserting, deep copy expandable items */
-    /* XXX: may change this to COIL_TYPE_OBJECT in the future */
-/*    if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
-    {
-      CoilStruct *object, *copy;
-      object = COIL_STRUCT(g_value_get_object(value));
-      copy = coil_struct_copy(object, &error,
-                              "container", node,
-                              "path", path,
-                              NULL);
-      if (copy == NULL)
-        goto error;
-
-      g_value_reset(value);
-      g_value_take_object(value, copy);
-    }
-    else if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
-    {
-      CoilExpandable *object, *copy;
-
-      object = COIL_EXPANDABLE(g_value_get_object(value));
-      copy = coil_expandable_copy(object, &error,
-                                  "container", node,
-                                  NULL);
-      if (copy == NULL)
-        goto error;
-
-      g_value_reset(value);
-      g_value_take_object(value, copy);
-    }
-    */
-
     if (!coil_struct_insert_path(node, path, value, FALSE, &error))
+    {
+      path = NULL;
+      value = NULL;
       goto error;
+    }
+
+    Py_DECREF(fast);
+    Py_DECREF(item);
   }
 
+  Py_DECREF(it);
   Py_DECREF(items);
   return TRUE;
 
 error:
+  Py_XDECREF(item);
+  Py_XDECREF(fast);
+  Py_DECREF(items);
+
   if (path)
     coil_path_unref(path);
 
   if (value)
-    free_value(value);
+    coil_value_free(value);
 
   if (error)
     cCoil_error(&error);
 
-  Py_DECREF(items);
   return FALSE;
 }
 
-/*
-"""
-:param base: A *dict*, *Struct*, or a sequence of (key, value)
-    tuples to initialize with. Any child *dict* or *Struct*
-    will be recursively copied as a new child *Struct*.
-:param container: the parent *Struct* if there is one.
-:param name: The name of this *Struct* in *container*.
-:param location: The where this *Struct* is defined.
-    This is normally only used by the :class:`Parser
-    <coil.parser.Parser>`.
-"""
-*/
-static int
-struct_init(PyCoilStruct *self,
-            PyObject     *args,
-            PyObject     *kwargs)
-{
-  static char  *kwlist[] = {"base", "container", "name", "location", NULL};
-  PyCoilStruct *container = NULL;
-  PyObject     *name = NULL;
-  PyObject     *base = NULL;
-  PyObject     *location = NULL;
-  CoilStruct   *_container = NULL;
-  gchar        *_name = NULL;
-  GError       *error = NULL;
-
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO!SO:cCoil.Struct.__init__",
-                                   kwlist, &base,
-                                   &PyCoilStruct_Type, &container,
-                                   &name, &location))
-    goto error;
-
-  if (name)
-  {
-    _name = PyString_AsString(name);
-    if (_name == NULL)
-      goto error;
-
-    if (container)
-      _container = container->node;
-  }
-  else if (container)
-  {
-      PyErr_SetString(PyExc_ValueError,
-          "A name argument must be specified with a container argument.");
-
-      goto error;
-  }
-
-  /* TODO(jcon): handle location */
-
-  self->node = coil_struct_new(&error,
-                               "container", _container,
-                               "path", _name,
-                               NULL);
-
-  if (self->node == NULL)
-    goto error;
-
-  if (base == NULL)
-    return 0;
-
-  if (PyCoilStruct_Check(base))
-  {
-    CoilStruct *src;
-    src = ((PyCoilStruct *)base)->node;
-    if (!coil_struct_merge(src, self->node, FALSE, &error))
-      goto error;
-
-    return 0;
-  }
-
-  if (!PyMapping_Check(base) && !PySequence_Check(base))
-  {
-    PyErr_SetString(PyExc_ValueError,
-                    "base argument must be a dict-like object, " \
-                    "a sequence of items, or a coil struct");
-    goto error;
-  }
-
-  if (!update_struct_from_pyitems(self->node, base))
-    goto error;
-
-  return 0;
-
-error:
-  if (error)
-    cCoil_error(&error);
-
-  return -1;
-}
-
-static void
-struct_dealloc(PyCoilStruct *self)
-{
-  if (self->node != NULL)
-  {
-    g_object_unref(self->node);
-    self->node = NULL;
-  }
-
-  if (self->iterator != NULL)
-  {
-    g_free(self->iterator);
-    self->iterator = NULL;
-  }
-
-  PyObject_Del(self);
-}
 
 static PyObject *
 struct_copy(PyCoilStruct *self,
@@ -312,7 +278,7 @@ struct_copy(PyCoilStruct *self,
   static char  *kwlist[] = {"container", "name", NULL};
   PyCoilStruct *pycontainer = NULL;
   PyObject     *pyname = NULL;
-  CoilStruct   *copy, *container;
+  CoilStruct   *copy, *container = NULL;
   CoilPath     *path = NULL;
   GError       *error = NULL;
 
@@ -321,30 +287,27 @@ struct_copy(PyCoilStruct *self,
                                    &pyname))
     return NULL;
 
-  if (pycontainer)
+
+  if (((pycontainer == NULL) ^ (pyname == NULL)))
+  {
+    PyErr_SetString(PyExc_ValueError,
+                    "name and container must be specified together");
+
+    return NULL;
+  }
+
+  if (pyname)
   {
     container = pycontainer->node;
-
-    if (pyname)
-    {
-      path = coil_path_from_pystring(pyname, &error);
-      if (path == NULL)
-        goto error;
-    }
+    path = coil_path_from_pystring(pyname, &error);
+    if (path == NULL)
+      goto error;
 
     copy = coil_struct_copy(self->node, &error,
                             "container", container,
                             "path", path,
                             NULL);
-
     coil_path_unref(path);
-  }
-  else if (pyname)
-  {
-    PyErr_SetString(PyExc_ValueError,
-                    "name argument must be specified along with container.");
-
-    return NULL;
   }
   else
     copy = coil_struct_copy(self->node, &error, NULL, NULL);
@@ -355,7 +318,9 @@ struct_copy(PyCoilStruct *self,
   return cCoil_struct_new(copy);
 
 error:
-  cCoil_error(&error);
+  if (error)
+    cCoil_error(&error);
+
   return NULL;
 }
 
@@ -365,12 +330,11 @@ struct_get_container(PyCoilStruct *self,
 {
   CoilStruct *container;
 
+  assert(self->node);
+
   container = coil_struct_get_container(self->node);
   if (container == NULL)
-  {
-    Py_INCREF(Py_None);
-    return Py_None;
-  }
+    Py_RETURN_NONE;
 
   g_object_ref(container);
   return cCoil_struct_new(container);
@@ -382,17 +346,65 @@ struct_get_root(PyCoilStruct *self,
 {
   CoilStruct *root;
 
+  assert(self->node);
+
   root = coil_struct_get_root(self->node);
   if (root == NULL)
-  {
-    Py_INCREF(Py_None);
-    return Py_None;
-  }
+    Py_RETURN_NONE;
 
   g_object_ref(root);
   return cCoil_struct_new(root);
 }
 
+static PyObject *
+struct_is_ancestor(PyCoilStruct *self,
+                   PyObject     *other)
+{
+  if (!PyCoilStruct_Check(other))
+  {
+    PyErr_Format(PyExc_ValueError,
+        "expecting type %s, found type %s",
+        Py_TYPE_NAME(self),
+        Py_TYPE_NAME(other));
+
+    return NULL;
+  }
+
+  if (coil_struct_is_ancestor(self->node, ((PyCoilStruct *)other)->node))
+    Py_RETURN_TRUE;
+
+  Py_RETURN_FALSE;
+}
+
+static PyObject *
+struct_is_descendent(PyCoilStruct *self,
+                     PyObject     *other)
+{
+  if (!PyCoilStruct_Check(other))
+  {
+    PyErr_Format(PyExc_ValueError,
+        "expecting type %s, found type %s",
+        Py_TYPE_NAME(other),
+        Py_TYPE_NAME(self));
+
+    return NULL;
+  }
+
+  if (coil_struct_is_descendent(self->node, ((PyCoilStruct *)other)->node))
+    Py_RETURN_TRUE;
+
+  Py_RETURN_FALSE;
+}
+
+static PyObject *
+struct_is_root(PyCoilStruct *self,
+               PyObject     *unused)
+{
+  if (coil_struct_is_root(self->node))
+    Py_RETURN_TRUE;
+
+  Py_RETURN_FALSE;
+}
 
 static PyObject *
 update_pydict_from_struct(CoilStruct *node,
@@ -406,7 +418,7 @@ update_pydict_from_struct(CoilStruct *node,
   const CoilPath *path;
   const GValue   *value;
   PyObject       *k = NULL, *v = NULL;
-  ptrdiff_t       key_offset, keylen_offset;
+  ptrdiff_t       key_offset, klen_offset;
   GError         *error = NULL;
 
   if (!coil_struct_expand(node, &error))
@@ -415,20 +427,21 @@ update_pydict_from_struct(CoilStruct *node,
   if (absolute)
   {
     key_offset = G_STRUCT_OFFSET(CoilPath, path);
-    keylen_offset = G_STRUCT_OFFSET(CoilPath, path_len);
+    klen_offset = G_STRUCT_OFFSET(CoilPath, path_len);
   }
   else
   {
     key_offset = G_STRUCT_OFFSET(CoilPath, key);
-    keylen_offset = G_STRUCT_OFFSET(CoilPath, key_len);
+    klen_offset = G_STRUCT_OFFSET(CoilPath, key_len);
   }
 
   coil_struct_iter_init(&it, node);
   while (coil_struct_iter_next(&it, &path, &value))
   {
     const gchar *str = G_STRUCT_MEMBER(gchar *, path, key_offset);
-    guint8       len = G_STRUCT_MEMBER(guint8, path, keylen_offset);
+    guint8       len = G_STRUCT_MEMBER(guint8, path, klen_offset);
 
+    v = NULL;
     k = PyString_FromStringAndSize(str, len);
     if (k == NULL)
       goto error;
@@ -439,22 +452,21 @@ update_pydict_from_struct(CoilStruct *node,
 
       v = PyDict_New();
       if (v == NULL)
-      {
-        Py_DECREF(k);
         goto error;
-      }
 
       v = update_pydict_from_struct(node, v, absolute);
       if (v == NULL)
-      {
-        Py_DECREF(k);
         goto error;
-      }
     }
     else
+    {
       v = coil_value_as_pyobject(value);
+      if (v == NULL)
+        goto error;
+    }
 
-    PyDict_SetItem(d, k, v);
+    if (PyDict_SetItem(d, k, v) < 0)
+      goto error;
 
     Py_DECREF(k);
     Py_DECREF(v);
@@ -464,11 +476,29 @@ update_pydict_from_struct(CoilStruct *node,
 
 error:
   Py_XDECREF(d);
+  Py_XDECREF(k);
+  Py_XDECREF(v);
 
   if (error)
     cCoil_error(&error);
 
   return NULL;
+}
+
+static PyObject *
+struct_empty(PyCoilStruct *self,
+             PyObject     *unused)
+{
+  GError *error = NULL;
+
+  coil_struct_empty(self->node, &error);
+  if (G_UNLIKELY(error))
+  {
+    cCoil_error(&error);
+    return NULL;
+  }
+
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -494,7 +524,6 @@ struct_to_dict(PyCoilStruct *self,
   return d;
 }
 
-#if 0
 /* Default behavior is to not expand
  * unless absolutely necessary
  * this is more of a compatability hack
@@ -502,44 +531,64 @@ struct_to_dict(PyCoilStruct *self,
  */
 static PyObject *
 struct_expand(PyCoilStruct *self,
-                     PyObject     *args,
-                     PyObject     *kwargs)
+              PyObject     *args,
+              PyObject     *kwargs)
 {
-  static char *kwlist[] = {"defaults", "ignore_missing", "recursive", "force", NULL};
-  CoilStruct  *const node = self->node;
-  PyObject    *py_defaults = NULL, *py_missing = NULL;
-  PyObject    *py_recursive = NULL, *py_force = NULL;
+  static char *kwlist[] = {"defaults", "ignore_missing",
+                           "recursive", "force", NULL};
+  CoilStruct  *node = self->node;
+  PyObject    *py_defaults = NULL;
+  PyObject    *py_force = NULL;
+  PyObject    *py_ignore = NULL;
+  PyObject    *py_recursive = NULL;
+  gboolean     recursive;
   GError      *error = NULL;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-                                  "|OOOO:pycoil.Struct.expand",
+                                  "|OOOO:cCoil.Struct.expand",
                                   kwlist,
-                                  &py_defaults, &py_missing,
+                                  &py_defaults, &py_ignore,
                                   &py_recursive, &py_force))
     return NULL;
 
-  if (py_force && PyObject_IsTrue(py_force))
+  if (py_defaults)
   {
-    if (PyObject_IsTrue(py_recursive))
-      coil_struct_expand_recursive(node, &error);
-    else
-      coil_struct_expand(node, &error);
-
-    if (G_UNLIKELY(error))
+    if (!PyMapping_Check(py_defaults) ||
+      PySequence_Check(py_defaults) ||
+      PyCoilStruct_Check(py_defaults))
     {
-      handle_error(error);
-      return NULL;
+      PyErr_SetString(PyExc_ValueError,
+                      "defaults argument must be a dict-like object, " \
+                      "a sequence of items, or a coil struct.");
+
+      goto error;
     }
+
+    if (!struct_update_from_pyitems(node, py_defaults))
+      goto error;
   }
 
-  Py_INCREF(Py_None);
-  return Py_None;
+  if (!py_force || !PyObject_IsTrue(py_force))
+    Py_RETURN_NONE;
+
+  recursive = py_recursive && PyObject_IsTrue(py_recursive);
+  if (!coil_struct_expand_items(node, recursive, &error))
+    goto error;
+
+  Py_RETURN_NONE;
+
+error:
+  if (error)
+    cCoil_error(&error);
+
+  return NULL;
 }
 
+#if 0
 static PyObject *
 struct_expanditem(PyCoilStruct *self,
-                         PyObject     *args,
-                         PyObject     *kwargs)
+                  PyObject     *args,
+                  PyObject     *kwargs)
 {
 
   // XXX: FIX BROKEN
@@ -556,18 +605,67 @@ struct_expandvalue(PyCoilStruct *self,
   Py_INCREF(Py_None);
   return Py_None;
 }
+#endif
 
 static PyObject *
 struct_extend(PyCoilStruct *self,
-                     PyObject     *args,
-                     PyObject     *kwargs)
+              PyObject     *args,
+              PyObject     *kwargs)
 {
-  // XXX: FIX BROKEN
-  Py_INCREF(Py_None);
-  return Py_None;
+  static char  *kwlist[] = {"parent", NULL};
+  PyCoilStruct *parent;
+  GError       *error = NULL;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:cCoil.Struct.extend",
+                                   kwlist, &PyCoilStruct_Type, &parent))
+    return NULL;
+
+  assert(self->node);
+  assert(parent->node);
+
+  if (!coil_struct_extend(self->node, parent->node, &error))
+  {
+    cCoil_error(&error);
+    return NULL;
+  }
+
+  Py_RETURN_NONE;
 }
 
-#endif
+static PyObject *
+struct_extend_path(PyCoilStruct *self,
+                   PyObject     *args,
+                   PyObject     *kwargs)
+{
+  static char  *kwlist[] = {"path", "context", NULL};
+  PyObject     *py_path;
+  PyCoilStruct *py_context = NULL;
+  CoilStruct   *context = NULL;
+  CoilPath     *path;
+  GError       *error = NULL;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "S|O!:cCoil.Struct.extend_path",
+                                   kwlist, &py_path,
+                                   &PyCoilStruct_Type, &context))
+    return NULL;
+
+  path = coil_path_from_pystring(py_path, &error);
+  if (path == NULL)
+    return NULL;
+
+  if (py_context)
+    context = py_context->node;
+
+  if (!coil_struct_extend_path(self->node, path, context, &error))
+  {
+    cCoil_error(&error);
+    return NULL;
+  }
+
+  coil_path_unref(path);
+
+  Py_RETURN_NONE;
+}
 
 static PyObject *
 struct_get(PyCoilStruct *self,
@@ -575,16 +673,24 @@ struct_get(PyCoilStruct *self,
            PyObject     *kwargs)
 {
   static char   *kwlist[] = {"path", "default", NULL};
-  PyObject      *result, *pypath, *pydefault = NULL;
+  PyObject      *py_key, *py_default = NULL;
   CoilPath      *path = NULL;
   const GValue  *value;
   GError        *error = NULL;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "S|O:pycoil.Struct.get",
-                                   kwlist, &pypath, &pydefault))
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:cCoil.Struct.get",
+                                   kwlist, &py_key, &py_default))
     return NULL;
 
-  path = coil_path_from_pystring(pypath, &error);
+  if (!PyString_Check(py_key))
+  {
+    PyErr_Format(KeyTypeError, "keys must be type string, got type %s",
+                 Py_TYPE_NAME(py_key));
+
+    return NULL;
+  }
+
+  path = coil_path_from_pystring(py_key, &error);
   if (path == NULL)
     goto error;
 
@@ -594,28 +700,20 @@ struct_get(PyCoilStruct *self,
 
   if (value)
   {
-    result = coil_value_as_pyobject(value);
     coil_path_unref(path);
-    return result;
+    return coil_value_as_pyobject(value);
   }
 
-  if (pydefault)
+  if (py_default)
   {
-    Py_INCREF(pydefault);
     coil_path_unref(path);
-    return pydefault;
+    Py_INCREF(py_default);
+    return py_default;
   }
-  else
-  {
-    gchar buf[COIL_PATH_LEN * 2 + 128];
 
-    g_snprintf(buf, sizeof(buf),
-              "<%s> The path '%s' was not found",
-              coil_struct_get_path(self->node)->path,
-              path->path);
-
-    PyErr_SetString(KeyMissingError, buf);
-  }
+  PyErr_Format(KeyMissingError, "<%s> The path '%s' was not found.",
+               coil_struct_get_path(self->node)->path,
+               path->path);
 
 error:
   if (path)
@@ -628,26 +726,27 @@ error:
 }
 
 static int
-struct_sq_contains(PyObject *self,
-                   PyObject *arg)
+struct_sq_contains(PyCoilStruct *self,
+                   PyObject     *arg)
 {
-  PyObject     *s;
   CoilPath     *path;
   const GValue *value;
   GError       *error = NULL;
 
-  s = PyObject_Str(arg);
-  if (s == NULL)
+  if (!PyString_Check(arg))
+  {
+    PyErr_Format(PyExc_ValueError,
+                "keys must be strings, not %s",
+                Py_TYPE_NAME(arg));
+
     return -1;
+  }
 
-  path = coil_path_from_pystring(s, &error);
-  Py_DECREF(s);
-
+  path = coil_path_from_pystring(arg, &error);
   if (path == NULL)
     return -1;
 
-  value = coil_struct_lookup_path(((PyCoilStruct *)self)->node,
-                                  path, FALSE, &error);
+  value = coil_struct_lookup_path(self->node, path, FALSE, &error);
   coil_path_unref(path);
 
   return (value == NULL) ? 0 : 1;
@@ -657,7 +756,7 @@ static PyObject *
 struct_contains(PyCoilStruct *self,
                 PyObject     *arg)
 {
-  if (struct_sq_contains((PyObject *)self, arg))
+  if (struct_sq_contains(self, arg))
      Py_RETURN_TRUE;
 
   Py_RETURN_FALSE;
@@ -670,101 +769,162 @@ struct_items(PyCoilStruct *self,
 {
   static char    *kwlist[] = {"absolute", NULL};
   PyObject       *items, *absolute = NULL;
-  PyObject       *t, *p, *v;
+  PyObject       *item, *k, *v;
   CoilStructIter  it;
   const CoilPath *path;
   const GValue   *value;
-  Py_ssize_t      i = 0, size;
-  ptrdiff_t       key_offset, keylen_offset;
+  Py_ssize_t      i, size;
+  ptrdiff_t       key_offset, klen_offset;
   GError         *error = NULL;
+
+  assert(self->node);
 
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:cCoil.Struct.items",
                                    kwlist, &absolute))
     return NULL;
 
-  size = coil_struct_get_size(self->node, &error);
-  if (G_UNLIKELY(error))
+  size = (Py_ssize_t)coil_struct_get_size(self->node, &error);
+  if (size < 0)
   {
     cCoil_error(&error);
     return NULL;
   }
 
-  items = PyList_New(size);
-
   if (absolute && PyObject_IsTrue(absolute))
   {
     key_offset = G_STRUCT_OFFSET(CoilPath, path);
-    keylen_offset = G_STRUCT_OFFSET(CoilPath, path_len);
+    klen_offset = G_STRUCT_OFFSET(CoilPath, path_len);
   }
   else
   {
     key_offset = G_STRUCT_OFFSET(CoilPath, key);
-    keylen_offset = G_STRUCT_OFFSET(CoilPath, key_len);
+    klen_offset = G_STRUCT_OFFSET(CoilPath, key_len);
   }
 
-  coil_struct_iter_init(&it, self->node);
-  while (coil_struct_iter_next(&it, &path, &value))
-  {
-    const gchar *str = G_STRUCT_MEMBER(gchar *, path, key_offset);
-    guint8       len = G_STRUCT_MEMBER(guint8, path, keylen_offset);
+  items = PyList_New(size);
 
-    p = PyString_FromStringAndSize(str, (Py_ssize_t)len);
-    if (p == NULL)
-    {
-      Py_DECREF(items);
+  coil_struct_iter_init(&it, self->node);
+
+  for (i = 0; coil_struct_iter_next(&it, &path, &value); i++)
+  {
+    const gchar *s;
+    guint8       n;
+
+    s = G_STRUCT_MEMBER(gchar *, path, key_offset);
+    n = G_STRUCT_MEMBER(guint8, path, klen_offset);
+
+    k = PyString_FromStringAndSize(s, (Py_ssize_t)n);
+    if (k == NULL)
       return NULL;
-    }
 
     v = coil_value_as_pyobject(value);
     if (v == NULL)
     {
-      Py_DECREF(p);
-      Py_DECREF(items);
+      Py_DECREF(k);
       return NULL;
     }
 
-    t = PyTuple_Pack(2, p, v);
-    if (t == NULL)
+    item = PyTuple_New(2);
+    if (item == NULL)
     {
-      Py_DECREF(p);
+      Py_DECREF(k);
       Py_DECREF(v);
-      Py_DECREF(items);
       return NULL;
     }
 
-    PyList_SET_ITEM(items, i++, t);
+    PyTuple_SET_ITEM(item, 0, k);
+    PyTuple_SET_ITEM(item, 1, v);
+    PyList_SET_ITEM(items, i, item);
   }
 
   return items;
 }
 
-#if 0
 static PyObject *
-struct_iteritems(PyCoilStruct *self,
-                        PyObject     *ignored)
+structiter_iternextitem(structiter_object *si)
 {
-  Py_INCREF(Py_None);
-  return Py_None;
+  g_return_val_if_fail(si, NULL);
+
+  const CoilPath *path;
+  const GValue   *value;
+
+  if (si->si_struct == NULL)
+    return NULL;
+
+  assert(PyCoilStruct_Check(si->si_struct));
+
+  if (coil_struct_iter_next(&si->si_iter, &path, &value))
+  {
+    PyObject *k = NULL, *v = NULL, *item;
+
+    k = PyString_FromStringAndSize(path->key, path->key_len);
+    if (k == NULL)
+      return NULL;
+
+    v = coil_value_as_pyobject(value);
+    if (v == NULL)
+    {
+      Py_DECREF(k);
+      return NULL;
+    }
+
+    item = PyTuple_New(2);
+    PyTuple_SET_ITEM(item, 0, k);
+    PyTuple_SET_ITEM(item, 1, v);
+    return item;
+  }
+
+  PyErr_SetNone(PyExc_StopIteration);
+  return NULL;
 }
 
 static PyObject *
-struct_iterkeys(PyCoilStruct *self,
-                       PyObject     *ignored)
+structiter_iternextkey(structiter_object *si)
 {
-  Py_INCREF(Py_None);
-  return Py_None;
-}
+  g_return_val_if_fail(si, NULL);
 
+  const CoilPath *path;
+
+  if (si->si_struct == NULL)
+    return NULL;
+
+  assert(PyCoilStruct_Check(si->si_struct));
+
+  if (coil_struct_iter_next(&si->si_iter, &path, NULL))
+  {
+    PyObject *k;
+
+    k = PyString_FromStringAndSize(path->key, path->key_len);
+    return k;
+  }
+
+  PyErr_SetNone(PyExc_StopIteration);
+  return NULL;
+}
 
 static PyObject *
-struct_itervalues(PyCoilStruct *self,
-                         PyObject     *ignored)
+structiter_iternextvalue(structiter_object *si)
 {
-  Py_INCREF(Py_None);
-  return Py_None;
-}
+  g_return_val_if_fail(si, NULL);
 
-#endif
+  const GValue *value;
+
+  if (si->si_struct == NULL)
+    return NULL;
+
+  assert(PyCoilStruct_Check(si->si_struct));
+
+  if (coil_struct_iter_next(&si->si_iter, NULL, &value))
+  {
+    PyObject *v;
+
+    v = coil_value_as_pyobject(value);
+    return v;
+  }
+
+  PyErr_SetNone(PyExc_StopIteration);
+  return NULL;
+}
 
 static PyObject *
 struct_keys(PyCoilStruct *self,
@@ -775,7 +935,7 @@ struct_keys(PyCoilStruct *self,
   PyObject    *result, *absolute = NULL;
   GList       *keys, *list;
   Py_ssize_t   i, n;
-  ptrdiff_t    key_offset, keylen_offset;
+  ptrdiff_t    key_offset, klen_offset;
   GError      *error = NULL;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:cCoil.Struct.keys",
@@ -793,12 +953,12 @@ struct_keys(PyCoilStruct *self,
   if (absolute && PyObject_IsTrue(absolute))
   {
     key_offset = G_STRUCT_OFFSET(CoilPath, path);
-    keylen_offset = G_STRUCT_OFFSET(CoilPath, path_len);
+    klen_offset = G_STRUCT_OFFSET(CoilPath, path_len);
   }
   else
   {
     key_offset = G_STRUCT_OFFSET(CoilPath, key);
-    keylen_offset = G_STRUCT_OFFSET(CoilPath, key_len);
+    klen_offset = G_STRUCT_OFFSET(CoilPath, key_len);
   }
 
   n = (Py_ssize_t)g_list_length(keys);
@@ -810,7 +970,7 @@ struct_keys(PyCoilStruct *self,
   {
     CoilPath  *path = (CoilPath *)list->data;
     gchar     *str = G_STRUCT_MEMBER(gchar *, path, key_offset);
-    guint8     len = G_STRUCT_MEMBER(guint8, path, keylen_offset);
+    guint8     len = G_STRUCT_MEMBER(guint8, path, klen_offset);
     PyObject  *s;
 
     s = PyString_FromStringAndSize(str, (Py_ssize_t)len);
@@ -871,18 +1031,17 @@ struct_merge(PyCoilStruct *self,
     else if (PyDict_Check(arg))
     {
       src = coil_struct_new(NULL, NULL);
-      if (!update_struct_from_pyitems(src, arg))
+      if (!struct_update_from_pyitems(src, arg))
         goto error;
     }
 
-    if (!coil_struct_merge(src, dst, FALSE, &error))
+    if (!coil_struct_merge(src, dst, &error))
       goto error;
 
     g_object_unref(src);
   }
 
-  Py_INCREF(Py_None);
-  return Py_None;
+  Py_RETURN_NONE;
 
 error:
   if (src)
@@ -997,17 +1156,20 @@ struct_set(PyCoilStruct *self,
   // TODO(jcon): handle location
 
   if (!coil_struct_insert_path(self->node, path, value, TRUE, &error))
+  {
+    path = NULL;
+    value = NULL;
     goto error;
+  }
 
-  Py_INCREF(Py_None);
-  return Py_None;
+  Py_RETURN_NONE;
 
 error:
   if (path)
     coil_path_unref(path);
 
   if (value)
-    free_value(value);
+    coil_value_free(value);
 
   if (error)
     cCoil_error(&error);
@@ -1286,34 +1448,50 @@ error:
 
 static int
 struct_mp_set(PyCoilStruct *self,
-              PyObject     *pypath,
-              PyObject     *pyvalue)
+              PyObject     *py_key,
+              PyObject     *py_value)
 {
   CoilPath   *path;
   GValue     *value;
   GError     *error = NULL;
 
-  path = coil_path_from_pystring(pypath, &error);
+#if 0
+  if (!PyString_Check(py_key))
+  {
+    PyErr_Format(KeyTypeError,
+                 "keys must be strings, got type %s",
+                 Py_TYPE_NAME(py_key));
+
+    return -1;
+  }
+#endif
+
+  path = coil_path_from_pystring(py_key, &error);
   if (path == NULL)
     goto error;
 
-  if (pyvalue == NULL)
+  if (py_value == NULL)
   {
     /* delete the value */
     if (!coil_struct_delete_path(self->node, path, TRUE, &error))
       goto error;
+
+    coil_path_unref(path);
   }
   else
   {
-    value = coil_value_from_pyobject(pyvalue);
+    value = coil_value_from_pyobject(py_value);
     if (value == NULL)
       goto error;
 
     if (!coil_struct_insert_path(self->node, path, value, TRUE, &error))
+    {
+      path = NULL;
+      value = NULL;
       goto error;
+    }
   }
 
-  coil_path_unref(path);
   return 0;
 
 error:
@@ -1333,7 +1511,7 @@ struct_mp_size(PyCoilStruct *self)
   Py_ssize_t  size;
 
   size = (Py_ssize_t)coil_struct_get_size(self->node, &error);
-  if (G_UNLIKELY(error))
+  if (size < 0)
   {
     cCoil_error(&error);
     return -1;
@@ -1342,40 +1520,277 @@ struct_mp_size(PyCoilStruct *self)
   return size;
 }
 
+
 static PyObject *
-struct_iter_init(PyObject *obj)
+structiter_new(PyCoilStruct *iterstruct,
+               PyTypeObject *itertype)
 {
-  PyCoilStruct *self = (PyCoilStruct *)obj;
+  structiter_object *si;
 
-  if (self->iterator == NULL)
-    self->iterator = g_new(CoilStructIter, 1);
+  si = PyObject_GC_New(structiter_object, itertype);
 
-  coil_struct_iter_init(self->iterator, self->node);
+  Py_INCREF(iterstruct);
+  si->si_struct = iterstruct;
 
-  Py_INCREF(obj);
-  return obj;
+  coil_struct_iter_init(&si->si_iter, iterstruct->node);
+
+  PyObject_GC_Track((PyObject *)si);
+  return (PyObject *)si;
+}
+
+static void
+structiter_dealloc(structiter_object *si)
+{
+  PyObject_GC_UnTrack((PyObject *)si);
+
+  Py_XDECREF(si->si_struct);
+  PyObject_GC_Del((PyObject *)si);
+}
+
+static int
+structiter_traverse(structiter_object *si,
+                    visitproc          visit,
+                    void              *arg)
+{
+  Py_VISIT(si->si_struct);
+  return 0;
 }
 
 static PyObject *
-struct_iter_next(PyCoilStruct *self)
+struct_iter(PyCoilStruct *self)
 {
-  const CoilPath *path;
+  return structiter_new(self, &PyCoilStructIterKey_Type);
+}
 
-  if (self->iterator == NULL)
+PyTypeObject PyCoilStructIterItem_Type =
+{
+  PyObject_HEAD_INIT(NULL)
+  0,
+  "cCoil.StructItemIterator",
+  sizeof(structiter_object),
+  0,
+  /* methods */
+  (destructor)structiter_dealloc,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  PyObject_GenericGetAttr,
+  0,
+  0,
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+  0,
+  (traverseproc)structiter_traverse,
+  0,
+  0,
+  0,
+  PyObject_SelfIter,
+  (iternextfunc)structiter_iternextitem,
+  0,
+  0,
+};
+
+static PyObject *
+struct_iteritems(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterItem_Type);
+}
+
+static PyObject *
+struct_iterkeys(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterKey_Type);
+}
+
+PyTypeObject PyCoilStructIterKey_Type =
+{
+  PyObject_HEAD_INIT(NULL)
+  0,
+  "cCoil.StructKeyIterator",
+  sizeof(structiter_object),
+  0,
+  /* methods */
+  (destructor)structiter_dealloc,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  PyObject_GenericGetAttr,
+  0,
+  0,
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+  0,
+  (traverseproc)structiter_traverse,
+  0,
+  0,
+  0,
+  PyObject_SelfIter,
+  (iternextfunc)structiter_iternextkey,
+  0,
+  0,
+};
+
+static PyObject *
+struct_itervalues(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterValue_Type);
+}
+
+PyTypeObject PyCoilStructIterValue_Type =
+{
+  PyObject_HEAD_INIT(NULL)
+  0,
+  "cCoil.StructValueIterator",
+  sizeof(structiter_object),
+  0,
+  /* methods */
+  (destructor)structiter_dealloc,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  PyObject_GenericGetAttr,
+  0,
+  0,
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+  0,
+  (traverseproc)structiter_traverse,
+  0,
+  0,
+  0,
+  PyObject_SelfIter,
+  (iternextfunc)structiter_iternextvalue,
+  0,
+  0,
+};
+
+/*
+"""
+:param base: A *dict*, *Struct*, or a sequence of (key, value)
+    tuples to initialize with. Any child *dict* or *Struct*
+    will be recursively copied as a new child *Struct*.
+:param container: the parent *Struct* if there is one.
+:param name: The name of this *Struct* in *container*.
+:param location: The where this *Struct* is defined.
+    This is normally only used by the :class:`Parser
+    <coil.parser.Parser>`.
+"""
+*/
+static int
+struct_init(PyCoilStruct *self,
+            PyObject     *args,
+            PyObject     *kwargs)
+{
+  static char  *kwlist[] = {"base", "container", "name", "location", NULL};
+  PyCoilStruct *container = NULL;
+  PyObject     *name = NULL;
+  PyObject     *base = NULL;
+  PyObject     *location = NULL;
+  CoilStruct   *_container = NULL;
+  gchar        *_name = NULL;
+  GError       *error = NULL;
+
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO!SO:cCoil.Struct.__init__",
+                                   kwlist, &base,
+                                   &PyCoilStruct_Type, &container,
+                                   &name, &location))
+    goto error;
+
+  if (name)
   {
-    PyErr_SetString(PyExc_RuntimeError, "cCoil.Struct iterator must be \
-        initialized before iteration");
+    _name = PyString_AsString(name);
+    if (_name == NULL)
+      goto error;
 
-    return NULL;
+    if (container)
+      _container = container->node;
+  }
+  else if (container)
+  {
+      PyErr_SetString(PyExc_ValueError,
+          "A name argument must be specified with a container argument.");
+
+      goto error;
   }
 
-  if (coil_struct_iter_next(self->iterator, &path, NULL))
-    return PyString_FromString(path->key);
+  /* TODO(jcon): handle location */
 
-  return NULL;
+  self->node = coil_struct_new(&error,
+                               "container", _container,
+                               "path", _name,
+                               NULL);
+
+  if (self->node == NULL)
+    goto error;
+
+  if (base == NULL)
+    return 0;
+
+  if (PyString_Check(base))
+  {
+    CoilStruct *root;
+    gchar      *buffer;
+    Py_ssize_t  buflen;
+
+    if (PyString_AsStringAndSize(base, &buffer, &buflen) < 0)
+      goto error;
+
+    root = coil_parse_string_len(buffer, buflen, &error);
+    if (root == NULL)
+      goto error;
+
+    if (!coil_struct_merge(root, self->node, &error))
+    {
+      g_object_unref(root);
+      goto error;
+    }
+
+    g_object_unref(root);
+    return 0;
+  }
+
+  if (!(PyCoilStruct_Check(base) ||
+        PyMapping_Check(base) ||
+        PySequence_Check(base)))
+  {
+    PyErr_SetString(PyExc_ValueError,
+                    "base argument must be a dict-like object, " \
+                    "a sequence of items, or a coil struct");
+    goto error;
+  }
+
+  if (!struct_update_from_pyitems(self->node, base))
+    goto error;
+
+  return 0;
+
+error:
+  if (error)
+    cCoil_error(&error);
+
+  return -1;
 }
-
-
 
 static PyMethodDef struct_methods[] =
 {
@@ -1383,19 +1798,23 @@ static PyMethodDef struct_methods[] =
 
   { "copy",          (PyCFunction)struct_copy, METH_VARARGS | METH_KEYWORDS, NULL},
   { "container",     (PyCFunction)struct_get_container, METH_NOARGS, NULL},
-  { "dict",          (PyCFunction)struct_to_dict, METH_VARARGS | METH_KEYWORDS, NULL}, /*
-  { "expand",        (PyCFunction)struct_expand, METH_VARARGS | METH_KEYWORDS, NULL},
+  { "clear",         (PyCFunction)struct_empty, METH_NOARGS, NULL},
+  { "dict",          (PyCFunction)struct_to_dict, METH_VARARGS | METH_KEYWORDS, NULL},
+  { "expand",        (PyCFunction)struct_expand, METH_VARARGS | METH_KEYWORDS, NULL}, /*
   { "expanditem",    (PyCFunction)struct_expanditem, METH_VARARGS | METH_KEYWORDS, NULL},
   { "expandvalue",   (PyCFunction)struct_expandvalue, METH_VARARGS | METH_KEYWORDS, NULL},
-  { "extend",        (PyCFunction)struct_extend, METH_VARARGS | METH_KEYWORDS, NULL}, */
+  */
+  { "extend",        (PyCFunction)struct_extend, METH_VARARGS | METH_KEYWORDS, NULL},
+  { "extend_path",   (PyCFunction)struct_extend_path, METH_VARARGS | METH_KEYWORDS, NULL},
   { "get",           (PyCFunction)struct_get, METH_VARARGS | METH_KEYWORDS, NULL},
   { "has_key",       (PyCFunction)struct_contains, METH_O, NULL},
   { "items",         (PyCFunction)struct_items, METH_VARARGS | METH_KEYWORDS, NULL},
-/*  { "iteritems",     (PyCFunction)struct_iteritems, METH_NOARGS, NULL},
+  { "iteritems",     (PyCFunction)struct_iteritems, METH_NOARGS, NULL},
   { "iterkeys",      (PyCFunction)struct_iterkeys, METH_NOARGS, NULL},
   { "itervalues",    (PyCFunction)struct_itervalues, METH_NOARGS, NULL},
-  { "is_ancestor",   (PyCFunction)NULL, 0, NULL},
-  { "is_descendent", (PyCFunction)NULL, 0, NULL}, */
+  { "is_ancestor",   (PyCFunction)struct_is_ancestor, METH_O, NULL},
+  { "is_descendent", (PyCFunction)struct_is_descendent, METH_O, NULL},
+  { "is_root",       (PyCFunction)struct_is_root, METH_NOARGS, NULL},
   { "keys",          (PyCFunction)struct_keys, METH_VARARGS | METH_KEYWORDS, NULL},
   { "merge",         (PyCFunction)struct_merge, METH_VARARGS, NULL},
   { "path",          (PyCFunction)struct_path, METH_VARARGS | METH_KEYWORDS, NULL},
@@ -1420,7 +1839,7 @@ struct_as_sequence =
 	0,			/* sq_slice */
 	0,			/* sq_ass_item */
 	0,			/* sq_ass_slice */
-	struct_sq_contains,	/* sq_contains */
+	(objobjproc)struct_sq_contains,	/* sq_contains */
 	0,			/* sq_inplace_concat */
 	0,			/* sq_inplace_repeat */
 };
@@ -1437,40 +1856,54 @@ PyTypeObject PyCoilStruct_Type =
 {
   PyObject_HEAD_INIT(NULL)
   0,
-  "cCoil.Struct",
-  sizeof(PyCoilStruct),
-  0,
+  "cCoil.Struct",                               /* tp_name */
+  sizeof(PyCoilStruct),                         /* tp_basicsize */
+  0,                                            /* tp_itemsize */
+
   /* methods */
-  (destructor)struct_dealloc,
-  (printfunc)0,
-  (getattrfunc)0,
-  (setattrfunc)0,
-  (cmpfunc)struct_compare,
-  (reprfunc)0,
-  0, /* number methods */
-  &struct_as_sequence, /* sequence methods */
-  &struct_as_mapping, /* mapping methods */
-  (hashfunc)0,
-  (ternaryfunc)0,
-  (reprfunc)struct_str,
-  (getattrofunc)0,
-  (setattrofunc)0,
-  0,
-  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-  NULL, /* Doc String */
-  (traverseproc)0,
-  (inquiry)0,
-  (richcmpfunc)0,
-  0,
-  (getiterfunc)struct_iter_init,
-  (iternextfunc)struct_iter_next,
-  struct_methods,
-  0,
-  0,
-  NULL,
-  NULL,
-  (descrgetfunc)0,
-  (descrsetfunc)0,
-  0,
-  (initproc)struct_init,
+  (destructor)struct_dealloc,                   /* tp_dealloc */
+  (printfunc)0,                                 /* tp_print */
+  (getattrfunc)0,                               /* tp_getattr */
+  (setattrfunc)0,                               /* tp_setattr */
+  (cmpfunc)struct_compare,                      /* tp_compare */
+  (reprfunc)0,                                  /* tp_repr */
+
+  /* number methods */
+  0,                                            /* tp_as_number */
+  &struct_as_sequence,                          /* tp_as_sequence */
+  &struct_as_mapping,                           /* tp_as_mapping */
+
+  /* standard operations */
+  (hashfunc)struct_hash,                        /* tp_hash */
+  (ternaryfunc)0,                               /* tp_call */
+  (reprfunc)struct_str,                         /* tp_str */
+  (getattrofunc)0,                              /* tp_getattro */
+  (setattrofunc)0,                              /* tp_setattro */
+
+  /* buffer */
+  0,                                            /* tp_as_buffer */
+
+  /* flags */
+  (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC) & (
+  ~Py_TPFLAGS_HAVE_RICHCOMPARE &
+  ~Py_TPFLAGS_HAVE_GETCHARBUFFER &
+  ~Py_TPFLAGS_HAVE_INPLACEOPS),
+
+  NULL,                                         /* tp_doc */
+  (traverseproc)struct_traverse,                /* tp_traverse */
+  (inquiry)struct_clear,                        /* tp_clear */
+  (richcmpfunc)0,                               /* tp_richcompare */
+  0,                                            /* tp_weaklistoffset */
+  (getiterfunc)struct_iter,                     /* tp_iter */
+  (iternextfunc)0,                              /* tp_iternext */
+  struct_methods,                               /* tp_methods */
+  0,                                            /* tp_members */
+  0,                                            /* tp_getset */
+  0,                                            /* tp_base */
+  NULL,                                         /* tp_dict */
+  (descrgetfunc)0,                              /* tp_descr_get */
+  (descrsetfunc)0,                              /* tp_descr_set */
+  0,                                            /* tp_dictoffset */
+  (initproc)struct_init,                        /* tp_init */
 };
+

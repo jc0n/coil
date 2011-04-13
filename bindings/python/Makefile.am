@@ -4,6 +4,7 @@ SUBDIRS = tests
 
 AM_CPPFLAGS = $(PYTHON_INCLUDES) \
 							$(GLIB_CFLAGS) \
+							$(PYGOBJECT_CFLAGS) \
 							-I$(top_srcdir)/coil \
 							-Wall \
 							-Werror \
@@ -31,6 +32,7 @@ ccoil_la_SOURCES = \
 
 ccoil_la_LIBADD = \
 		  						@GLIB_LIBS@ \
+									@PYGOBJECT_LIBS@ \
 		  						$(top_srcdir)/coil/libcoil-@LIBCOIL_API_VERSION@.la
 
 ccoil_la_LDFLAGS = -module -avoid-version

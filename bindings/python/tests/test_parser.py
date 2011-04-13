@@ -47,6 +47,46 @@ class TestParser(TestCase):
     self.assertEquals(b['b']['x'], 'x')
     self.assertEquals(a, b)
 
+  def testExtendsList(self):
+    buf = '''
+    a: { x:1 y:2 z: 3}
+    z: { a:3 b:2 c: 1}
+
+    m: { @extends: [..a ..z] a:1 x:3 }
+    n: { @extends: ..a, ..z a:1 x:3 }
+    o: a, z { a:1 x:3 }
+    '''
+    root = cCoil.parse(buf)
+
+    for k, v in (('a.x', 1), ('a.y', 2), ('a.z', 3),
+                 ('z.a', 3), ('z.b', 2), ('z.c', 1),
+                 ('m.x', 3), ('m.a', 1), ('m.y', 2),
+                 ('m.b', 2), ('m.z', 3), ('m.c', 1)):
+      self.assertEquals(root[k], v)
+
+    self.assertEquals(root['m'], root['n'])
+    self.assertEquals(root['n'], root['o'])
+
+    self.assertEquals(len(root['a']), 3)
+    self.assertEquals(len(root['z']), 3)
+
+    for k in ('m', 'n', 'o'):
+      self.assertEquals(len(root[k]), 6)
+
+  def testExtendsLink(self):
+    buf = '''
+    a.x: 1
+    b: a
+    c: b { y: 2 }
+    '''
+    root = cCoil.parse(buf)
+
+    for k, v in (('a.x', 1), ('c.x', 1), ('c.y', 2)):
+      self.assertEquals(root[k], v)
+
+    self.assertEquals(len(root['a']), 1)
+    self.assertEquals(len(root['c']), 2)
+
   def testReferences(self):
     root = cCoil.parse('a: "a" b: a x: { c: ..a d: =..a }')
     self.assertEquals(root['a'], 'a')
@@ -67,6 +107,22 @@ class TestParser(TestCase):
     self.assertEquals(len(root), 2)
     self.assertEquals(len(root['a']), 2)
     self.assertEquals(len(root['b']), 1)
+
+  def testDeleteSub(self):
+    buf = '''
+    a: { x: 123  y: { x: 123 z: '321' } }
+    b: a { ~y.z y.y: 123 }
+    '''
+    root = cCoil.parse(buf)
+
+    for k, v in (('a.x', 123), ('a.y.x', 123), ('a.y.z', '321'),
+                 ('b.y.x', 123), ('b.y.y', 123)):
+      self.assertEquals(root[k], v)
+
+    self.assertEquals(len(root), 2)
+
+    for k, l in (('a', 2), ('a.y', 2), ('b', 2), ('b.y', 2)):
+      self.assertEquals(len(root[k]), l)
 
   def testFile(self):
     root = cCoil.parse("@file: %s" % repr(self.SIMPLE_FILE))

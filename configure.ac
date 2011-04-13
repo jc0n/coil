@@ -121,6 +121,17 @@ COIL_ARG_WITH(python, whether to build python support,
 if test "$COIL_PYTHON" = "yes"; then
   AM_CHECK_PYTHON_HEADERS(,[AC_MSG_ERROR(could not find Python headers)])
   AM_PATH_PYTHON(2.6)
+
+  PKG_CHECK_MODULES(PYGOBJECT, [pygobject-2.0 >= 2.0],
+                    [have_pygobject=yes], [have_pygobject=no])
+
+  if test "x$have_pygobject" = "xno"; then
+    AC_MSG_ERROR($PYGOBJECT_PKG_ERRORS)
+  fi
+
+  AC_SUBST(PYGOBJECT_LIBS)
+  AC_SUBST(PYGOBJECT_CFLAGS)
+
   AM_CONDITIONAL(BUILD_PYTHON_BINDING, true)
 else
   AM_CONDITIONAL(BUILD_PYTHON_BINDING, false)

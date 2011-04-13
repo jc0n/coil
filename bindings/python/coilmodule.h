@@ -7,30 +7,54 @@
 #ifndef _COILMODULE_H
 
 #include "Python.h"
+#include "pygobject.h"
 
 #include "coil.h"
 
-#define PyType_Register(dict, type, name) \
+#define PyType_Register(dict, type, name, rval) \
   type.ob_type = &PyType_Type; \
-  type.tp_alloc = PyType_GenericAlloc; \
-  type.tp_new = PyType_GenericNew; \
-  if (PyType_Ready(&type)) \
-    return; \
-  PyDict_SetItemString(dict, name, (PyObject *)&type);
+  if (!type.tp_alloc) \
+    type.tp_alloc = PyType_GenericAlloc; \
+  if (!type.tp_new) \
+    type.tp_new = PyType_GenericNew; \
+  if (PyType_Ready(&type) < 0) \
+    return rval; \
+  if (dict) \
+    PyDict_SetItemString(dict, name, (PyObject *)&type);
 
 #define PyCoilStruct_Check(obj) \
   (&PyCoilStruct_Type == (PyTypeObject *)((PyObject *)obj)->ob_type)
 
-extern PyTypeObject PyCoilStruct_Type;
+#define PyCoilStructIter_Check(o) \
+  (&PyCoilStructIter_Type == (PyTypeObject *)((PyObject *)o)->ob_type)
 
-typedef struct _PyCoilStruct
+#ifndef Py_TYPE
+# define Py_TYPE(o) ((o)->ob_type)
+#endif
+
+#ifndef Py_TYPE_NAME
+# define Py_TYPE_NAME(o) (Py_TYPE(o)->tp_name)
+#endif
+
+extern PyTypeObject PyCoilStruct_Type;
+extern PyTypeObject PyCoilStructIterItem_Type;
+extern PyTypeObject PyCoilStructIterKey_Type;
+extern PyTypeObject PyCoilStructIterValue_Type;
+
+typedef struct _structiter_object structiter_object;
+typedef struct _PyCoilStruct PyCoilStruct;
+
+struct _PyCoilStruct
 {
   PyObject_HEAD
 
-  CoilStruct *node;
-  CoilStructIter *iterator;
+  CoilStruct        *node;
+  structiter_object *iter;
+};
 
-} PyCoilStruct;
+int
+struct_register_types(PyObject *m,
+                      PyObject *d);
 
 void
 cCoil_error(GError **error);
@@ -49,7 +73,7 @@ coil_path_from_pystring(PyObject *o,
                         GError   **error);
 
 gboolean
-update_struct_from_pyitems(CoilStruct *node,
+struct_update_from_pyitems(CoilStruct *node,
                           PyObject   *o);
 
 
@@ -62,6 +86,7 @@ extern PyObject *LinkError;
 extern PyObject *IncludeError;
 extern PyObject *KeyMissingError;
 extern PyObject *KeyValueError;
+extern PyObject *KeyTypeError;
 extern PyObject *ParseError;
 
 #endif

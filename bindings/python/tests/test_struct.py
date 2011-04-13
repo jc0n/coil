@@ -7,6 +7,7 @@ from common import cCoil
 
 Struct = cCoil.Struct
 
+
 class TestStruct(TestCase):
 
   def setUp(self):
@@ -46,7 +47,8 @@ class TestStruct(TestCase):
     self.assertEquals(s['x.y.z'], 'test')
 
   def testKeyOrder(self):
-    self.assertEquals(self.struct.keys(), ['first', 'second', 'last'])
+    keys = zip(*self.data)[0]
+    self.assertEquals(tuple(self.struct.keys()),  keys)
 
   def testGetItem(self):
     self.assertEquals(self.struct['second'], 'something else')
@@ -73,38 +75,46 @@ class TestStruct(TestCase):
     self.assertEquals(first.path('dict.y'), '@root.first.dict.y')
 
   def testGetParent(self):
-    child = self.struct['first']
-    self.assertEquals(child.get('..second'), 'something else')
+    first = self.struct['first']
+    self.assertEquals(first.get('..second'), 'something else')
 
   def testGetAbsolute(self):
-    child = self.struct['first']
-    self.assertEquals(child.get('@root.second'), 'something else')
+    first = self.struct['first']
+    self.assertEquals(first.get('@root.second'), 'something else')
 
-#  def testGetRoot(self):
-#    child = self.struct['first']
-#    root = child.get('@root')
-#    self.assertTrue(root is self.struct, "root is self.struct")
-#    self.assertEquals(root, self.struct)
-#    self.assertTrue(root is child['@root'])
 
-  def testGetContainer(self):
-    root = Struct({'a.b.c': 123})
-    a, b = root['a'], root['a.b']
-    self.assertEquals(b.container(), a)
-    self.assertEquals(a.container(), root)
-    self.assertEquals(root.container(), None)
+  def testIter(self):
+    keys = zip(*self.data)[0]
+    self.assertEquals(tuple(self.struct), keys)
 
-#  def testIterItems(self):
-#    itemlist = [('one', 1), ('two', 2), ('three', 3)]
-#    self.assertEquals(list(Struct(itemlist).iteritems()), itemlist)
+  def testIterItems(self):
+    items = tuple(((k, v.dict()) if isinstance(v, Struct) else (k, v)
+                    for k, v in self.struct.iteritems()))
+    self.assertEquals(items, self.data)
+
+  def testIterKeys(self):
+    keys = zip(*self.data)[0]
+    self.assertEquals(tuple(self.struct.iterkeys()), keys);
+
+  def testIterValues(self):
+    values = tuple((v.dict() if isinstance(v, Struct) else v
+                    for v in self.struct.itervalues()))
+    self.assertEquals(values, zip(*self.data)[1])
 
   def testKeyMissing(self):
     self.assertRaises(cCoil.KeyMissingError, lambda: self.struct['bogus'])
     self.assertRaises(cCoil.KeyMissingError, self.struct.get, 'bad')
 
   def testKeyType(self):
-    self.assertRaises(cCoil.KeyTypeError, lambda: self.struct[None])
-    self.assertRaises(cCoil.KeyTypeError, self.struct.get, None)
+    for k in (None, True, False, 1, 1.0, {}, []):
+      # TODO(jcon): use coil exception
+      self.assertRaises(TypeError,
+                        lambda: self.struct[k])
+
+      self.assertRaises(cCoil.KeyTypeError, self.struct.get, k)
+      # TODO(jcon): use coil exceptions
+      self.assertRaises(TypeError, self.struct.set, k)
+      self.assertRaises(ValueError, lambda: Struct([(k, 123)]))
 
   def testKeyValue(self):
     self.assertRaises(cCoil.KeyValueError,
@@ -187,54 +197,167 @@ class TestStruct(TestCase):
     self.assertEquals(s1['list'], [1, 2, [3, 4, 9], 8])
     self.assertEquals(s2['list'], [1, 2, [3, 4]])
 
-#class ExpansionTestCase(TestCase):
-#
-#  def testExpand(self):
-#    root = cCoil.parse("a: {x:1 y:2 z:3} b:a{}")
-#    self.assertEquals(root['a.x'], 1)
-#    self.assertEquals(root['a.y'], 2)
-#    self.assertEquals(root['a.z'], 3)
-#    self.assertEquals(root['b.x'], 1)
-#    self.assertEquals(root['b.y'], 2)
-#    self.assertEquals(root['b.z'], 3)
-#
-#
-#  def testExpressionExpand(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}"
-#    self.assertEquals(root.get('bar'), "omgwtfbbq")
-#
-#  def testExpandItem(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}"
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}")
-#    self.assertEquals(root.expanditem('bar'), "omgwtfbbq")
-#
-#  def testExpandDefault(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    root.expand({'foo':"123",'baz':"456"})
-#    self.assertEquals(root.get('bar'), "omgwtfbbq456")
-#
-#  def testExpandItemDefault(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}${baz}")
-#    self.assertEquals(root.expanditem('bar',
-#    defaults={'foo':"123",'baz':"456"}), "omgwtfbbq456")
-#
-#  def testExpandIgnore(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    root.expand(ignore_missing=True)
-#    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
-#    root.expand(ignore_missing=('baz',))
-#    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
+class ContainerTestCase(TestCase):
+
+  def setUp(self):
+    self.buf = '''
+    a.b.c: 123
+    x.y.z: "hello"
+    '''
+    self.root = cCoil.parse(self.buf)
+    a = self.root['a']
+    b = self.root['a.b']
+    x = self.root['x']
+    y = self.root['x.y']
+    self.blocks = (a, b, x, y)
+
+  def testChangeContainer(self):
+    a, b, x, y = self.blocks
+
+    self.assertEquals(len(self.root), 2)
+    self.assertEquals(a.path(), '@root.a')
+    self.assertEquals(b.path(), '@root.a.b')
+    self.assertEquals(x.path(), '@root.x')
+    self.assertEquals(y.path(), '@root.x.y')
+    self.assertEquals(a.container(), self.root)
+    self.assertEquals(b.container(), a)
+    self.assertEquals(x.container(), self.root)
+    self.assertEquals(y.container(), x)
+    self.assertEquals(b['c'], 123)
+    self.assertEquals(y['z'], 'hello')
+
+    self.root['new.a'] = a
+    new = self.root['new']
+
+    self.assertEquals(len(new), 1)
+    self.assertEquals(new.path(), '@root.new')
+    self.assertEquals(a.path(), '@root.new.a')
+    self.assertEquals(b.path(), '@root.new.a.b')
+    self.assertEquals(x.path(), '@root.new.x')
+    self.assertEquals(y.path(), '@root.new.x.y')
+    self.assertEquals(a.container(), new)
+    self.assertEquals(a.root(), self.root)
+    self.assertEquals(b.container(), a)
+    self.assertEquals(b.root(), self.root)
+    self.assertEquals(new.container(), self.root)
+    self.assertEquals(new.root(), self.root)
+    self.assertEquals(len(self.root), 0)
+    self.assertEquals(b['c'], 123)
+    self.assertEquals(y['z'], 'hello')
+
+  def testSetContainer(self):
+    r = Struct((('s', True),))
+    q = Struct((('r', r),))
+
+    self.assertEquals(q.root(), q)
+    self.assertEquals(q.path(), '@root')
+    self.assertEquals(q.container(), None)
+    self.assertEquals(r.root(), q)
+    self.assertEquals(r.container(), q)
+    self.assertEquals(r.path(), '@root.r')
+    self.assertEquals(q['r.s'], True)
+
+    self.root['q'] = q
+
+    self.assertTrue(self.root['q'] is q)
+    self.assertTrue('q' in self.root)
+    self.assertEquals(len(self.root), 3)
+    self.assertEquals(self.root['q.r.s'], True)
+
+    self.assertEquals(self.root['q.r.s'], True)
+    self.assertEquals(q.path(), '@root.q')
+    self.assertEquals(r.path(), '@root.q.r')
+    self.assertEquals(r.container(), q)
+    self.assertEquals(q.container(), self.root)
+    self.assertEquals(r.root(), self.root)
+    self.assertEquals(q.root(), self.root)
+
+  def testDeleteFromContainer(self):
+    a, b, x, y = self.blocks
+    del self.root['x']
+
+    self.assertTrue(len(self.root), 1)
+    self.assertEquals(x.container(), None)
+    self.assertEquals(x.root(), x)
+    self.assertEquals(x.path(), '@root')
+    self.assertEquals(y.root(), x)
+    self.assertEquals(y.container(), x)
+    self.assertEquals(y.path(), '@root.y')
+    self.assertEquals(y['z'], 'hello')
+
+  def testDeleteContainerRef(self):
+    copy = self.root.copy()
+    a = self.root['a']
+    del a
+    self.assertEquals(self.root, copy)
+
+  def testGetRoot(self):
+    for s in self.blocks:
+      self.assertEquals(s.root(), self.root)
+      self.assertTrue(s.root() is self.root,
+                      's.root() is self.root')
+      self.assertEquals(s['@root'], self.root)
+      self.assertTrue(s['@root'] is self.root,
+                      "s['@root'] is self.root")
+      self.assertEquals(s.get('@root'), self.root)
+      self.assertTrue(s.get('@root') is self.root,
+                      's.get("@root") is self.root')
+
+  def testGetContainer(self):
+    a, b, x, y = self.blocks
+    self.assertEquals(a.container(), self.root)
+    self.assertEquals(b.container(), a)
+    self.assertEquals(x.container(), self.root)
+    self.assertEquals(y.container(), x)
+    self.assertEquals(self.root.container(), None)
+
+class ExpansionTestCase(TestCase):
+
+  def testExpand(self):
+    root = cCoil.parse("a: {x:1 y:2 z:3} b: a{}")
+    self.assertEquals(root['a.x'], 1)
+    self.assertEquals(root['a.y'], 2)
+    self.assertEquals(root['a.z'], 3)
+    self.assertEquals(root['b.x'], 1)
+    self.assertEquals(root['b.y'], 2)
+    self.assertEquals(root['b.z'], 3)
+
+  def testExpressionExpand(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = "omgwtf${foo}"
+    self.assertEquals(root.get('bar'), "omgwtfbbq")
+
+  def testExpandItem(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = "omgwtf${foo}"
+    self.assertEquals(root.get('bar'), "omgwtf${foo}")
+    self.assertEquals(root.expanditem('bar'), "omgwtfbbq")
+
+  def testExpandDefault(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = "omgwtf${foo}${baz}"
+    root.expand({'foo':"123",'baz':"456"})
+    self.assertEquals(root.get('bar'), "omgwtfbbq456")
+
+  def testExpandItemDefault(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = "omgwtf${foo}${baz}"
+    self.assertEquals(root.get('bar'), "omgwtf${foo}${baz}")
+    self.assertEquals(root.expanditem('bar',
+    defaults={'foo':"123",'baz':"456"}), "omgwtfbbq456")
+
+  def testExpandIgnore(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = "omgwtf${foo}${baz}"
+    root.expand(ignore_missing=True)
+    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
+    root.expand(ignore_missing=('baz',))
+    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
 #
 #  def testUnexpanded(self):
 #    root = Struct()
