@@ -54,6 +54,11 @@ coil_link_new(GError **error,
               ...) G_GNUC_WARN_UNUSED_RESULT
                    G_GNUC_NULL_TERMINATED;
 
+CoilLink *
+coil_link_new_valist(const gchar *first_property_name,
+                     va_list      properties,
+                     GError     **error) G_GNUC_WARN_UNUSED_RESULT;
+
 const CoilPath *
 coil_link_get_path(const CoilLink *link);
 
