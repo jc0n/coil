@@ -573,7 +573,7 @@ insert_with_existing_entry(CoilStruct  *self,
 
         /* XXX: maybe move this into merge and emit change signal here */
 //        g_object_set(dst, "accumulate", TRUE, NULL);
-        if (!coil_struct_merge(src, dst, TRUE, error))
+        if (!coil_struct_merge_full(src, dst, TRUE, FALSE, error))
         {
 //          g_object_set(dst, "accumulate", FALSE, NULL);
           return FALSE;
@@ -1825,7 +1825,9 @@ struct_merge_item(CoilStruct     *self,
       /* TODO(jcon): move this into merge */
       g_object_set(dst, "accumulate", TRUE, NULL);
 
-      if (!coil_struct_merge(src, dst, overwrite, &internal_error))
+      if (!coil_struct_merge_full(src, dst,
+                                  overwrite, force_expand,
+                                  &internal_error))
       {
         g_object_set(dst, "accumulate", FALSE, NULL);
         goto error;
@@ -1848,18 +1850,23 @@ struct_merge_item(CoilStruct     *self,
 
   if (G_VALUE_HOLDS(srcvalue, COIL_TYPE_STRUCT))
   {
-    CoilStruct *obj, *obj_copy;
+    CoilStruct *obj, *new_obj;
 
     obj = COIL_STRUCT(g_value_get_object(srcvalue));
-    obj_copy = coil_struct_copy(obj, &internal_error,
-                                "container", self,
-                                "path", path,
-                                NULL);
+    new_obj = coil_struct_new(&internal_error,
+                              "container", self,
+                              "path", path,
+                              NULL);
 
-    if (G_UNLIKELY(obj_copy == NULL))
+    if (new_obj == NULL)
       goto error;
 
-    new_value(value, COIL_TYPE_STRUCT, take_object, obj_copy);
+    if (!coil_struct_merge_full(obj, new_obj,
+                                overwrite, force_expand,
+                                &internal_error))
+      goto error;
+
+    new_value(value, COIL_TYPE_STRUCT, take_object, new_obj);
   }
   else if (force_expand
     && G_VALUE_HOLDS(srcvalue, COIL_TYPE_EXPANDABLE))
@@ -1908,10 +1915,11 @@ error:
 }
 
 COIL_API(gboolean)
-coil_struct_merge(CoilStruct  *src,
-                  CoilStruct  *dst,
-                  gboolean     overwrite,
-                  GError     **error)
+coil_struct_merge_full(CoilStruct  *src,
+                       CoilStruct  *dst,
+                       gboolean     overwrite,
+                       gboolean     force_expand,
+                       GError     **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(src), FALSE);
   g_return_val_if_fail(COIL_IS_STRUCT(dst), FALSE);
@@ -1921,7 +1929,6 @@ coil_struct_merge(CoilStruct  *src,
   CoilStructIter   it;
   const CoilPath  *path;
   const GValue    *value;
-  gboolean         force_expand;
 
   if (struct_is_definitely_empty(src))
     return TRUE;
@@ -1934,9 +1941,12 @@ coil_struct_merge(CoilStruct  *src,
    * also intelligently copy only
    * the real value's from expanded values in the loop below
    */
-  force_expand = !coil_struct_has_same_root(src, dst);
-  if (force_expand && !coil_struct_expand_items(src, TRUE, error))
-    return FALSE;
+  if (!force_expand)
+  {
+    force_expand = !coil_struct_has_same_root(src, dst);
+    if (force_expand && !coil_struct_expand_items(src, TRUE, error))
+      return FALSE;
+  }
 
   coil_struct_iter_init(&it, src);
 
@@ -1947,6 +1957,14 @@ coil_struct_merge(CoilStruct  *src,
   }
 
   return TRUE;
+}
+
+COIL_API(gboolean)
+coil_struct_merge(CoilStruct  *src,
+                  CoilStruct  *dst,
+                  GError     **error)
+{
+  return coil_struct_merge_full(src, dst, FALSE, FALSE, error);
 }
 
 static gboolean
@@ -2002,7 +2020,7 @@ struct_expand_dependency(CoilStruct     *self,
 
   g_assert(struct_is_expanded(parent));
 
-  if (!coil_struct_merge(parent, self, FALSE, error))
+  if (!coil_struct_merge(parent, self, error))
     return FALSE;
 
   /* if the parent changes after now we dont care */

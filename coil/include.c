@@ -341,7 +341,7 @@ process_import_arg(CoilInclude *self,
 #endif
 
   CoilStruct *source = COIL_STRUCT(g_value_dup_object(import_value));
-  result = coil_struct_merge(source, container, FALSE, error);
+  result = coil_struct_merge_full(source, container, FALSE, TRUE, error);
   g_object_unref(source);
 
 done:
@@ -630,9 +630,18 @@ include_expand(gconstpointer   include,
     CoilExpandable *const super = COIL_EXPANDABLE(self);
     CoilStruct     *container = super->container;
 
-    coil_struct_merge(root, container, FALSE, &internal_error);
-
-    if (G_UNLIKELY(internal_error))
+    /*
+     * XXX: this expands objects in the file root context
+     * before merging into container context.
+     *
+     * ie. links and references to root resolve against 'root'
+     * rather than root of 'container'
+     */
+    if (!coil_struct_merge_full(root,
+                                container,
+                                FALSE,
+                                TRUE, /* force expand in this 'root' context */
+                                &internal_error))
       goto error;
   }
   else if (!process_import_list(self, root, error))

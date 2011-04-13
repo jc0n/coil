@@ -241,10 +241,16 @@ coil_struct_iter_next_expand(CoilStructIter  *iter,
                              GError         **error);
 
 gboolean
-coil_struct_merge(CoilStruct  *src,
-                  CoilStruct  *dst,
-                  gboolean     overwrite,
-                  GError     **error);
+coil_struct_merge_full(CoilStruct  *src,
+                       CoilStruct  *dst,
+                       gboolean     overwrite,
+                       gboolean     force_expand,
+                       GError     **error);
+
+gboolean
+coil_struct_merge(CoilStruct *src,
+                  CoilStruct *dst,
+                  GError    **error);
 
 gboolean
 coil_struct_expand_items(CoilStruct  *self,

@@ -618,14 +618,14 @@ print_files(void)
     CoilStruct *root = coil_struct_new(NULL, NULL);
 
     for (i = 0; i < nnodes; i++)
-      if (nodes[i] && !coil_struct_merge(nodes[i], root, FALSE, &error))
+      if (nodes[i] && !coil_struct_merge(nodes[i], root, &error))
       {
         g_object_unref(root);
         goto error;
       }
 
     if (attrs
-      && !coil_struct_merge(attrs, root, overwrite, &error))
+      && !coil_struct_merge_full(attrs, root, overwrite, FALSE, &error))
     {
       g_object_unref(root);
       goto error;
@@ -637,7 +637,7 @@ print_files(void)
     for (i = 0; i < nnodes; i++)
     {
       if (attrs && nodes[i]
-        && !coil_struct_merge(attrs, nodes[i], overwrite, &error))
+        && !coil_struct_merge_full(attrs, nodes[i], overwrite, FALSE, &error))
         goto error;
 
       print_struct(nodes[i], buffer, &format, &error);
