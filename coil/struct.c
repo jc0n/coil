@@ -2216,7 +2216,7 @@ struct_lookup_internal(CoilStruct     *self,
   else
     result = entry->value;
 
-  return (expand_value) ? maybe_expand_value(result, error) : result;
+  return (expand_value && result) ? maybe_expand_value(result, error) : result;
 }
 
 COIL_API(const GValue *)
