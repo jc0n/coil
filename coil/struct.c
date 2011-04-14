@@ -570,15 +570,8 @@ insert_with_existing_entry(CoilStruct  *self,
        * and destroy it (leaving the prototype in place but casting to
        * non-prototype).
        */
-
-        /* XXX: maybe move this into merge and emit change signal here */
-//        g_object_set(dst, "accumulate", TRUE, NULL);
         if (!coil_struct_merge_full(src, dst, TRUE, FALSE, error))
-        {
-//          g_object_set(dst, "accumulate", FALSE, NULL);
           return FALSE;
-        }
-//        g_object_set(dst, "accumulate", FALSE, NULL);
 #if 0
         g_object_set(self,
                      "is-prototype", FALSE,
@@ -1849,18 +1842,10 @@ struct_merge_item(CoilStruct     *self,
       src  = COIL_STRUCT(g_value_get_object(srcvalue));
       dst = COIL_STRUCT(g_value_get_object(entry->value));
 
-      /* TODO(jcon): move this into merge */
-      g_object_set(dst, "accumulate", TRUE, NULL);
-
       if (!coil_struct_merge_full(src, dst,
                                   overwrite, force_expand,
                                   &internal_error))
-      {
-        g_object_set(dst, "accumulate", FALSE, NULL);
         goto error;
-      }
-
-      g_object_set(dst, "accumulate", FALSE, NULL);
 
       if (coil_struct_is_prototype(dst))
       {
@@ -1975,14 +1960,20 @@ coil_struct_merge_full(CoilStruct  *src,
       return FALSE;
   }
 
+  g_object_set(G_OBJECT(dst), "accumulate", TRUE, NULL);
+
   coil_struct_iter_init(&it, src);
 
   while (coil_struct_iter_next(&it, &path, &value))
   {
     if (!struct_merge_item(dst, path, value, overwrite, force_expand, error))
+    {
+      g_object_set(G_OBJECT(dst), "accumulate", FALSE, NULL);
       return FALSE;
+    }
   }
 
+  g_object_set(G_OBJECT(dst), "accumulate", FALSE, NULL);
   return TRUE;
 }
 
