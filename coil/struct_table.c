@@ -14,6 +14,26 @@
 
 #define HASH_BYTE(hash, byte) hash = (hash * 33 + (byte))
 
+#ifdef COIL_DEBUG
+void
+struct_table_print(StructTable *table)
+{
+  g_return_if_fail(table);
+
+  StructEntry **ep, *e;
+  gint          n = table->max;
+
+  for (ep = table->bucket, e = *ep;
+       n-- > 0; ep++, e = *ep)
+    if (e)
+    {
+      const CoilPath *p = e->path;
+      const GValue   *v = e->value;
+      g_print("(%s, %p, %u)\n", p->path, (void *)v, e->hash);
+    }
+}
+#endif
+
 static inline guint
 hash_bytes(guint         hash,
            const guchar *byte,
