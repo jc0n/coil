@@ -2119,6 +2119,13 @@ struct_expand(gconstpointer    object,
 }
 
 COIL_API(gboolean)
+coil_struct_expand(CoilStruct *self,
+                   GError    **error)
+{
+  return coil_expand(self, NULL, FALSE, error);
+}
+
+COIL_API(gboolean)
 coil_struct_expand_items(CoilStruct  *self,
                          gboolean     recursive,
                          GError     **error)

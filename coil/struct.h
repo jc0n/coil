@@ -253,12 +253,13 @@ coil_struct_merge(CoilStruct *src,
                   GError    **error);
 
 gboolean
+coil_struct_expand(CoilStruct *self,
+                   GError    **error);
+
+gboolean
 coil_struct_expand_items(CoilStruct  *self,
                          gboolean     recursive,
                          GError     **error);
-
-#define coil_struct_expand(self, error) \
-  coil_expand(self, NULL, FALSE, error)
 
 const GValue *
 coil_struct_lookup_path(CoilStruct *self,
