@@ -2229,6 +2229,73 @@ struct_lookup_container_internal(CoilStruct  *self,
   return COIL_STRUCT(g_value_get_object(entry->value));
 }
 
+
+static gboolean
+lookup_internal_expand(CoilStruct  *self,
+                       const gchar *path,
+                       guint8       path_len,
+                       GError     **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
+  g_return_val_if_fail(path, FALSE);
+  g_return_val_if_fail(path_len > 0, FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+
+  const GValue *container_value;
+  CoilStruct   *container, *root;
+  guint8        lens[COIL_PATH_MAX_PARTS], i;
+  guint         hashes[COIL_PATH_MAX_PARTS];
+  GError       *internal_error = NULL;
+
+  compute_path_hashlen(path, path_len, hashes, lens, &i);
+
+  for (--i; i > 0; i--)
+  {
+    container_value = struct_lookup_internal(self,
+                                             hashes[i],
+                                             path,
+                                             lens[i],
+                                             FALSE,
+                                             error);
+
+    if (container_value == NULL)
+      continue;
+
+    if (!G_VALUE_HOLDS(container_value, COIL_TYPE_STRUCT))
+    {
+      g_set_error(error,
+                  COIL_ERROR,
+                  COIL_ERROR_VALUE,
+                  "<%s> the item at '%.*s' is type %s, expected %s",
+                  coil_struct_get_path(self)->path,
+                  path_len, path,
+                  G_VALUE_TYPE_NAME(container_value),
+                  g_type_name(COIL_TYPE_STRUCT));
+
+      return FALSE;
+    }
+
+    container = COIL_STRUCT(g_value_get_object(container_value));
+    coil_struct_foreach_ancestor(container, TRUE,
+                                 (CoilStructFunc)coil_struct_expand,
+                                 &internal_error);
+
+    if (G_UNLIKELY(internal_error))
+    {
+      g_propagate_error(error, internal_error);
+      return FALSE;
+    }
+
+    break;
+  }
+
+  root = coil_struct_get_root(self);
+  if (!coil_struct_expand(root, error))
+    return FALSE;
+
+  return TRUE;
+}
+
 static const GValue *
 struct_lookup_internal(CoilStruct     *self,
                        guint           hash,
@@ -2247,19 +2314,9 @@ struct_lookup_internal(CoilStruct     *self,
   const GValue      *result;
 
   entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
-
-  if (!entry)
+  if (entry == NULL)
   {
-    /* try to expand the container and search again */
-    CoilStruct *container;
-
-    container = struct_lookup_container_internal(self,
-                                                 path, path_len,
-                                                 error);
-
-    if (container == NULL
-        || struct_is_expanded(container)
-        || G_UNLIKELY(!coil_struct_expand(container, error)))
+    if (!lookup_internal_expand(self, path, path_len, error))
       return NULL;
 
     entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
