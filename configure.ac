@@ -72,12 +72,12 @@ dnl Compatibility
 dnl
 COIL_HELP_SEPARATOR(Compatibility)
 
-COIL_ARG_ENABLE(old-links, whether to use old-style links,
-                [Enable old-style link resolution from link entry path
-                 instead of container path], yes)
+COIL_ARG_ENABLE(strict-file-context, whether to enable strict file context,
+                [Enable strict file context rules. Included files are
+                 expanded before being processed.], no)
 
-if test "$COIL_OLD_LINKS" = "yes"; then
-  AC_DEFINE([COIL_OLD_LINKS], [1], [ ])
+if test "$COIL_STRICT_FILE_CONTEXT" = "yes"; then
+  AC_DEFINE([COIL_STRICT_FILE_CONTEXT], [1], [ ])
 fi
 
 dnl

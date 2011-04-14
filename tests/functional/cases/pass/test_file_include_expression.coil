@@ -1,3 +1,6 @@
+# TODO(jcon): add tests for --enable-strict-file-context
+#
+
 x: 2
 
 test: {
@@ -11,10 +14,10 @@ test: {
 
 expected: {
   one: {
-    z: '1'
+    z: '2'
   }
   two: {
       x: 1
-      y.z: '1'
+      y.z: '2'
   }
 }

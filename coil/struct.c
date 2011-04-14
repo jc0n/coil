@@ -1950,18 +1950,6 @@ coil_struct_merge_full(CoilStruct  *src,
   if (!coil_struct_expand(src, error))
     return FALSE;
 
-  /* XXX: if roots are different then we need a
-   * full recursive expand on source
-   * also intelligently copy only
-   * the real value's from expanded values in the loop below
-   */
-  if (!force_expand)
-  {
-    force_expand = !coil_struct_has_same_root(src, dst);
-    if (force_expand && !coil_struct_expand_items(src, TRUE, error))
-      return FALSE;
-  }
-
   g_object_set(G_OBJECT(dst), "accumulate", TRUE, NULL);
 
   coil_struct_iter_init(&it, src);
@@ -2671,7 +2659,6 @@ struct_build_string_internal(CoilStruct       *self,
   g_return_if_fail(!coil_struct_is_prototype(self));
 
   CoilStructIter  it;
-  StructEntry    *entry;
   const GValue   *value;
   const CoilPath *path;
   GError         *internal_error = NULL;
@@ -2689,18 +2676,10 @@ struct_build_string_internal(CoilStruct       *self,
     const CoilPath *context_path = coil_struct_get_path(context);
     const guint     path_offset = context_path->path_len + 1;
 
-    while (struct_iter_next_entry(&it, &entry))
+    while (coil_struct_iter_next(&it, &path, &value))
     {
-      value = entry->value;
-      path = entry->path;
-
       if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
       {
-#if 0
-        if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE)
-            && !coil_expand_value(&value, FALSE, &internal_error))
-          goto error;
-#endif
         CoilStruct *node = COIL_STRUCT(g_value_get_object(value));
         struct_build_string_internal(node, context, buffer,
                                      format, &internal_error);
@@ -2721,25 +2700,24 @@ struct_build_string_internal(CoilStruct       *self,
     gboolean br_on_bl;
     gchar   *nl_after_brace, *nl_after_struct;
     gchar    indent[128], brace_indent[128];
-    guint    indent_len = format->indent_level;
+    guint    indent_len, brace_indent_len;
 
     br_on_bl = (format->options & BRACE_ON_BLANK_LINE);
     nl_after_brace = (format->options & BLANK_LINE_AFTER_BRACE) ? "\n" : "";
     nl_after_struct = (format->options & BLANK_LINE_AFTER_STRUCT) ? "\n" : "";
 
-    memset(indent, ' ', MIN(indent_len, sizeof(indent)));
+    indent_len = MIN(format->indent_level, sizeof(indent));
+    memset(indent, ' ', indent_len);
     indent[indent_len] = '\0';
 
-    memset(brace_indent, ' ', MIN(format->brace_indent, sizeof(brace_indent)));
-    brace_indent[format->brace_indent] = '\0';
+    brace_indent_len = MIN(format->brace_indent, sizeof(brace_indent));
+    memset(brace_indent, ' ', brace_indent_len);
+    brace_indent[brace_indent_len] = '\0';
 
     format->indent_level += format->block_indent;
 
-    while (struct_iter_next_entry(&it, &entry))
+    while (coil_struct_iter_next(&it, &path, &value))
     {
-      value = entry->value;
-      path = entry->path;
-
       if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
       {
         CoilStruct *node;
@@ -2768,12 +2746,6 @@ struct_build_string_internal(CoilStruct       *self,
       }
       else
       {
-#if 0
-        if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE)
-            && !coil_expand_value(&return_value, FALSE, &internal_error))
-          goto error;
-#endif
-
         g_string_append_printf(buffer, "%s%s: ", indent, path->key);
 
         coil_value_build_string(value, buffer, format, &internal_error);
@@ -2886,76 +2858,8 @@ coil_struct_copy_valist(CoilStruct  *self,
   if (!coil_struct_expand_items(self, TRUE, error))
     goto error;
 
-  if (!struct_is_definitely_empty(self))
-  {
-    CoilStructIter  it;
-    const CoilPath *path;
-    const GValue   *value;
-    GValue         *value_copy;
-
-    /* iterate keys in order */
-    coil_struct_iter_init(&it, self);
-
-    while (coil_struct_iter_next(&it, &path, &value))
-    {
-      if (value == NULL)
-      {
-        if (!coil_struct_mark_deleted_key(copy, path->key, FALSE, error))
-          goto error;
-
-        continue;
-      }
-
-      if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
-      {
-        CoilStruct     *obj, *obj_copy;
-        const CoilPath *container_path;
-        CoilPath       *node_path;
-
-        container_path = coil_struct_get_path(copy);
-        node_path = coil_path_concat(container_path, path, error);
-        if (node_path == NULL)
-          goto error;
-
-        obj = COIL_STRUCT(g_value_get_object(value));
-        obj_copy = coil_struct_copy(obj, error,
-                                    "path", node_path,
-                                    "container", copy,
-                                    NULL);
-
-        coil_path_unref(node_path);
-
-        if (G_UNLIKELY(obj_copy == NULL))
-          goto error;
-
-        new_value(value_copy, COIL_TYPE_STRUCT, take_object, obj_copy);
-      }
-      else if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
-      {
-        CoilExpandable *obj, *obj_copy;
-
-        obj = COIL_EXPANDABLE(g_value_get_object(value));
-        obj_copy = coil_expandable_copy(obj, error,
-                                        "container", copy,
-                                        NULL);
-
-        if (G_UNLIKELY(obj_copy == NULL))
-          goto error;
-
-        new_value(value_copy, G_VALUE_TYPE(value), take_object, obj_copy);
-      }
-      else
-        value_copy = copy_value(value);
-
-      if (!coil_struct_insert_key(copy,
-                                  path->key,
-                                  path->key_len,
-                                  value_copy,
-                                  FALSE,
-                                  error))
-        goto error;
-    }
-  }
+  if (!coil_struct_merge(self, copy, error))
+    goto error;
 
   return copy;
 

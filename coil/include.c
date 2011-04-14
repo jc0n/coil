@@ -277,6 +277,7 @@ process_import_arg(CoilInclude *self,
                    GError     **error)
 {
   CoilPath     *path;
+  CoilStruct   *source;
   CoilStruct   *container = COIL_EXPANDABLE(self)->container;
   GError       *internal_error = NULL;
   const GValue *import_value;
@@ -340,8 +341,14 @@ process_import_arg(CoilInclude *self,
 
 #endif
 
-  CoilStruct *source = COIL_STRUCT(g_value_dup_object(import_value));
+  source = COIL_STRUCT(g_value_dup_object(import_value));
+
+#ifdef COIL_STRICT_FILE_CONTEXT
   result = coil_struct_merge_full(source, container, FALSE, TRUE, error);
+#else
+  result = coil_struct_merge(source, container, error);
+#endif
+
   g_object_unref(source);
 
 done:
@@ -630,6 +637,7 @@ include_expand(gconstpointer   include,
     CoilExpandable *const super = COIL_EXPANDABLE(self);
     CoilStruct     *container = super->container;
 
+#ifdef COIL_STRICT_FILE_CONTEXT
     /*
      * XXX: this expands objects in the file root context
      * before merging into container context.
@@ -640,9 +648,13 @@ include_expand(gconstpointer   include,
     if (!coil_struct_merge_full(root,
                                 container,
                                 FALSE,
-                                TRUE, /* force expand in this 'root' context */
+                                TRUE,
                                 &internal_error))
       goto error;
+#else
+    if (!coil_struct_merge(root, container, &internal_error))
+      goto error;
+#endif
   }
   else if (!process_import_list(self, root, error))
     goto error;
