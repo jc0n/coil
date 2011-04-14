@@ -914,6 +914,8 @@ coil_struct_create_containers(CoilStruct     *self,
 
     container = struct_create_container(container, container_path,
                                         hashes[i], prototype, error);
+
+    coil_path_unref(container_path);
   }
 
   return container;
