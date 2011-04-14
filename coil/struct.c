@@ -797,6 +797,47 @@ struct_create_container(CoilStruct  *self,
   return container;
 }
 
+static void
+compute_path_hashlen(const gchar *path,
+                     guint8       path_len,
+                     guint       *hashes,
+                     guint8      *lens,
+                     guint8      *num_parts)
+{
+  g_return_if_fail(path);
+  g_return_if_fail(path_len > 0);
+  g_return_if_fail(lens);
+  g_return_if_fail(hashes);
+
+  guint8       i;
+  const gchar *end, *delim, *next;
+
+  memset(lens, 0, sizeof(*lens) * COIL_PATH_MAX_PARTS);
+  memset(hashes, 0, sizeof(*hashes) * COIL_PATH_MAX_PARTS);
+
+  lens[0] = COIL_ROOT_PATH_LEN;
+  hashes[0] = 0;
+
+  end = path + path_len;
+  delim = path + COIL_ROOT_PATH_LEN + 1;
+
+  next = memchr(delim, COIL_PATH_DELIM, end - delim);
+  for (i = 1; next != NULL; i++)
+  {
+    lens[i] = next - path;
+    hashes[i] = hash_relative_path(hashes[i - 1], delim, next - delim);
+    delim = next + 1;
+    next = memchr(delim, COIL_PATH_DELIM, end - delim);
+  }
+
+  lens[i] = path_len;
+  hashes[i] = hash_relative_path(hashes[i - 1], delim, end - delim);
+
+  if (num_parts)
+    *num_parts = i;
+}
+
+/* TODO(jcon): validate path arguments for public API */
 COIL_API(CoilStruct *)
 coil_struct_create_containers(CoilStruct     *self,
                               const gchar    *path, /* of container */
@@ -821,22 +862,10 @@ coil_struct_create_containers(CoilStruct     *self,
   CoilStructPrivate *const priv = self->priv;
   StructEntry       *entry;
   CoilStruct        *container = priv->root;
-  const gchar       *next_delim, *end, *delim = path + COIL_ROOT_PATH_LEN + 1;
-  guint              saved_hashes[COIL_PATH_MAX_PARTS] = {0, };
-  guint8             saved_lens[COIL_PATH_MAX_PARTS] = {COIL_ROOT_PATH_LEN, 0,};
-  guint8             i = 1, missing_keys = 0;
+  guint              hashes[COIL_PATH_MAX_PARTS];
+  guint8             lens[COIL_PATH_MAX_PARTS], i, missing_keys = 0;
 
-  for (end = &path[path_len];
-       (next_delim = memchr(delim, COIL_PATH_DELIM, end - delim));
-       i++, delim = next_delim + 1)
-  {
-    saved_lens[i] = next_delim - path;
-    saved_hashes[i] = hash_relative_path(saved_hashes[i - 1],
-                                         delim, next_delim - delim);
-  }
-
-  saved_lens[i] = path_len;
-  saved_hashes[i] = hash_relative_path(saved_hashes[i - 1], delim, end - delim);
+  compute_path_hashlen(path, path_len, hashes, lens, &i);
 
   if (has_previous_lookup)
   {
@@ -846,9 +875,7 @@ coil_struct_create_containers(CoilStruct     *self,
 
   for (; i > 0; missing_keys++, i--)
   {
-    entry = struct_table_lookup(priv->entry_table, saved_hashes[i],
-                                path, saved_lens[i]);
-
+    entry = struct_table_lookup(priv->entry_table, hashes[i], path, lens[i]);
     if (entry)
     {
       if (G_UNLIKELY(!entry->value
@@ -856,7 +883,7 @@ coil_struct_create_containers(CoilStruct     *self,
       {
         coil_struct_error(error, self,
           "Attempting to assign values in non-struct object %.*s type %s.",
-          saved_lens[i], path, G_VALUE_TYPE_NAME(entry->value));
+          lens[i], path, G_VALUE_TYPE_NAME(entry->value));
 
         return NULL;
       }
@@ -881,19 +908,19 @@ coil_struct_create_containers(CoilStruct     *self,
     gchar    *container_path_str, *container_key_str;
     guint8    container_key_len;
 
-    container_path_str = g_strndup(path, saved_lens[i]);
-    container_key_str = &container_path_str[saved_lens[i - 1]] + 1;
-    container_key_len = (saved_lens[i] - saved_lens[i - 1]) - 1;
+    container_path_str = g_strndup(path, lens[i]);
+    container_key_str = &container_path_str[lens[i - 1]] + 1;
+    container_key_len = (lens[i] - lens[i - 1]) - 1;
 
     container_path = coil_path_take_strings(container_path_str,
-                                            saved_lens[i],
+                                            lens[i],
                                             container_key_str,
                                             container_key_len,
                                             COIL_PATH_IS_ABSOLUTE |
                                             COIL_STATIC_KEY);
 
     container = struct_create_container(container, container_path,
-                                        saved_hashes[i], prototype, error);
+                                        hashes[i], prototype, error);
   }
 
   return container;
