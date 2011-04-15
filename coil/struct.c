@@ -118,7 +118,6 @@ struct_lookup_internal(CoilStruct     *self,
 
 static void
 struct_build_string_internal(CoilStruct       *self,
-                             CoilStruct       *context,
                              GString          *const buffer,
                              CoilStringFormat *format,
                              GError          **error);
@@ -2665,13 +2664,11 @@ coil_struct_get_size(CoilStruct *self,
 /* Only call from struct_build_string_internal() */
 static void
 _struct_build_flat_string(CoilStruct       *self,
-                          CoilStruct       *context,
                           GString          *const buffer,
                           CoilStringFormat *format,
                           GError          **error)
 {
   g_return_if_fail(COIL_IS_STRUCT(self));
-  g_return_if_fail(COIL_IS_STRUCT(context));
   g_return_if_fail(buffer);
   g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
@@ -2680,7 +2677,7 @@ _struct_build_flat_string(CoilStruct       *self,
   CoilStructIter  it;
   const GValue   *value;
   const CoilPath *path;
-  const CoilPath *context_path = coil_struct_get_path(context);
+  const CoilPath *context_path = coil_struct_get_path(format->context);
   const guint     path_offset = context_path->path_len + 1;
   GError         *internal_error = NULL;
 
@@ -2691,8 +2688,7 @@ _struct_build_flat_string(CoilStruct       *self,
     if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
     {
       CoilStruct *node = COIL_STRUCT(g_value_get_object(value));
-      struct_build_string_internal(node, context, buffer,
-                                   format, &internal_error);
+      struct_build_string_internal(node, buffer, format, &internal_error);
     }
     else
     {
@@ -2712,13 +2708,11 @@ _struct_build_flat_string(CoilStruct       *self,
 /* Only call from struct_build_string_internal() */
 static void
 _struct_build_scoped_string(CoilStruct       *self,
-                            CoilStruct       *context,
                             GString          *const buffer,
                             CoilStringFormat *format,
                             GError          **error)
 {
   g_return_if_fail(COIL_IS_STRUCT(self));
-  g_return_if_fail(COIL_IS_STRUCT(context));
   g_return_if_fail(buffer);
   g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
@@ -2727,11 +2721,16 @@ _struct_build_scoped_string(CoilStruct       *self,
   CoilStructIter  it;
   const CoilPath *path;
   const GValue   *value;
-  gboolean        brace_on_blank_line;
+  gboolean        brace_on_blank_line, with_braces;
   gchar          *newline_after_brace, *newline_after_struct;
   gchar           indent[128], brace_indent[128];
   gint            indent_len, brace_indent_len;
   GError         *internal_error = NULL;
+
+  if (format->context != self && !coil_struct_is_root(self))
+    with_braces = TRUE;
+  else
+    with_braces = FALSE;
 
   brace_on_blank_line = (format->options & BRACE_ON_BLANK_LINE);
   newline_after_brace = (format->options & BLANK_LINE_AFTER_BRACE) ? "\n" : "";
@@ -2747,7 +2746,7 @@ _struct_build_scoped_string(CoilStruct       *self,
 
   format->indent_level += format->block_indent;
 
-  if (!coil_struct_is_root(self))
+  if (with_braces)
   {
     if (brace_on_blank_line)
     {
@@ -2789,7 +2788,7 @@ _struct_build_scoped_string(CoilStruct       *self,
 
   format->indent_level -= format->block_indent;
 
-  if (!coil_struct_is_root(self))
+  if (with_braces)
   {
     indent_len = MAX((indent_len - format->block_indent), 0);
     indent[indent_len] = '\0';
@@ -2804,29 +2803,29 @@ _struct_build_scoped_string(CoilStruct       *self,
 
 static void
 struct_build_string_internal(CoilStruct       *self,
-                             CoilStruct       *context,
                              GString          *const buffer,
                              CoilStringFormat *format,
                              GError          **error)
 {
   g_return_if_fail(COIL_IS_STRUCT(self));
-  g_return_if_fail(context == NULL || COIL_IS_STRUCT(context));
   g_return_if_fail(buffer);
   g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
   g_return_if_fail(!coil_struct_is_prototype(self));
 
-  if (context == NULL)
-    context = self;
+  CoilStringFormat format_ = *format;
+
+  if (format_.context == NULL)
+    format_.context = self;
 
   if (!coil_struct_expand_items(self, TRUE, error))
     return;
 
   if (format->options & FLATTEN_PATHS)
-    _struct_build_flat_string(self, context, buffer, format, error);
+    _struct_build_flat_string(self, buffer, &format_, error);
   else
-    _struct_build_scoped_string(self, context, buffer, format, error);
- }
+    _struct_build_scoped_string(self, buffer, &format_, error);
+}
 
 /* expandable build string virtual function */
 static void
@@ -2840,8 +2839,7 @@ _struct_build_string(gconstpointer     object,
   g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  struct_build_string_internal(COIL_STRUCT(object), NULL,
-                               buffer, format, error);
+  struct_build_string_internal(COIL_STRUCT(object), buffer, format, error);
 }
 
 COIL_API(void)
@@ -2855,7 +2853,7 @@ coil_struct_build_string(CoilStruct       *self,
   g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
-  struct_build_string_internal(self, NULL, buffer, format, error);
+  struct_build_string_internal(self, buffer, format, error);
 }
 
 COIL_API(gchar *)
@@ -2870,7 +2868,7 @@ coil_struct_to_string(CoilStruct       *self,
   GString *buffer;
 
   buffer = g_string_sized_new(512);
-  struct_build_string_internal(self, NULL, buffer, format, error);
+  struct_build_string_internal(self, buffer, format, error);
 
   return g_string_free(buffer, FALSE);
 }

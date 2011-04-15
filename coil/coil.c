@@ -16,6 +16,8 @@ CoilStringFormat default_string_format = {
     4, /* block indent */
     0,  /* brace indent */
     78, /* multiline len */
+    0, /* indent level */
+    (CoilStruct *)NULL, /* context */
 };
 
 /*

@@ -46,6 +46,7 @@ libcoil_include_HEADERS=\
 				error.h \
 				expandable.h \
 				expression.h \
+				format.h \
 				include.h \
 				link.h \
 				list.h \
