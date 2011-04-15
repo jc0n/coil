@@ -48,9 +48,11 @@ struct _CoilStructClass
 
 struct _CoilStructIter
 {
-  const CoilStruct *node;
-  GList            *position;
-  guint             version;
+  CoilStruct *node;
+  GList      *position;
+#ifdef COIL_DEBUG
+  guint       version;
+#endif
 };
 
 typedef gboolean (*CoilStructFunc)(CoilStruct *, gpointer);
@@ -225,8 +227,8 @@ coil_struct_extend_paths(CoilStruct *self,
                          GError    **error);
 
 void
-coil_struct_iter_init(CoilStructIter   *iter,
-                      const CoilStruct *self);
+coil_struct_iter_init(CoilStructIter *iter,
+                      CoilStruct     *self);
 
 gboolean
 coil_struct_iter_next(CoilStructIter  *iter,

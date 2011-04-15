@@ -127,6 +127,8 @@ coil_expand(gpointer        object,
   const GValue          *return_value = NULL;
   GError                *internal_error = NULL;
 
+  /* TODO(jcon): notify container of expansion */
+
   if (!g_static_mutex_trylock(&priv->expand_lock))
   {
     /* TODO(jcon): improve error handling for cases like this */

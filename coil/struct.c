@@ -108,6 +108,10 @@ static void
 struct_connect_expand_notify(CoilStruct *const self,
                              CoilStruct *const parent);
 
+static gboolean
+struct_change_notify(CoilStruct  *self,
+                     GError     **error);
+
 static const GValue *
 struct_lookup_internal(CoilStruct     *self,
                        guint           hash,
@@ -635,14 +639,8 @@ struct_insert_internal(CoilStruct     *self,
   g_return_val_if_fail(COIL_PATH_CONTAINER_LEN(path) == priv->path->path_len,
                        FALSE);
 
-  if (!priv->is_accumulating)
-  {
-    g_signal_emit(self, struct_signals[MODIFY],
-                  0, (gpointer *)&internal_error);
-
-    if (G_UNLIKELY(internal_error))
-      goto error;
-  }
+  if (!struct_change_notify(self, &internal_error))
+    goto error;
 
   /* TODO(jcon): dont check value for struct more than once */
   if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
@@ -1730,8 +1728,8 @@ coil_struct_extend_paths(CoilStruct *self,
 
 
 COIL_API(void)
-coil_struct_iter_init(CoilStructIter   *iter,
-                      const CoilStruct *self)
+coil_struct_iter_init(CoilStructIter *iter,
+                      CoilStruct     *self)
 {
   g_return_if_fail(COIL_IS_STRUCT(self));
   g_return_if_fail(!coil_struct_is_prototype(self));
@@ -1808,11 +1806,43 @@ coil_struct_iter_next_expand(CoilStructIter  *iter,
   if (!coil_struct_iter_next(iter, path, value))
     return FALSE;
 
+  if (!struct_change_notify(iter->node, error))
+    return FALSE;
+
   /* stop iteration on error */
   if (G_VALUE_HOLDS(*value, COIL_TYPE_EXPANDABLE))
     return coil_expand_value(*value, value, recursive, error);
 
   return TRUE;
+}
+
+/* Call before making implicit or hidden changes in struct to notify ancestry */
+static gboolean
+struct_change_notify(CoilStruct  *self,
+                     GError     **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+
+  CoilStruct        *container;
+  CoilStructPrivate *priv = self->priv;
+  GError            *internal_error = NULL;
+
+  if (priv->is_accumulating)
+    return TRUE;
+
+  g_signal_emit(self, struct_signals[MODIFY], 0, &internal_error);
+  if (G_UNLIKELY(internal_error))
+  {
+    g_propagate_error(error, internal_error);
+    return FALSE;
+  }
+
+  container = coil_struct_get_container(self);
+  if (container == NULL)
+    return TRUE;
+
+  return struct_change_notify(container, error);
 }
 
 static gboolean
@@ -1898,6 +1928,9 @@ struct_merge_item(CoilStruct     *self,
     && G_VALUE_HOLDS(srcvalue, COIL_TYPE_EXPANDABLE))
   {
     const GValue *real_value = NULL;
+
+    if (!struct_change_notify(self, error))
+      goto error;
 
     if (!coil_expand_value(srcvalue, &real_value, TRUE, error))
       goto error;
@@ -2132,6 +2165,7 @@ coil_struct_expand_items(CoilStruct  *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructIter  it;
+  CoilStruct     *container;
   const GValue   *value;
 
   if (!coil_struct_expand(self, error))
@@ -2140,6 +2174,8 @@ coil_struct_expand_items(CoilStruct  *self,
   if (struct_is_definitely_empty(self))
     return TRUE;
 
+  container = coil_struct_get_container(self);
+
   coil_struct_iter_init(&it, self);
   while (coil_struct_iter_next(&it, NULL, &value))
   {
@@ -2147,6 +2183,9 @@ coil_struct_expand_items(CoilStruct  *self,
     {
       CoilExpandable *object;
       object = COIL_EXPANDABLE(g_value_get_object(value));
+
+      if (container && !struct_change_notify(container, error))
+        return FALSE;
 
       if (!coil_expand(object, NULL, TRUE, error))
         return FALSE;
@@ -2162,15 +2201,21 @@ coil_struct_expand_items(CoilStruct  *self,
 }
 
 static const GValue *
-maybe_expand_value(const GValue  *value,
+maybe_expand_value(CoilStruct    *self,
+                   const GValue  *value,
                    GError       **error)
 {
   g_return_val_if_fail(value, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE)
-    && !coil_expand_value(value, &value, TRUE, error))
-    return NULL;
+  if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
+  {
+    if (!struct_change_notify(self, error))
+      return NULL;
+
+    if (!coil_expand_value(value, &value, TRUE, error))
+      return NULL;
+  }
 
   return value;
 }
@@ -2323,7 +2368,10 @@ struct_lookup_internal(CoilStruct     *self,
   else
     result = entry->value;
 
-  return (expand_value && result) ? maybe_expand_value(result, error) : result;
+  if (expand_value && result)
+    return maybe_expand_value(self, result, error);
+
+  return result;
 }
 
 COIL_API(const GValue *)
