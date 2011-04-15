@@ -127,10 +127,13 @@ expect_pass(const gchar *filepath)
 
     if (result)
     {
-      gchar *string;
+      gchar           *string;
+      CoilStringFormat format = default_string_format;
+
+      format.options |= FORCE_EXPAND;
 
       g_assert_no_error(error);
-      string = coil_struct_to_string(root, &default_string_format, &error);
+      string = coil_struct_to_string(root, &format, &error);
       g_assert_no_error(error);
 
       g_print("Failed: \n\n%s\n", string);
