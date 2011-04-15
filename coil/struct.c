@@ -3018,8 +3018,8 @@ coil_struct_equals(gconstpointer   obj,
 
   if (coil_struct_is_descendent(self, other)
     || coil_struct_is_descendent(other, self)
-    || !coil_struct_expand(self, error)
-    || !coil_struct_expand(other, error)
+    || !coil_struct_expand_items(self, TRUE, error)
+    || !coil_struct_expand_items(other, TRUE, error)
     || spriv->size != opriv->size)
     return FALSE;
 
