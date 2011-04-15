@@ -2028,8 +2028,13 @@ struct_expand_dependency(CoilStruct     *self,
 
   g_assert(struct_is_expanded(parent));
 
+#if COIL_STRICT_CONTEXT
+  if (!coil_struct_merge_full(parent, self, FALSE, TRUE, error))
+    return FALSE;
+#else
   if (!coil_struct_merge(parent, self, error))
     return FALSE;
+#endif
 
   /* if the parent changes after now we dont care */
   g_signal_handlers_disconnect_matched(parent,
