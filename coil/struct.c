@@ -1747,6 +1747,11 @@ struct_iter_next_entry(CoilStructIter *iter,
 
 #ifdef COIL_DEBUG
   const CoilStruct *self = iter->node;
+
+  if (self == NULL
+    || !G_IS_OBJECT(self))
+      g_error("%s: Likely using uninitialized iterator", G_STRLOC);
+
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(iter->version == self->priv->version, FALSE);
 #endif
