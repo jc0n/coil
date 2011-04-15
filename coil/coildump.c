@@ -26,6 +26,7 @@ static gboolean brace_on_blank_line = FALSE;
 static gboolean commas_in_list = FALSE;
 static gboolean compact = FALSE;
 static gboolean compat = FALSE;
+static gboolean expand_all = FALSE;
 static gboolean flatten = FALSE;
 static gboolean list_on_blank_line = FALSE;
 static gboolean merge_files = FALSE;
@@ -44,6 +45,9 @@ static const GOptionEntry main_entries[] =
 
   {"compat", 0, 0, G_OPTION_ARG_NONE, &compat,
       "Maintain compatability with previous coil versions.", NULL},
+
+  {"expand-all", 0, 0, G_OPTION_ARG_NONE, &expand_all,
+      "Expand all values.", NULL},
 
   {"flatten", 'f', 0, G_OPTION_ARG_NONE, &flatten,
       "Show key-values on separate, fully-qualified lines", NULL},
@@ -499,6 +503,9 @@ init_string_format(CoilStringFormat *format)
 
   if (compat)
     format->options |= LEGACY;
+
+  if (expand_all)
+    format->options |= FORCE_EXPAND;
 }
 
 static gboolean
@@ -631,6 +638,10 @@ print_files(void)
       goto error;
     }
 
+    if (expand_all
+      && !coil_struct_expand_items(root, TRUE, &error))
+      goto error;
+
     print_struct(root, buffer, &format, &error);
   }
   else
@@ -638,6 +649,10 @@ print_files(void)
     {
       if (attrs && nodes[i]
         && !coil_struct_merge_full(attrs, nodes[i], overwrite, FALSE, &error))
+        goto error;
+
+      if (expand_all
+        && !coil_struct_expand_items(nodes[i], TRUE, &error))
         goto error;
 
       print_struct(nodes[i], buffer, &format, &error);

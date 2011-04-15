@@ -196,6 +196,11 @@ coil_value_build_string(const GValue     *value,
   g_return_if_fail(format);
   g_return_if_fail(error == NULL || *error == NULL);
 
+  if (format->options & FORCE_EXPAND
+    && G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE)
+    && !coil_expand_value(value, &value, FALSE, error))
+      return;
+
   const GType type = G_VALUE_TYPE(value);
 
   if (G_TYPE_IS_FUNDAMENTAL(type))

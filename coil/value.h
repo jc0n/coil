@@ -40,7 +40,7 @@ typedef enum {
   BRACE_ON_BLANK_LINE         = 1 << 8,
   LIST_ON_BLANK_LINE          = 1 << 9,
 
-  DONT_EXPAND                = 1 << 10,
+  FORCE_EXPAND               = 1 << 10,
   DONT_QUOTE_STRINGS         = 1 << 11,
 
 } CoilStringFormatOptions;
