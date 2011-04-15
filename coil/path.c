@@ -758,24 +758,14 @@ coil_path_relativize(const CoilPath *target, /* absolute path */
   g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(container), NULL);
 
   CoilPath    *relative;
-  guint8       prefix_len, tail_len, num_dots;
+  guint8       prefix_len, tail_len, num_dots = 2;
   const gchar *delim, *prefix, *path;
 
-  if (COIL_PATH_IS_RELATIVE(target))
+  if (COIL_PATH_IS_RELATIVE(target)
+    || COIL_PATH_IS_ROOT(target))
     return coil_path_ref((CoilPath *)target);
 
   relative = path_alloc();
-
-  if (COIL_PATH_IS_ROOT(target))
-  {
-    relative->path_len = container->path_len - (COIL_ROOT_PATH_LEN + 1);
-    relative->path = g_strndup(container->path + COIL_ROOT_PATH_LEN + 1,
-                               relative->path_len);
-    relative->key = NULL;
-    relative->key_len = 0;
-    relative->flags = COIL_PATH_IS_ROOT | COIL_PATH_IS_ABSOLUTE;
-    return relative;
-  }
 
   /* both paths are absolute, start checking after @root */
   prefix = delim = container->path + COIL_ROOT_PATH_LEN;
@@ -783,9 +773,8 @@ coil_path_relativize(const CoilPath *target, /* absolute path */
 
   if (target == container)
   {
-    num_dots = 2;
-    prefix_len = container->path_len;
-
+    tail_len = target->key_len;
+    path = target->key;
     goto backref;
   }
 
@@ -802,30 +791,28 @@ coil_path_relativize(const CoilPath *target, /* absolute path */
     path++;
   }
 
-  prefix_len = delim - container->path;
-
   /* the only case where there are no dots is
    * if <prefix> is a prefix of path */
   if (*prefix == '\0' && *path == COIL_PATH_DELIM)
   {
     /* just move the keys to the front
      * no need to mess with the allocation */
-    relative->path_len = (target->path_len - prefix_len) - 1;
-    relative->path = g_strndup(path + 1, relative->path_len);
+    prefix_len = ++path - target->path;
+    relative->path_len = target->path_len - prefix_len;
+    relative->path = g_strndup(path, relative->path_len);
   }
   else
   {
-    num_dots = 2;
+    prefix_len = delim - container->path;
+    tail_len = target->path_len - prefix_len - 1;
+    path = target->path + prefix_len + 1;
+
     /* count # of parts to remove from prefix path to get to
      * path ie. number of dots to add to relative path */
-    path = delim + 1;
     while ((delim = strchr(delim + 1, COIL_PATH_DELIM)))
       num_dots++;
 
-    g_assert(num_dots < COIL_PATH_MAX_PARTS);
-
 backref:
-    tail_len = target->path_len - prefix_len - 1;
     relative->path_len = tail_len + num_dots;
     relative->path = g_new(gchar, relative->path_len + 1);
 
