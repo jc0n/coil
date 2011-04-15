@@ -42,17 +42,11 @@ static const GOptionEntry main_entries[] =
   {"block", 'b', 0, G_OPTION_ARG_STRING_ARRAY, &blocks,
       "Print struct (and all values contained within) at <path>", "<path>"},
 
-  {"path", 'p', 0, G_OPTION_ARG_STRING_ARRAY, &paths,
-      "Print coil value at <path>", "<path>"},
+  {"compat", 0, 0, G_OPTION_ARG_NONE, &compat,
+      "Maintain compatability with previous coil versions.", NULL},
 
   {"flatten", 'f', 0, G_OPTION_ARG_NONE, &flatten,
       "Show key-values on separate, fully-qualified lines", NULL},
-
-  {"permissive", 0, 0, G_OPTION_ARG_NONE, &permissive,
-      "Ignore minor errors during parsing.", NULL},
-
-  {"compat", 0, 0, G_OPTION_ARG_NONE, &compat,
-      "Maintain compatability with previous coil versions.", NULL},
 
   {"merge-files", 'm', 0, G_OPTION_ARG_NONE, &merge_files,
       "Merge all files specified into one struct.", NULL},
@@ -60,6 +54,12 @@ static const GOptionEntry main_entries[] =
   {"no-clobber", 'n', 0, G_OPTION_ARG_NONE, &no_clobber_attributes,
       "Don't overwrite existing attributes with those specified on the " \
       "command line.", NULL},
+
+  {"path", 'p', 0, G_OPTION_ARG_STRING_ARRAY, &paths,
+      "Print coil value at <path>", "<path>"},
+
+  {"permissive", 0, 0, G_OPTION_ARG_NONE, &permissive,
+      "Ignore minor errors during parsing.", NULL},
 
   {G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &files, NULL, NULL},
 
