@@ -207,6 +207,57 @@ coil_expr_to_string(CoilExpr         *self,
   return g_string_free(buffer, FALSE);
 }
 
+#ifdef COIL_PATH_TRANSLATION
+static gboolean
+expr_translate_path(GString    *expr,
+                    CoilStruct *old_container,
+                    CoilStruct *new_container,
+                    GError    **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(old_container), FALSE);
+  g_return_val_if_fail(COIL_IS_STRUCT(new_container), FALSE);
+
+  guint           i;
+  const gchar    *s, *e;
+  CoilPath       *path, *new_path;
+  const CoilPath *container_path;
+
+  for (i = 0, s = expr->str;
+       i < expr->len; i++, s++)
+  {
+    if (*s == '\\')
+    {
+      s++;
+      i++;
+      continue;
+    }
+
+    if (*s == '$' && s[1] == '{')
+    {
+      s += 2;
+      i += 2;
+
+      e = rawmemchr(s + 1, '}');
+
+      path = coil_path_new_len(s, e - s, error);
+      if (path == NULL)
+        return FALSE;
+
+      container_path = coil_struct_get_path(old_container);
+      new_path = coil_path_relativize(path, container_path);
+
+      g_string_erase(expr, i, path->path_len);
+      g_string_insert_len(expr, i, new_path->path, new_path->path_len);
+
+      coil_path_unref(path);
+      coil_path_unref(new_path);
+    }
+  }
+
+  return TRUE;
+}
+#endif
+
 static CoilExpandable *
 expr_copy(gconstpointer     _self,
           const gchar      *first_property_name,
@@ -223,6 +274,17 @@ expr_copy(gconstpointer     _self,
 
   string = g_string_new_len(priv->expr->str, priv->expr->len);
   copy = coil_expr_new_valist(string, first_property_name, properties);
+
+#ifdef COIL_PATH_TRANSLATION
+  CoilStruct     *new_container, *old_container;
+
+  new_container = COIL_EXPANDABLE(copy)->container;
+  old_container = COIL_EXPANDABLE(self)->container;
+
+  if (!coil_struct_has_same_root(old_container, new_container)
+    && !expr_translate_path(string, old_container, new_container, error))
+      return NULL;
+#endif
 
   return COIL_EXPANDABLE(copy);
 }

@@ -115,6 +115,26 @@ link_copy(gconstpointer obj,
 
   g_object_set_valist(G_OBJECT(copy), first_property_name, properties);
 
+#ifdef COIL_PATH_TRANSLATION
+  if (COIL_PATH_IS_ABSOLUTE(copy->target_path))
+  {
+    CoilStruct     *new_container, *old_container;
+    const CoilPath *container_path;
+    CoilPath       *path;
+
+    new_container = COIL_EXPANDABLE(copy)->container;
+    old_container = COIL_EXPANDABLE(self)->container;
+
+    if (!coil_struct_has_same_root(old_container, new_container))
+    {
+      container_path = coil_struct_get_path(old_container);
+      path = coil_path_relativize(copy->target_path, container_path);
+      coil_path_unref(copy->target_path);
+      copy->target_path = path;
+    }
+  }
+#endif
+
   return COIL_EXPANDABLE(copy);
 }
 

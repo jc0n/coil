@@ -72,6 +72,13 @@ dnl Compatibility
 dnl
 COIL_HELP_SEPARATOR(Compatibility)
 
+COIL_ARG_ENABLE(path-translation, whether to enable path translation,
+                [Enable path translation between structs], yes)
+
+if test "$COIL_PATH_TRANSLATION" = "yes"; then
+  AC_DEFINE([COIL_PATH_TRANSLATION], [1], [ ])
+fi
+
 COIL_ARG_ENABLE(strict-file-context, whether to enable strict file context,
                 [Enable strict file context rules. Included files are
                  expanded before being processed.], no)

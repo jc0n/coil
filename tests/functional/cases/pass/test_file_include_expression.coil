@@ -4,20 +4,28 @@
 x: 2
 
 test: {
-  one: {
-    @file: ['expression.coil' 'y']
-  }
+
+# TODO(jcon) add this later as a conditional test
+# for --disable-path-translation
+#
+# backwards compatibility breaks the following
+#  one: {
+#    @file: ['expression.coil' 'y']
+#  }
+
   two: {
     @file: 'expression.coil'
   }
 }
 
 expected: {
-  one: {
-    z: '2'
-  }
+
+#  one: {
+#    z: '2'
+#  }
+
   two: {
       x: 1
-      y.z: '2'
+      y.z: '1'
   }
 }
