@@ -2730,7 +2730,7 @@ _struct_build_scoped_string(CoilStruct       *self,
   gboolean        brace_on_blank_line;
   gchar          *newline_after_brace, *newline_after_struct;
   gchar           indent[128], brace_indent[128];
-  guint           indent_len, brace_indent_len;
+  gint            indent_len, brace_indent_len;
   GError         *internal_error = NULL;
 
   brace_on_blank_line = (format->options & BRACE_ON_BLANK_LINE);
@@ -2787,16 +2787,19 @@ _struct_build_scoped_string(CoilStruct       *self,
   if (buffer->str[buffer->len - 1] == '\n')
     g_string_truncate(buffer, buffer->len - 1);
 
+  format->indent_level -= format->block_indent;
+
   if (!coil_struct_is_root(self))
   {
+    indent_len = MAX((indent_len - format->block_indent), 0);
+    indent[indent_len] = '\0';
+
     g_string_append_printf(buffer,
                            "\n%s%s}%s",
                            indent,
                            brace_indent,
                            newline_after_struct);
   }
-
-  format->indent_level -= format->block_indent;
 }
 
 static void
