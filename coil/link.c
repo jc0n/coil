@@ -139,38 +139,30 @@ link_copy(gconstpointer obj,
 }
 
 COIL_API(gboolean)
-coil_link_equals(gconstpointer  self_,
-                 gconstpointer  other_,
+coil_link_equals(gconstpointer  self,
+                 gconstpointer  other,
                  GError       **error)
 {
-  g_return_val_if_fail(COIL_IS_LINK(self_), FALSE);
-  g_return_val_if_fail(COIL_IS_LINK(other_), FALSE);
+  g_return_val_if_fail(COIL_IS_LINK(self), FALSE);
+  g_return_val_if_fail(COIL_IS_LINK(other), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  const CoilLink *self = COIL_LINK(self_);
-  const CoilLink *other = COIL_LINK(other_);
+  CoilLink         *a, *b;
+  const GValue     *av, *bv;
 
-  if (self == other)
+  a = COIL_LINK(self);
+  b = COIL_LINK(other);
+
+  if (a == b)
     return TRUE;
 
-  // Check disjoint roots
-  const CoilStruct *self_ctnr = COIL_EXPANDABLE(self)->container;
-  const CoilStruct *other_ctnr = COIL_EXPANDABLE(self)->container;
-
-  if (coil_struct_has_same_root(self_ctnr, other_ctnr))
-    return coil_path_equal(self->target_path, other->target_path);
-
-  const GValue *self_value = NULL;
-  const GValue *other_value = NULL;
-
-  if (!coil_expand(COIL_EXPANDABLE(self), &self_value, FALSE, error)
-    || !coil_expand(COIL_EXPANDABLE(other), &other_value, FALSE, error))
+  if (!coil_expand(a, &av, FALSE, error))
     return FALSE;
 
-  g_assert(G_IS_VALUE(self_value));
-  g_assert(G_IS_VALUE(other_value));
+  if (!coil_expand(b, &bv, FALSE, error))
+    return FALSE;
 
-  return coil_value_compare(self_value, other_value, error) == 0;
+  return coil_value_compare(av, bv, error) == 0;
 }
 
 COIL_API(void)
