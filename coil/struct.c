@@ -3051,13 +3051,7 @@ coil_struct_equals(gconstpointer   obj,
     v1 = e1->value;
     v2 = e2->value;
 
-    if ((v1 != v2
-      && (v1 == NULL || v2 == NULL))
-      || (G_VALUE_HOLDS(v1, COIL_TYPE_EXPANDABLE)
-        && !coil_expand_value(v1, &v1, TRUE, error))
-      || (G_VALUE_HOLDS(v2, COIL_TYPE_EXPANDABLE)
-        && !coil_expand_value(v2, &v2, TRUE, error))
-      || coil_value_compare(v1, v2, error))
+    if (coil_value_compare(v1, v2, error))
       goto done;
 
     lp1 = g_list_delete_link(lp1, lp1);
