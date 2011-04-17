@@ -590,7 +590,7 @@ insert_with_existing_entry(CoilStruct  *self,
 #endif
 
       coil_path_unref(path);
-      free_value(value);
+      coil_value_free(value);
       return TRUE;
     } /* ...src != dst && coil_struct_is_prototype */
   } /* ... old_value && G_VALUE_HOLDS */
@@ -605,7 +605,7 @@ insert_with_existing_entry(CoilStruct  *self,
   }
 
   /* entry exists, overwrite value */
-  free_value(old_value);
+  coil_value_free(old_value);
   coil_path_unref(entry->path);
 
   entry->value = value;
@@ -734,7 +734,7 @@ error:
     g_propagate_error(error, internal_error);
 
   coil_path_unref(path);
-  free_value(value);
+  coil_value_free(value);
 
   return FALSE;
 }
@@ -965,7 +965,7 @@ error:
   if (path)
     coil_path_unref(path);
 
-  free_value(value);
+  coil_value_free(value);
 
   return FALSE;
 }
@@ -1922,7 +1922,7 @@ struct_merge_item(CoilStruct     *self,
                                 &internal_error))
       goto error;
 
-    new_value(value, COIL_TYPE_STRUCT, take_object, new_obj);
+    coil_value_init(value, COIL_TYPE_STRUCT, take_object, new_obj);
   }
   else if (force_expand
     && G_VALUE_HOLDS(srcvalue, COIL_TYPE_EXPANDABLE))
@@ -1939,7 +1939,7 @@ struct_merge_item(CoilStruct     *self,
       g_error("Expecting return value from expansion of %s '%s'",
               G_VALUE_TYPE_NAME(srcvalue), path->path);
 
-    value = copy_value(real_value);
+    value = coil_value_copy(real_value);
   }
   else if (G_VALUE_HOLDS(srcvalue, COIL_TYPE_EXPANDABLE))
   {
@@ -1953,10 +1953,10 @@ struct_merge_item(CoilStruct     *self,
     if (G_UNLIKELY(obj_copy == NULL))
       goto error;
 
-    new_value(value, G_VALUE_TYPE(srcvalue), take_object, obj_copy);
+    coil_value_init(value, G_VALUE_TYPE(srcvalue), take_object, obj_copy);
   }
   else
-    value = copy_value(srcvalue);
+    value = coil_value_copy(srcvalue);
 
   if (!struct_insert_internal(self, path, value, hash, TRUE, error))
     goto error;
@@ -3143,7 +3143,7 @@ coil_struct_new_valist(const gchar *first_property_name,
        *  - corresponding code to complete insertion is in
        *  struct_insert_internal()
        */
-      new_value(value, COIL_TYPE_STRUCT, set_object, self);
+      coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
       entry = struct_table_insert(priv->entry_table, priv->hash, path, value);
     }
     else

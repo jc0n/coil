@@ -43,19 +43,19 @@ coil_none_init(CoilNone *obj)
 }
 
 GValue *
-value_alloc(void)
+coil_value_alloc(void)
 {
   return g_slice_new0(GValue);
 }
 
 inline GValue *
-copy_value(const GValue *value)
+coil_value_copy(const GValue *value)
 {
   GValue *copy;
 
   g_return_val_if_fail(G_IS_VALUE(value), NULL);
 
-  copy = value_alloc();
+  copy = coil_value_alloc();
   g_value_init(copy, G_VALUE_TYPE(value));
   g_value_copy(value, copy);
 
@@ -63,7 +63,7 @@ copy_value(const GValue *value)
 }
 
 GList *
-copy_value_list(const GList *value_list)
+coil_value_list_copy(const GList *value_list)
 {
   const GList  *list;
   GList        *list_copy = NULL;
@@ -74,7 +74,7 @@ copy_value_list(const GList *value_list)
        list; list = g_list_previous(list))
   {
     value = (GValue *)list->data;
-    value_copy = copy_value(value);
+    value_copy = coil_value_copy(value);
     list_copy = g_list_prepend(list_copy, value_copy);
   }
 
@@ -82,7 +82,7 @@ copy_value_list(const GList *value_list)
 }
 
 inline void
-free_value(gpointer value)
+coil_value_free(gpointer value)
 {
   if (value == NULL)
     return;
@@ -95,11 +95,11 @@ free_value(gpointer value)
 
 
 void
-free_value_list(GList *list)
+coil_value_list_free(GList *list)
 {
   while (list)
   {
-    free_value(list->data);
+    coil_value_free(list->data);
     list = g_list_delete_link(list, list);
   }
 }

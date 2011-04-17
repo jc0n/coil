@@ -299,7 +299,7 @@ clear_struct_entry(StructEntry *entry)
     coil_path_unref(entry->path);
 
   if (entry->value)
-    free_value(entry->value);
+    coil_value_free(entry->value);
 }
 
 StructEntry *

@@ -38,35 +38,34 @@ struct _CoilNoneClass
 /* multiline quotes after line exceeds n chars */
 #define COIL_MULTILINE_LEN 80
 
-#define new_value(dst, type, v_func, ptr)                         \
-        G_STMT_START                                              \
-        {                                                         \
-          dst = g_slice_new0(GValue);                             \
-          g_value_init(dst, type);                                \
-          G_PASTE_ARGS(g_value_,v_func)(dst, ptr);                \
-        }                                                         \
-        G_STMT_END
+#define coil_value_init(v_ptr, type, v_func, ptr)           \
+  G_STMT_START                                              \
+  {                                                         \
+    v_ptr = coil_value_alloc();                             \
+    g_value_init(v_ptr, type);                              \
+    G_PASTE_ARGS(g_value_,v_func)(v_ptr, ptr);              \
+  }                                                         \
+  G_STMT_END
 
 G_BEGIN_DECLS
 
 GType
 coil_none_get_type(void) G_GNUC_CONST;
 
-/* TODO(jcon): namespace the following non-namespaced fn's */
 GValue *
-value_alloc(void);
+coil_value_alloc(void);
 
 GValue *
-copy_value(const GValue *value);
+coil_value_copy(const GValue *value);
 
 GList *
-copy_value_list(const GList *value_list);
+coil_value_list_copy(const GList *value_list);
 
 void
-free_value(gpointer value);
+coil_value_free(gpointer value);
 
 void
-free_value_list(GList *list);
+coil_value_list_free(GList *list);
 
 void
 free_string_list(GList *list);

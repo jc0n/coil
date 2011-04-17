@@ -314,7 +314,7 @@ process_import_arg(CoilInclude *self,
   }
 
 #if 0
-  value_copy = value_alloc();
+  value_copy = coil_value_alloc();
 
   if (G_VALUE_HOLDS(import_value, COIL_TYPE_EXPANDABLE))
   {
@@ -363,7 +363,7 @@ expand_import_arglist(const GList   *list,
   GError *internal_error = NULL;
   GList  *lp;
 
-  list = copy_value_list(list);
+  list = coil_value_list_copy(list);
 
   for (lp = (GList *)list;
        lp; lp = g_list_next(lp))
@@ -372,7 +372,7 @@ expand_import_arglist(const GList   *list,
 
     if (G_UNLIKELY(internal_error))
     {
-      free_value_list((GList *)list);
+      coil_value_list_free((GList *)list);
       g_propagate_error(error, internal_error);
       return NULL;
     }
@@ -421,14 +421,14 @@ process_import_list(CoilInclude  *self,
     if (!process_import_arg(self, root, value, error))
       goto error;
 
-    free_value(value);
+    coil_value_free(value);
   }
 
   return TRUE;
 
 error:
   if (expanded_list)
-    free_value_list(expanded_list);
+    coil_value_list_free(expanded_list);
 
   if (internal_error)
     g_propagate_error(error, internal_error);
@@ -825,8 +825,8 @@ coil_include_dispose(GObject *object)
   CoilInclude        *self = COIL_INCLUDE(object);
   CoilIncludePrivate *priv = self->priv;
 
-  free_value(priv->filepath_value);
-  free_value_list(priv->import_list);
+  coil_value_free(priv->filepath_value);
+  coil_value_list_free(priv->import_list);
 
   if (priv->root)
     g_object_unref(priv->root);
@@ -848,7 +848,7 @@ coil_include_set_property(GObject      *object,
     case PROP_FILEPATH_VALUE: /* XXX: steals */
     {
       if (priv->filepath_value)
-        free_value(priv->filepath_value);
+        coil_value_free(priv->filepath_value);
 
       priv->filepath_value = (GValue *)g_value_get_pointer(value);
       break;
@@ -857,7 +857,7 @@ coil_include_set_property(GObject      *object,
     case PROP_IMPORT_LIST: /* XXX: steals */
     {
       if (priv->import_list)
-        free_value_list(priv->import_list);
+        coil_value_list_free(priv->import_list);
 
 //      priv->import_list = (GList *)g_value_get_boxed(value);
       priv->import_list = (GList *)g_value_get_pointer(value);

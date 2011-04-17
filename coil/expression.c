@@ -124,7 +124,7 @@ expr_expand(gconstpointer  object,
     g_string_append_c(buffer, *s);
   }
 
-  new_value(priv->expanded_value, G_TYPE_STRING,
+  coil_value_init(priv->expanded_value, G_TYPE_STRING,
             take_string, g_string_free(buffer, FALSE));
 
   priv->is_expanded = TRUE;
@@ -356,7 +356,7 @@ coil_expr_finalize(GObject *object)
     g_string_free(priv->expr, TRUE);
 
   if (priv->expanded_value)
-    free_value(priv->expanded_value);
+    coil_value_free(priv->expanded_value);
 
   G_OBJECT_CLASS(coil_expr_parent_class)->finalize(object);
 }

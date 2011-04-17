@@ -395,8 +395,8 @@ parser_has_errors(CoilParser *const parser)
 %destructor { g_string_free($$, TRUE); } <gstring>
 %destructor { coil_path_unref($$); } <path>
 %destructor { coil_path_list_free($$); } <path_list>
-%destructor { free_value($$); } <value>
-%destructor { free_value_list($$); } <value_list>
+%destructor { coil_value_free($$); } <value>
+%destructor { coil_value_list_free($$); } <value_list>
 
 %start coil
 
@@ -618,12 +618,12 @@ link_path
     if (link == NULL)
       YYERROR;
 
-    new_value($$, COIL_TYPE_LINK, take_object, link);
+    coil_value_init($$, COIL_TYPE_LINK, take_object, link);
   }
 ;
 
 pathstring_value
-  : pathstring { new_value($$, COIL_TYPE_PATH, take_boxed, $1); }
+  : pathstring { coil_value_init($$, COIL_TYPE_PATH, take_boxed, $1); }
 ;
 
 pathstring
@@ -681,7 +681,7 @@ value
   : primative  { $$ = $1; }
   | string     { $$ = $1; }
   | link       { $$ = $1; }
-  | value_list { new_value($$, COIL_TYPE_LIST, take_boxed, $1); }
+  | value_list { coil_value_init($$, COIL_TYPE_LIST, take_boxed, $1); }
 ;
 
 path
@@ -693,17 +693,17 @@ path
 
 string
   : STRING_LITERAL
-  { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }
+  { coil_value_init($$, G_TYPE_GSTRING, take_boxed, $1); }
   | STRING_EXPRESSION
-  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL)); }
+  { coil_value_init($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL)); }
 ;
 
 primative
-  : NONE_SYM  { new_value($$, COIL_TYPE_NONE, set_object, coil_none_object); }
-  | TRUE_SYM  { new_value($$, G_TYPE_BOOLEAN, set_boolean, TRUE); }
-  | FALSE_SYM { new_value($$, G_TYPE_BOOLEAN, set_boolean, FALSE); }
-  | INTEGER   { new_value($$, G_TYPE_LONG, set_long, $1); }
-  | DOUBLE    { new_value($$, G_TYPE_DOUBLE, set_double, $1); }
+  : NONE_SYM  { coil_value_init($$, COIL_TYPE_NONE, set_object, coil_none_object); }
+  | TRUE_SYM  { coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, TRUE); }
+  | FALSE_SYM { coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, FALSE); }
+  | INTEGER   { coil_value_init($$, G_TYPE_LONG, set_long, $1); }
+  | DOUBLE    { coil_value_init($$, G_TYPE_DOUBLE, set_double, $1); }
 ;
 
 %%
