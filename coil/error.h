@@ -107,13 +107,13 @@ typedef struct _CoilLocation
 
 #define coil_struct_error(err, node, format, args...) \
   coil_expandable_error(err, COIL_ERROR_STRUCT, \
-                        node, "Struct error (%s): " format, \
+                        node, "<%s>: " format, \
                         coil_struct_get_path(node)->path, \
                         ##args)
 
 #define coil_link_error(err, link, format, args...) \
         coil_expandable_error(err, COIL_ERROR_LINK, \
-                        link, "Link error (%s): " format, \
+                        link, "<%s>: " format, \
                         coil_link_get_path(link)->path, \
                         ##args)
 

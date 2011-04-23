@@ -568,9 +568,9 @@ insert_with_existing_entry(CoilStruct  *self,
       if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
       { /* old value is prototype - new value is not struct */
         coil_struct_error(error, self,
-                          "Attempting to overwrite struct prototype '%s' "
-                          "with non struct value. This implies struct is used but "
-                          "never defined.",
+                          "Attempting to overwrite struct prototype value "
+                          "'%s' with non struct value. This implies struct "
+                          "is used but never defined.",
                           path->path);
 
         return FALSE;
