@@ -20,7 +20,6 @@ struct _StructTable
   volatile gint ref_count;
 
   StructEntry **bucket;
-  StructEntry  *free;
 };
 
 struct _StructEntry
