@@ -498,7 +498,16 @@ coil_struct_has_same_root(const CoilStruct *a,
   g_return_val_if_fail(COIL_IS_STRUCT(a), FALSE);
   g_return_val_if_fail(COIL_IS_STRUCT(b), FALSE);
 
-  return a == b || coil_struct_get_root(a) == coil_struct_get_root(b);
+  if (a == b)
+    return TRUE;
+
+  if (coil_struct_is_root(a))
+    return coil_struct_is_descendent(b, a);
+
+  if (coil_struct_is_root(b))
+    return coil_struct_is_descendent(a, b);
+
+  return coil_struct_get_root(a) == coil_struct_get_root(b);
 }
 
 COIL_API(void)
