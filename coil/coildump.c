@@ -419,7 +419,8 @@ print_paths(CoilStruct       *root,
       }
     }
 
-  if (buffer->str[buffer->len - 1] == '\n')
+  if (buffer->len > 0
+   && buffer->str[buffer->len - 1] == '\n')
     g_string_truncate(buffer, buffer->len - 1);
 
   return;

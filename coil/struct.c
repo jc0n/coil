@@ -2830,9 +2830,12 @@ _struct_build_scoped_string(CoilStruct       *self,
     g_string_append_c(buffer, '\n');
   }
 
-  g_string_truncate(buffer, buffer->len - 1);
-  if (buffer->str[buffer->len - 1] == '\n')
+  if (buffer->len > 0)
+  {
     g_string_truncate(buffer, buffer->len - 1);
+    if (buffer->str[buffer->len - 1] == '\n')
+      g_string_truncate(buffer, buffer->len - 1);
+  }
 
   format->indent_level -= format->block_indent;
 
