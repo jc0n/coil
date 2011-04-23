@@ -589,16 +589,15 @@ insert_with_existing_entry(CoilStruct  *self,
        * and destroy it (leaving the prototype in place but casting to
        * non-prototype).
        */
-        if (!coil_struct_merge_full(src, dst, TRUE, FALSE, error))
-          return FALSE;
-#if 0
-        g_object_set(self,
-                     "is-prototype", FALSE,
-                     NULL);
-#endif
+      if (!coil_struct_merge_full(src, dst, TRUE, FALSE, error))
+        return FALSE;
 
-      coil_path_unref(path);
-      coil_value_free(value);
+      if (path)
+        coil_path_unref(path);
+
+      if (value)
+        coil_value_free(value);
+
       return TRUE;
     }
   }
