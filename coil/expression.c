@@ -91,10 +91,7 @@ expr_expand(gconstpointer  object,
   {
     if (*s == '\\')
     {
-      s++;
-      if (*s == '$')
-        g_string_append_c(buffer, '$');
-
+      g_string_append_c(buffer, *++s);
       continue;
     }
 
