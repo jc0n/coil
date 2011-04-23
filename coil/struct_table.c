@@ -15,6 +15,17 @@
 #define HASH_BYTE(hash, byte) hash = (hash * 33 + (byte))
 
 #ifdef COIL_DEBUG
+void struct_table_assert(StructTable *) G_GNUC_UNUSED;
+void struct_table_print(StructTable *) G_GNUC_UNUSED;
+
+void
+struct_table_assert(StructTable *table)
+{
+  g_assert(table != NULL);
+  g_assert(table->max > table->size);
+  g_assert(table->ref_count > 0);
+}
+
 void
 struct_table_print(StructTable *table)
 {
@@ -22,6 +33,9 @@ struct_table_print(StructTable *table)
 
   StructEntry **ep, *e;
   gint          n = table->max;
+
+  g_print("<StructTable *%p, size=%lu, max=%lu, ref_count=%d>",
+          table, table->size, table->max, table->ref_count);
 
   for (ep = table->bucket, e = *ep;
        n-- > 0; ep++, e = *ep)
@@ -75,6 +89,7 @@ hash_relative_path(guint        container_hash,
 {
   g_return_val_if_fail(path, 0);
   g_return_val_if_fail(*path, 0);
+  g_return_val_if_fail(*path != '@', 0);
   g_return_val_if_fail(path_len > 0, 0);
 
   if (path[0] != COIL_PATH_DELIM)
