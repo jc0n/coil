@@ -668,17 +668,6 @@ struct_insert_internal(CoilStruct     *self,
     g_queue_push_tail(&priv->entries, entry);
     priv->size++;
   }
-  else if (value_is_struct
-      && entry->value != NULL
-/*      && G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT)*/
-      && (CoilStruct *)g_value_peek_pointer(value)
-      == (CoilStruct *)g_value_peek_pointer(entry->value))
-  {
-    /* XXX: struct exists in the table but not in our list */
-    g_queue_push_tail(&priv->entries, entry);
-    priv->size++;
-    goto done;
-  }
   else if (!insert_with_existing_entry(self, entry, path, value, replace, error))
     goto error;
 
@@ -712,7 +701,6 @@ struct_insert_internal(CoilStruct     *self,
     }
   }
 
-done:
 #ifdef COIL_DEBUG
   priv->version++;
 #endif
@@ -733,8 +721,11 @@ error:
   if (internal_error)
     g_propagate_error(error, internal_error);
 
-  coil_path_unref(path);
-  coil_value_free(value);
+  if (path)
+    coil_path_unref(path);
+
+  if (value)
+    coil_value_free(value);
 
   return FALSE;
 }
@@ -752,8 +743,8 @@ struct_create_container(CoilStruct  *self,
   g_return_val_if_fail(hash > 0, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  CoilStructPrivate *const priv = self->priv;
-  StructEntry       *entry;
+//  CoilStructPrivate *const priv = self->priv;
+//  StructEntry       *entry;
   CoilStruct        *container;
 
 #if 0
@@ -781,8 +772,12 @@ struct_create_container(CoilStruct  *self,
   if (container == NULL)
     return NULL;
 
+#if 0
   entry = struct_table_lookup(priv->entry_table, hash,
                               path->path, path->path_len);
+
+  if (entry == NULL)
+    g_error("cannot find struct entry");
 
   g_queue_push_tail(&priv->entries, entry);
 
@@ -791,6 +786,7 @@ struct_create_container(CoilStruct  *self,
 #endif
 
   priv->size++;
+#endif
 
   return container;
 }
@@ -3105,7 +3101,6 @@ coil_struct_new_valist(const gchar *first_property_name,
   GObject           *object;
   CoilStruct        *self, *container;
   CoilStructPrivate *priv;
-  StructEntry       *entry;
   CoilPath          *path;
   GValue            *value;
 
@@ -3147,7 +3142,11 @@ coil_struct_new_valist(const gchar *first_property_name,
        *  struct_insert_internal()
        */
       coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
-      entry = struct_table_insert(priv->entry_table, priv->hash, path, value);
+      if (!coil_struct_insert_path(self, path, value, TRUE, error))
+      {
+        coil_path_unref(path);
+        return NULL;
+      }
     }
     else
       g_error("path specified with no container");
