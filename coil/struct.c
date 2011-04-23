@@ -3058,7 +3058,8 @@ coil_struct_equals(gconstpointer   obj,
     p2 = e2->path;
 
     // compare keys
-    if (strcmp(p1->key, p2->key))
+    if (p1->key_len != p2->key_len
+      || strcmp(p1->key, p2->key))
       goto done;
 
     v1 = e1->value;
