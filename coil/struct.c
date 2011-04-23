@@ -613,10 +613,12 @@ insert_with_existing_entry(CoilStruct  *self,
   }
 
   /* entry exists, overwrite value */
-  coil_value_free(old_value);
-  coil_path_unref(entry->path);
-
+  if (old_value)
+    coil_value_free(old_value);
   entry->value = value;
+
+  if (entry->path)
+    coil_path_unref(entry->path);
   entry->path = path;
 
   return TRUE;
@@ -972,7 +974,8 @@ error:
   if (path)
     coil_path_unref(path);
 
-  coil_value_free(value);
+  if (value)
+    coil_value_free(value);
 
   return FALSE;
 }
