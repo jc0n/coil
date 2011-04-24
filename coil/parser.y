@@ -220,7 +220,6 @@ parser_push_container(CoilParser *parser)
                "accumulate", TRUE,
                NULL);
 
-  g_object_ref(new_container);
   PUSH_CONTAINER(parser, new_container);
 
   return TRUE;

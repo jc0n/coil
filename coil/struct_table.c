@@ -262,6 +262,8 @@ static void
 destroy_entry(StructEntry *entry)
 {
   g_return_if_fail(entry);
+
+  clear_entry(entry);
   g_slice_free(StructEntry, entry);
 }
 
