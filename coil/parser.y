@@ -467,7 +467,13 @@ assignment_value
 ;
 
 container
-  : container_declaration { parser_pop_container(YYCTX); }
+  : container_declaration
+  {
+    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+
+    if (!coil_struct_is_root(container))
+      parser_pop_container(YYCTX);
+  }
 ;
 
 container_declaration
