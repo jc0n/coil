@@ -1,0 +1,25 @@
+{
+  Suppress glib type initialization leaks
+  Memcheck:Leak
+  ...
+  fun:coil_init
+  ...
+  fun:main
+}
+
+{
+  Suppress register static type creation
+  Memcheck:Leak
+  ...
+  fun:g_type_register_static
+  ...
+}
+
+{
+  Suppress object class creation
+  Memcheck:Leak
+  ...
+  fun:g_type_create_instance
+  ...
+}
+
