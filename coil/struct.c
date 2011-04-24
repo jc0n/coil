@@ -686,6 +686,10 @@ struct_insert_internal(CoilStruct     *self,
                                        replace, error))
     goto error;
 
+#ifdef COIL_DEBUG
+  priv->version++;
+#endif
+
   /* XXX: if value is struct, path will change based on container. */
   /* TODO(jcon): implement set_container in expandable */
   if (value_is_struct)
@@ -700,33 +704,25 @@ struct_insert_internal(CoilStruct     *self,
                                   path, &hash,
                                   TRUE, &internal_error))
       goto error;
+
+    /* XXX: inserting a prototype does not provoke a cast */
+    if (!coil_struct_is_prototype(object))
+      coil_struct_foreach_ancestor(self, TRUE, make_prototype_final, NULL);
+
+    return TRUE;
   }
-  else if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
+
+  if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
   {
-    CoilExpandable *object = COIL_EXPANDABLE(g_value_get_object(value));
+    CoilExpandable *object;
 
-    if (object->container != self)
-    {
-      g_object_set(G_OBJECT(object),
-                   "container", self,
-                   NULL);
-    }
+    object = COIL_EXPANDABLE(g_value_get_object(value));
+    g_object_set(G_OBJECT(object),
+                 "container", self,
+                 NULL);
   }
 
-#ifdef COIL_DEBUG
-  priv->version++;
-#endif
-
-  /*
-   * if we were a prototype cast self and our ancestry to finals
-   * sine we just set a value.
-   */
-  if (coil_struct_is_prototype(self))
-  {
-    CoilStructFunc fn = (CoilStructFunc)make_prototype_final;
-    coil_struct_foreach_ancestor(self, TRUE, fn, NULL);
-  }
-
+  coil_struct_foreach_ancestor(self, TRUE, make_prototype_final, NULL);
   return TRUE;
 
 error:
@@ -740,67 +736,6 @@ error:
     coil_value_free(value);
 
   return FALSE;
-}
-
-/* Create container for path inside self */
-static CoilStruct *
-struct_create_container(CoilStruct  *self,
-                        CoilPath    *path,
-                        guint        hash,
-                        gboolean     prototype,
-                        GError     **error)
-{
-  g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
-  g_return_val_if_fail(path, NULL);
-  g_return_val_if_fail(hash > 0, NULL);
-  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
-
-//  CoilStructPrivate *const priv = self->priv;
-//  StructEntry       *entry;
-  CoilStruct        *container;
-
-#if 0
-  if (!coil_struct_is_prototype(self))
-  {
-    GError *internal_error = NULL;
-    g_signal_emit(self, struct_signals[MODIFY],
-                0, (gpointer *)&internal_error);
-
-    if (G_UNLIKELY(internal_error))
-    {
-      g_propagate_error(error, internal_error);
-      return NULL;
-    }
-  }
-#endif
-
-  container = coil_struct_new(error,
-                              "container", self,
-                              "path", path,
-                              "hash", hash,
-                              "is-prototype", prototype,
-                              NULL);
-
-  if (container == NULL)
-    return NULL;
-
-#if 0
-  entry = struct_table_lookup(priv->entry_table, hash,
-                              path->path, path->path_len);
-
-  if (entry == NULL)
-    g_error("cannot find struct entry");
-
-  g_queue_push_tail(&priv->entries, entry);
-
-#ifdef COIL_DEBUG
-  priv->version++;
-#endif
-
-  priv->size++;
-#endif
-
-  return container;
 }
 
 static void
@@ -925,8 +860,12 @@ coil_struct_create_containers(CoilStruct     *self,
                                             COIL_PATH_IS_ABSOLUTE |
                                             COIL_STATIC_KEY);
 
-    container = struct_create_container(container, container_path,
-                                        hashes[i], prototype, error);
+    container = coil_struct_new(error,
+                                "container", container,
+                                "path", container_path,
+                                "hash", hashes[i],
+                                "is-prototype", prototype,
+                                NULL);
 
     coil_path_unref(container_path);
   }
@@ -3128,52 +3067,47 @@ coil_struct_new_valist(const gchar *first_property_name,
 
   if (priv->path)
   {
-    if (container)
-    {
-      priv->root = coil_struct_get_root(container);
-      priv->entry_table = struct_table_ref(container->priv->entry_table);
-
-      if (!coil_path_has_container(priv->path, container->priv->path))
-      {
-        g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
-                    "Invalid path '%s' for struct with container '%s'",
-                    priv->path->path,
-                    container->priv->path->path);
-
-        return NULL;
-      }
-
-      path = struct_resolve_path(container, priv->path, &priv->hash, error);
-      if (path == NULL)
-        return NULL;
-
-      /* XXX: add self to the table now
-       *  - makes building a struct with an initial container/path
-       * easier for us to manage otherwise checks are required in
-       * coil_struct_create_containers()
-       *
-       *  - corresponding code to complete insertion is in
-       *  struct_insert_internal()
-       */
-      coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
-      if (!coil_struct_insert_path(self, path, value, TRUE, error))
-      {
-        coil_path_unref(path);
-        return NULL;
-      }
-    }
-    else
+    if (!container)
       g_error("path specified with no container");
+
+    priv->root = coil_struct_get_root(container);
+    priv->entry_table = struct_table_ref(container->priv->entry_table);
+
+    if (!coil_path_has_container(priv->path, container->priv->path))
+    {
+      g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
+                  "Invalid path '%s' for struct with container '%s'",
+                  priv->path->path,
+                  container->priv->path->path);
+
+      g_object_unref(self);
+      return NULL;
+    }
+
+    path = struct_resolve_path(container, priv->path, &priv->hash, error);
+    if (path == NULL)
+    {
+      g_object_unref(self);
+      return NULL;
+    }
+
+    /* XXX: add self to the tree now */
+    coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
+    if (!struct_insert_internal(container, path, value, priv->hash, TRUE, error))
+    {
+      g_object_unref(self);
+      return NULL;
+    }
   }
-  else if (container)
-    g_error("container specified with no path");
-  else
+  else if (!container)
   {
     priv->root = self;
     priv->entry_table = struct_table_new();
     priv->hash = 0;
     priv->path = CoilRootPath;
   }
+  else
+    g_error("container specified with no path");
 
   g_signal_emit(object,
                 struct_signals[CREATE],
