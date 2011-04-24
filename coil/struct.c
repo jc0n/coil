@@ -334,8 +334,6 @@ struct_resolve_path_into(CoilStruct *self,
   return TRUE;
 }
 
-
-
 /*
  * coil_struct_empty: Clear all keys and values in CoilStruct
  *
@@ -527,7 +525,8 @@ coil_struct_foreach_ancestor(CoilStruct     *self,
 }
 
 gboolean
-make_prototype_final(CoilStruct *self, gpointer unused)
+make_prototype_final(CoilStruct *self,
+                     gpointer    unused)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
 
@@ -564,9 +563,9 @@ insert_with_existing_entry(CoilStruct  *self,
 
     if (src != dst && coil_struct_is_prototype(dst))
     {
-
       if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
-      { /* old value is prototype - new value is not struct */
+      {
+        /* XXX: old value is struct prototype, new value is not struct */
         coil_struct_error(error, self,
                           "Attempting to overwrite struct prototype value "
                           "'%s' with non struct value. This implies struct "
@@ -576,7 +575,7 @@ insert_with_existing_entry(CoilStruct  *self,
         return FALSE;
       }
 
-      /* Overwriting a prototype.
+      /* XXX: Overwriting a prototype.
        * Merge the items from struct we're trying to set now
        * and destroy it (leaving the prototype in place but casting to
        * non-prototype).
@@ -592,8 +591,8 @@ insert_with_existing_entry(CoilStruct  *self,
       coil_path_unref(path);
       coil_value_free(value);
       return TRUE;
-    } /* ...src != dst && coil_struct_is_prototype */
-  } /* ... old_value && G_VALUE_HOLDS */
+    }
+  }
   else if (!replace)
   {
      coil_struct_error(error, self,
@@ -646,6 +645,7 @@ struct_insert_internal(CoilStruct     *self,
   if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
   {
     CoilStruct *object;
+
     object = COIL_STRUCT(g_value_get_object(value));
     if (coil_struct_is_ancestor(object, self))
     {
@@ -667,14 +667,16 @@ struct_insert_internal(CoilStruct     *self,
     entry = struct_table_insert(priv->entry_table, hash, path, value);
     g_queue_push_tail(&priv->entries, entry);
     priv->size++;
+
+    if (!struct_change_notify(self, &internal_error))
+      goto error;
   }
-  else if (!insert_with_existing_entry(self, entry, path, value, replace, error))
+  else if (!insert_with_existing_entry(self, entry,
+                                       path, value,
+                                       replace, error))
     goto error;
 
-  /* if value is struct,
-   * the path will be different so we need up update that and
-   * also update children */
-
+  /* XXX: if value is struct, path will change based on container. */
   /* TODO(jcon): implement set_container in expandable */
   if (value_is_struct)
   {
