@@ -778,14 +778,13 @@ compute_path_hashlen(const gchar *path,
     *num_parts = i;
 }
 
-/* TODO(jcon): validate path arguments for public API */
 COIL_API(CoilStruct *)
-coil_struct_create_containers(CoilStruct     *self,
-                              const gchar    *path, /* of container */
-                              guint8          path_len,
-                              gboolean        prototype,
-                              gboolean        has_previous_lookup, /* whether path has been looked up */
-                              GError        **error)
+coil_struct_create_containers_fast(CoilStruct     *self,
+                                   const gchar    *path,
+                                   guint8          path_len,
+                                   gboolean        prototype,
+                                   gboolean        has_lookup,
+                                   GError        **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
   g_return_val_if_fail(path, NULL);
@@ -794,84 +793,115 @@ coil_struct_create_containers(CoilStruct     *self,
   g_return_val_if_fail(path_len <= COIL_PATH_LEN, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  if (path_len == COIL_ROOT_PATH_LEN)
-  {
-    g_assert(!memcmp(path, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN));
-    return coil_struct_get_root(self);
-  }
-
-  CoilStructPrivate *const priv = self->priv;
-  StructEntry       *entry;
-  CoilStruct        *container = priv->root;
+  CoilStructPrivate *priv = self->priv;
+  CoilStruct        *container;
   guint              hashes[COIL_PATH_MAX_PARTS];
   guint8             lens[COIL_PATH_MAX_PARTS], i, missing_keys = 0;
 
+  if (path_len == COIL_ROOT_PATH_LEN)
+    return coil_struct_get_root(self);
+
   compute_path_hashlen(path, path_len, hashes, lens, &i);
 
-  if (has_previous_lookup)
+  g_assert(i > 0);
+
+  if (has_lookup)
   {
     i--;
     missing_keys++;
   }
 
-  for (; i > 0; missing_keys++, i--)
+  for (container = coil_struct_get_root(self);
+       i > 0; missing_keys++, i--)
   {
+    StructEntry *entry;
+
     entry = struct_table_lookup(priv->entry_table, hashes[i], path, lens[i]);
-    if (entry)
+    if (entry == NULL)
+      continue;
+
+    if (entry->value == NULL)
     {
-      if (G_UNLIKELY(!entry->value
-            || !G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT)))
-      {
-        coil_struct_error(error, self,
-          "Attempting to assign values in non-struct object %.*s type %s.",
-          lens[i], path, G_VALUE_TYPE_NAME(entry->value));
+      coil_struct_error(error, self,
+                        "Attempting to insert value within a previously "
+                        "deleted key %.*s",
+                        lens[i], path);
 
-        return NULL;
-      }
-
-      container = COIL_STRUCT(g_value_get_object(entry->value));
-      break;
+      return NULL;
     }
+
+    if (!G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
+    {
+      coil_struct_error(error, self,
+                        "Attempting to assign values in non-struct "
+                        "object %.*s type '%s'.",
+                        lens[i], path,
+                        G_VALUE_TYPE_NAME(entry->value));
+
+      return NULL;
+    }
+
+    container = COIL_STRUCT(g_value_get_object(entry->value));
+    break;
   }
 
   if (!prototype)
-  {
-    CoilStructFunc fn = (CoilStructFunc)make_prototype_final;
-    coil_struct_foreach_ancestor(container, TRUE, fn, NULL);
-  }
+    coil_struct_foreach_ancestor(container, TRUE,
+                                 make_prototype_final, NULL);
 
-  for (i++; G_LIKELY(container != NULL) && missing_keys > 0;
+  for (i++; container && missing_keys > 0;
       missing_keys--, i++)
   {
-    /* container i exists and i > 1 */
-    /* or i == 1 */
-    CoilPath *container_path;
-    gchar    *container_path_str, *container_key_str;
-    guint8    container_key_len;
+    CoilPath   *p;
+    gchar      *str, *key;
+    guint8      key_len;
+    CoilStruct *prev;
 
-    container_path_str = g_strndup(path, lens[i]);
-    container_key_str = &container_path_str[lens[i - 1]] + 1;
-    container_key_len = (lens[i] - lens[i - 1]) - 1;
+    prev = g_object_ref(container);
+    str = g_strndup(path, lens[i]);
+    key = &str[lens[i - 1]] + 1;
+    key_len = (lens[i] - lens[i - 1]) - 1;
 
-    container_path = coil_path_take_strings(container_path_str,
-                                            lens[i],
-                                            container_key_str,
-                                            container_key_len,
-                                            COIL_PATH_IS_ABSOLUTE |
-                                            COIL_STATIC_KEY);
+    p = coil_path_take_strings(str, lens[i], key, key_len,
+                               COIL_PATH_IS_ABSOLUTE | COIL_STATIC_KEY);
 
     container = coil_struct_new(error,
                                 "container", container,
-                                "path", container_path,
+                                "path", p,
                                 "hash", hashes[i],
                                 "is-prototype", prototype,
                                 NULL);
 
-    coil_path_unref(container_path);
+    coil_path_unref(p);
+    g_object_unref(prev);
   }
 
   return container;
 }
+
+COIL_API(CoilStruct *)
+coil_struct_create_containers(CoilStruct  *self,
+                              const gchar *path,
+                              guint        path_len,
+                              gboolean     prototype,
+                              gboolean     has_lookup,
+                              GError     **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
+  g_return_val_if_fail(path, NULL);
+  g_return_val_if_fail(path_len > 0, NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  if (!coil_check_path(path, path_len, error))
+    return NULL;
+
+  return coil_struct_create_containers_fast(self,
+                                            path, path_len,
+                                            prototype, has_lookup,
+                                            error);
+}
+
+
 
 COIL_API(gboolean)
 coil_struct_insert_path(CoilStruct *self,

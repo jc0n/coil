@@ -201,20 +201,13 @@ parser_push_container(CoilParser *parser)
   CoilStruct     *new_container, *container = PEEK_CONTAINER(parser);
   const CoilPath *path = parser->path;
 
-  new_container = coil_struct_create_containers(container,
-                                                path->path,
-                                                path->path_len,
-                                                FALSE, /* is prototype */
-                                                FALSE, /* has failed lookup */
-                                                &parser->error);
+  new_container = coil_struct_create_containers_fast(container,
+                                                     path->path, path->path_len,
+                                                     FALSE, FALSE,
+                                                     &parser->error);
 
-  if (G_UNLIKELY(parser->error))
-  {
-    if (new_container)
-      g_object_unref(new_container);
-
+  if (new_container == NULL)
     return FALSE;
-  }
 
   g_object_set(new_container,
                "accumulate", TRUE,

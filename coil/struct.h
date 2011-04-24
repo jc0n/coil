@@ -82,10 +82,18 @@ coil_struct_new_valist(const gchar *first_property_name,
 CoilStruct *
 coil_struct_create_containers(CoilStruct  *self,
                               const gchar *path,
-                              guint8       path_len,
+                              guint        path_len,
                               gboolean     prototype,
                               gboolean     has_previous_lookup,
                               GError     **error);
+
+CoilStruct *
+coil_struct_create_containers_fast(CoilStruct  *self,
+                                   const gchar *path,
+                                   guint8       path_len,
+                                   gboolean     prototype,
+                                   gboolean     has_previous_lookup,
+                                   GError     **error);
 
 void
 coil_struct_empty(CoilStruct *self,
