@@ -34,7 +34,7 @@ struct_table_print(StructTable *table)
   StructEntry **ep, *e;
   gint          n = table->max;
 
-  g_print("<StructTable *%p, size=%lu, max=%lu, ref_count=%d>",
+  g_print("<StructTable *%p, size=%u, max=%u, ref_count=%d>",
           table, table->size, table->max, table->ref_count);
 
   for (ep = table->bucket, e = *ep;
