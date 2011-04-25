@@ -33,10 +33,12 @@ G_DEFINE_TYPE(CoilInclude, coil_include, COIL_TYPE_EXPANDABLE);
 
 struct _CoilIncludePrivate
 {
-  GValue   *filepath_value; /* (expandable -> string) OR string */
-  GList    *import_list; /* list of (expandable -> string) or strings */
+  GValue     *filepath_value; /* (expandable -> string) OR string */
+  GList      *import_list; /* list of (expandable -> string) or strings */
 
-  gboolean  is_expanded : 1;
+  CoilStruct *root;
+
+  gboolean    is_expanded : 1;
 };
 
 typedef enum
@@ -275,6 +277,7 @@ process_import_arg(CoilInclude *self,
                    GError     **error)
 {
   CoilPath     *path;
+  CoilStruct   *source;
   CoilStruct   *container = COIL_EXPANDABLE(self)->container;
   GError       *internal_error = NULL;
   const GValue *import_value;
@@ -311,7 +314,7 @@ process_import_arg(CoilInclude *self,
   }
 
 #if 0
-  value_copy = value_alloc();
+  value_copy = coil_value_alloc();
 
   if (G_VALUE_HOLDS(import_value, COIL_TYPE_EXPANDABLE))
   {
@@ -338,8 +341,14 @@ process_import_arg(CoilInclude *self,
 
 #endif
 
-  CoilStruct *source = COIL_STRUCT(g_value_dup_object(import_value));
-  result = coil_struct_merge(source, container, FALSE, error);
+  source = COIL_STRUCT(g_value_dup_object(import_value));
+
+#ifdef COIL_STRICT_FILE_CONTEXT
+  result = coil_struct_merge_full(source, container, FALSE, TRUE, error);
+#else
+  result = coil_struct_merge(source, container, error);
+#endif
+
   g_object_unref(source);
 
 done:
@@ -354,7 +363,7 @@ expand_import_arglist(const GList   *list,
   GError *internal_error = NULL;
   GList  *lp;
 
-  list = copy_value_list(list);
+  list = coil_value_list_copy(list);
 
   for (lp = (GList *)list;
        lp; lp = g_list_next(lp))
@@ -363,7 +372,7 @@ expand_import_arglist(const GList   *list,
 
     if (G_UNLIKELY(internal_error))
     {
-      free_value_list((GList *)list);
+      coil_value_list_free((GList *)list);
       g_propagate_error(error, internal_error);
       return NULL;
     }
@@ -412,14 +421,14 @@ process_import_list(CoilInclude  *self,
     if (!process_import_arg(self, root, value, error))
       goto error;
 
-    free_value(value);
+    coil_value_free(value);
   }
 
   return TRUE;
 
 error:
   if (expanded_list)
-    free_value_list(expanded_list);
+    coil_value_list_free(expanded_list);
 
   if (internal_error)
     g_propagate_error(error, internal_error);
@@ -505,18 +514,16 @@ expand_filepath(CoilInclude *self,
 }
 
 static gboolean
-include_expand(gconstpointer   include,
-               const GValue  **return_value,
-               GError        **error)
+include_load_root(CoilInclude *self,
+                  GError     **error)
 {
-  g_return_val_if_fail(COIL_IS_INCLUDE(include), FALSE);
+  g_return_val_if_fail(COIL_IS_INCLUDE(self), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilInclude        *const self = COIL_INCLUDE(include);
-  CoilIncludePrivate *const priv = self->priv;
-  CoilExpandable     *const super = COIL_EXPANDABLE(include);
+  CoilIncludePrivate *priv = self->priv;
+  CoilExpandable     *const super = COIL_EXPANDABLE(self);
   CoilStruct         *container = super->container;
-  CoilStruct         *root = NULL;
+  CoilStruct         *root;
   const gchar        *filepath;
   GError             *internal_error = NULL;
 
@@ -540,21 +547,22 @@ include_expand(gconstpointer   include,
 #ifdef COIL_INCLUDE_CACHING
   root = include_cache_lookup(filepath, &internal_error);
 
-  if (G_UNLIKELY(internal_error)) goto error;
+  if (G_UNLIKELY(internal_error))
+    goto error;
 
   if (root)
     g_object_ref(root);
   else
   {
-    GObject *gc_object;
+    GObject *notify_object;
 
     root = coil_parse_file(filepath, &internal_error);
 
     if (G_UNLIKELY(internal_error))
       goto error;
 
-    gc_object = G_OBJECT(coil_struct_get_root(container));
-    include_cache_save(gc_object, filepath, root);
+    notify_object = G_OBJECT(coil_struct_get_root(container));
+    include_cache_save(notify_object, filepath, root);
   }
 #else
   root = coil_parse_file(filepath, &internal_error);
@@ -563,14 +571,90 @@ include_expand(gconstpointer   include,
     goto error;
 #endif
 
-  g_assert(COIL_IS_STRUCT(root));
+  priv->root = root;
+  return TRUE;
+
+error:
+  if (internal_error)
+    g_propagate_error(error, internal_error);
+
+  priv->root = NULL;
+  return FALSE;
+}
+
+COIL_API(CoilStruct *)
+coil_include_get_root_node(CoilInclude *self,
+                           GError     **error)
+{
+  g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilIncludePrivate *priv = self->priv;
+
+  if (priv->root == NULL
+    && !include_load_root(self, error))
+    return NULL;
+
+  return priv->root;
+}
+
+COIL_API(CoilStruct *)
+coil_include_dup_root_node(CoilInclude *self,
+                           GError     **error)
+{
+  g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilStruct *root;
+
+  root = coil_include_get_root_node(self, error);
+  if (root)
+    g_object_ref(root);
+
+  return root;
+}
+
+static gboolean
+include_expand(gconstpointer   include,
+               const GValue  **return_value,
+               GError        **error)
+{
+  g_return_val_if_fail(COIL_IS_INCLUDE(include), FALSE);
+  g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+
+  CoilInclude        *const self = COIL_INCLUDE(include);
+  CoilIncludePrivate *const priv = self->priv;
+  CoilStruct         *root;
+  GError             *internal_error = NULL;
+
+  root = coil_include_dup_root_node(self, &internal_error);
+
+  if (G_UNLIKELY(internal_error))
+    goto error;
 
   if (priv->import_list == NULL)
   {
-    coil_struct_merge(root, container, FALSE, &internal_error);
+    CoilExpandable *const super = COIL_EXPANDABLE(self);
+    CoilStruct     *container = super->container;
 
-    if (G_UNLIKELY(internal_error))
+#ifdef COIL_STRICT_FILE_CONTEXT
+    /*
+     * XXX: this expands objects in the file root context
+     * before merging into container context.
+     *
+     * ie. links and references to root resolve against 'root'
+     * rather than root of 'container'
+     */
+    if (!coil_struct_merge_full(root,
+                                container,
+                                FALSE,
+                                TRUE,
+                                &internal_error))
       goto error;
+#else
+    if (!coil_struct_merge(root, container, &internal_error))
+      goto error;
+#endif
   }
   else if (!process_import_list(self, root, error))
     goto error;
@@ -581,7 +665,7 @@ include_expand(gconstpointer   include,
   return TRUE;
 
 error:
-  if (root != NULL)
+  if (root)
     g_object_unref(root);
 
   if (internal_error)
@@ -655,6 +739,8 @@ build_legacy_string(CoilInclude      *self,
 error:
   g_propagate_error(error, internal_error);
 }
+
+
 
 COIL_API(void)
 coil_include_build_string(CoilInclude      *self,
@@ -739,8 +825,11 @@ coil_include_dispose(GObject *object)
   CoilInclude        *self = COIL_INCLUDE(object);
   CoilIncludePrivate *priv = self->priv;
 
-  free_value(priv->filepath_value);
-  free_value_list(priv->import_list);
+  coil_value_free(priv->filepath_value);
+  coil_value_list_free(priv->import_list);
+
+  if (priv->root)
+    g_object_unref(priv->root);
 
   G_OBJECT_CLASS(coil_include_parent_class)->dispose(object);
 }
@@ -759,7 +848,7 @@ coil_include_set_property(GObject      *object,
     case PROP_FILEPATH_VALUE: /* XXX: steals */
     {
       if (priv->filepath_value)
-        free_value(priv->filepath_value);
+        coil_value_free(priv->filepath_value);
 
       priv->filepath_value = (GValue *)g_value_get_pointer(value);
       break;
@@ -768,7 +857,7 @@ coil_include_set_property(GObject      *object,
     case PROP_IMPORT_LIST: /* XXX: steals */
     {
       if (priv->import_list)
-        free_value_list(priv->import_list);
+        coil_value_list_free(priv->import_list);
 
 //      priv->import_list = (GList *)g_value_get_boxed(value);
       priv->import_list = (GList *)g_value_get_pointer(value);

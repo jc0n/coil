@@ -6,6 +6,8 @@
 #ifndef __COIL_VALUE_H
 #define __COIL_VALUE_H
 
+#include "format.h"
+
 typedef struct _CoilNone      CoilNone;
 typedef struct _CoilNoneClass CoilNoneClass;
 
@@ -22,41 +24,6 @@ struct _CoilNoneClass
   GObjectClass parent_class;
 };
 
-typedef enum {
-
-  LEGACY                     = 1 << 0,
-  COMPACT                    = 1 << 1,
-
-  FLATTEN_PATHS              = 1 << 2,
-
-  ESCAPE_QUOTES              = 1 << 3,
-
-  BLANK_LINE_AFTER_COMMA     = 1 << 4,
-  BLANK_LINE_AFTER_BRACE     = 1 << 5,
-  BLANK_LINE_AFTER_STRUCT    = 1 << 6,
-  COMMAS_IN_LIST             = 1 << 7,
-  BRACE_ON_PATH_LINE         = 1 << 8,
-
-  DONT_EXPAND                = 1 << 9,
-  DONT_QUOTE_STRINGS         = 1 << 10,
-
-} CoilStringFormatOptions;
-
-
-typedef struct _CoilStringFormat
-{
-  CoilStringFormatOptions options;
-
-  guint                   block_indent;
-  guint                   brace_indent;
-
-  guint                   multiline_len;
-
-  guint                   indent_level;
-} CoilStringFormat;
-
-extern CoilStringFormat default_string_format;
-
 /* block padding chars for string output */
 #define COIL_BLOCK_PADDING "    " /* 4 spaces */
 #define COIL_BLOCK_PADDING_LEN                                      \
@@ -71,35 +38,34 @@ extern CoilStringFormat default_string_format;
 /* multiline quotes after line exceeds n chars */
 #define COIL_MULTILINE_LEN 80
 
-#define new_value(dst, type, v_func, ptr)                         \
-        G_STMT_START                                              \
-        {                                                         \
-          dst = g_slice_new0(GValue);                             \
-          g_value_init(dst, type);                                \
-          G_PASTE_ARGS(g_value_,v_func)(dst, ptr);                \
-        }                                                         \
-        G_STMT_END
+#define coil_value_init(v_ptr, type, v_func, ptr)           \
+  G_STMT_START                                              \
+  {                                                         \
+    v_ptr = coil_value_alloc();                             \
+    g_value_init(v_ptr, type);                              \
+    G_PASTE_ARGS(g_value_,v_func)(v_ptr, ptr);              \
+  }                                                         \
+  G_STMT_END
 
 G_BEGIN_DECLS
 
 GType
 coil_none_get_type(void) G_GNUC_CONST;
 
-/* TODO(jcon): namespace the following non-namespaced fn's */
 GValue *
-value_alloc(void);
+coil_value_alloc(void);
 
 GValue *
-copy_value(const GValue *value);
+coil_value_copy(const GValue *value);
 
 GList *
-copy_value_list(const GList *value_list);
+coil_value_list_copy(const GList *value_list);
 
 void
-free_value(gpointer value);
+coil_value_free(gpointer value);
 
 void
-free_value_list(GList *list);
+coil_value_list_free(GList *list);
 
 void
 free_string_list(GList *list);

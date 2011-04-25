@@ -234,7 +234,6 @@ abc: {
 }
 
 # This is new...
-abc: { @extends: [ ..x, ..y, ..z ] } # new
 abc: { @extends: ..x, ..y, ..z }     # new
 abc: x, y, z {}                      # new
 

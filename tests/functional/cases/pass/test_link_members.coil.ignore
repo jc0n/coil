@@ -1,0 +1,5 @@
+a.x: 1
+b: a
+
+test.value: b.x
+expected.value: 1

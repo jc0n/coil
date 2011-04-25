@@ -1,3 +1,7 @@
+Add conditional tests
+
+Tests required for --enable-strict-file-context
+
 #
 # BUILD
 #

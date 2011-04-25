@@ -73,7 +73,7 @@ expr_expand(gconstpointer  object,
 
   CoilExpr        *const self = COIL_EXPR(object);
   CoilExprPrivate *const priv = self->priv;
-  CoilStringFormat format;
+  CoilStringFormat format = default_string_format;
   GString         *expr = priv->expr, *buffer;
   const gchar     *s, *p;
   GError          *internal_error = NULL;
@@ -83,18 +83,15 @@ expr_expand(gconstpointer  object,
 
   buffer = g_string_sized_new(128);
 
-  memcpy(&format, &default_string_format, sizeof(format));
   format.indent_level = 0;
-  format.options |= ESCAPE_QUOTES | DONT_QUOTE_STRINGS;
+  format.options &= ~ESCAPE_QUOTES;
+  format.options |= DONT_QUOTE_STRINGS;
 
   for (s = expr->str; *s; s++)
   {
     if (*s == '\\')
     {
-      s++;
-      if (*s == '$')
-        g_string_append_c(buffer, '$');
-
+      g_string_append_c(buffer, *++s);
       continue;
     }
 
@@ -124,7 +121,7 @@ expr_expand(gconstpointer  object,
     g_string_append_c(buffer, *s);
   }
 
-  new_value(priv->expanded_value, G_TYPE_STRING,
+  coil_value_init(priv->expanded_value, G_TYPE_STRING,
             take_string, g_string_free(buffer, FALSE));
 
   priv->is_expanded = TRUE;
@@ -185,7 +182,7 @@ expr_build_string(gconstpointer     object,
   coil_value_build_string(return_value, buffer, format, error);
 }
 
-static gchar *
+COIL_API(gchar *)
 coil_expr_to_string(CoilExpr         *self,
                     CoilStringFormat *format,
                     GError          **error)
@@ -207,26 +204,84 @@ coil_expr_to_string(CoilExpr         *self,
   return g_string_free(buffer, FALSE);
 }
 
+#ifdef COIL_PATH_TRANSLATION
+static gboolean
+expr_translate_path(GString    *expr,
+                    CoilStruct *old_container,
+                    CoilStruct *new_container,
+                    GError    **error)
+{
+  g_return_val_if_fail(COIL_IS_STRUCT(old_container), FALSE);
+  g_return_val_if_fail(COIL_IS_STRUCT(new_container), FALSE);
+
+  guint           i;
+  const gchar    *s, *e;
+  CoilPath       *path, *new_path;
+  const CoilPath *container_path;
+
+  for (i = 0, s = expr->str;
+       i < expr->len; i++, s++)
+  {
+    if (*s == '\\')
+    {
+      s++;
+      i++;
+      continue;
+    }
+
+    if (*s == '$' && s[1] == '{')
+    {
+      s += 2;
+      i += 2;
+
+      e = rawmemchr(s + 1, '}');
+
+      path = coil_path_new_len(s, e - s, error);
+      if (path == NULL)
+        return FALSE;
+
+      container_path = coil_struct_get_path(old_container);
+      new_path = coil_path_relativize(path, container_path);
+
+      g_string_erase(expr, i, path->path_len);
+      g_string_insert_len(expr, i, new_path->path, new_path->path_len);
+
+      coil_path_unref(path);
+      coil_path_unref(new_path);
+    }
+  }
+
+  return TRUE;
+}
+#endif
+
 static CoilExpandable *
 expr_copy(gconstpointer     _self,
-          const CoilStruct *container,
+          const gchar      *first_property_name,
+          va_list           properties,
           GError          **error)
 {
   g_return_val_if_fail(COIL_IS_EXPANDABLE(_self), NULL);
-  g_return_val_if_fail(COIL_IS_STRUCT(container), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  CoilExpr        *copy, *self;
-  CoilExprPrivate *priv;
-  GString         *buf;
+  CoilExpr        *self = COIL_EXPR(_self);
+  CoilExpr        *copy;
+  CoilExprPrivate *priv = self->priv;
+  GString         *string;
 
-  self = COIL_EXPR(_self);
-  priv = self->priv;
-  buf = priv->expr;
+  string = g_string_new_len(priv->expr->str, priv->expr->len);
+  copy = coil_expr_new_valist(string, first_property_name, properties);
 
-  copy = coil_expr_new(g_string_new_len(buf->str, buf->len),
-                       "container", container,
-                       NULL);
+#ifdef COIL_PATH_TRANSLATION
+  CoilStruct     *new_container, *old_container;
+
+  new_container = COIL_EXPANDABLE(copy)->container;
+  old_container = COIL_EXPANDABLE(self)->container;
+
+  if (!coil_struct_has_same_root(old_container, new_container)
+    && !expr_translate_path(string, old_container, new_container, error))
+      return NULL;
+#endif
 
   return COIL_EXPANDABLE(copy);
 }
@@ -255,19 +310,31 @@ exprval_to_strval(const GValue *exprval,
   g_value_take_string(strval, string);
 }
 
-CoilExpr *
+COIL_API(CoilExpr *)
 coil_expr_new(GString     *string, /* steals */
               const gchar *first_property_name,
               ...)
 {
-  va_list          args;
+  CoilExpr *result;
+  va_list   properties;
+
+  va_start(properties, first_property_name);
+  result = coil_expr_new_valist(string, first_property_name, properties);
+  va_end(properties);
+
+  return result;
+}
+
+COIL_API(CoilExpr *)
+coil_expr_new_valist(GString     *string,
+                     const gchar *first_property_name,
+                     va_list      properties)
+{
   GObject         *object;
   CoilExpr        *self;
   CoilExprPrivate *priv;
 
-  va_start(args, first_property_name);
-  object = g_object_new_valist(COIL_TYPE_EXPR, first_property_name, args);
-  va_end(args);
+  object = g_object_new_valist(COIL_TYPE_EXPR, first_property_name, properties);
 
   self = COIL_EXPR(object);
   priv = self->priv;
@@ -286,7 +353,7 @@ coil_expr_finalize(GObject *object)
     g_string_free(priv->expr, TRUE);
 
   if (priv->expanded_value)
-    free_value(priv->expanded_value);
+    coil_value_free(priv->expanded_value);
 
   G_OBJECT_CLASS(coil_expr_parent_class)->finalize(object);
 }

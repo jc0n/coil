@@ -5,6 +5,7 @@ ACLOCAL_AMFLAGS=-I m4
 SUBDIRS = coil tests
 
 EXTRA_DIST += \
+		m4 \
 		autogen.sh \
 		README-dev \
 		INSTALL

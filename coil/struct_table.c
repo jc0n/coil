@@ -14,6 +14,40 @@
 
 #define HASH_BYTE(hash, byte) hash = (hash * 33 + (byte))
 
+#ifdef COIL_DEBUG
+void struct_table_assert(StructTable *) G_GNUC_UNUSED;
+void struct_table_print(StructTable *) G_GNUC_UNUSED;
+
+void
+struct_table_assert(StructTable *table)
+{
+  g_assert(table != NULL);
+  g_assert(table->max > table->size);
+  g_assert(table->ref_count > 0);
+}
+
+void
+struct_table_print(StructTable *table)
+{
+  g_return_if_fail(table);
+
+  StructEntry **ep, *e;
+  gint          n = table->max;
+
+  g_print("<StructTable *%p, size=%lu, max=%lu, ref_count=%d>",
+          table, table->size, table->max, table->ref_count);
+
+  for (ep = table->bucket, e = *ep;
+       n-- > 0; ep++, e = *ep)
+    if (e)
+    {
+      const CoilPath *p = e->path;
+      const GValue   *v = e->value;
+      g_print("(%s, %p, %u)\n", p->path, (void *)v, e->hash);
+    }
+}
+#endif
+
 static inline guint
 hash_bytes(guint         hash,
            const guchar *byte,
@@ -55,6 +89,7 @@ hash_relative_path(guint        container_hash,
 {
   g_return_val_if_fail(path, 0);
   g_return_val_if_fail(*path, 0);
+  g_return_val_if_fail(*path != '@', 0);
   g_return_val_if_fail(path_len > 0, 0);
 
   if (path[0] != COIL_PATH_DELIM)
@@ -91,14 +126,13 @@ struct_table_new_sized(gsize size)
 {
   g_return_val_if_fail(size > 0, NULL);
 
-  StructTable *table = g_new(StructTable, 1);
+  StructTable *table;
 
-  /* max always 2^n-1 */
-  table->max = compute_real_max(size);
+  table = g_new(StructTable, 1);
+  table->max = compute_real_max(size); /* max always (2^n)-1 */
   table->bucket = g_new0(StructEntry *, table->max + 1);
   table->ref_count = 1;
   table->size = 0;
-  table->free = NULL;
 
   return table;
 }
@@ -117,16 +151,15 @@ struct_table_rehash(StructTable *table,
   g_return_if_fail(max > 0);
   g_return_if_fail(max == compute_real_max(max));
 
+  guint        n;
+  StructEntry *entry, *next, **old, **new;
+
   if (table->max == max)
     return;
 
-  StructEntry **new = g_new0(StructEntry *, max + 1);
+  new = g_new0(StructEntry *, max + 1);
 
   if (table->size > 0)
-  {
-    guint        n;
-    StructEntry *entry, *next, **old;
-
     for (n = table->max, old = &table->bucket[n];
          n-- > 0; old = &table->bucket[n])
     {
@@ -140,7 +173,6 @@ struct_table_rehash(StructTable *table,
         new[idx] = entry;
       }
     }
-  }
 
   g_free(table->bucket);
   table->bucket = new;
@@ -194,22 +226,45 @@ struct_table_shrink(StructTable *table)
 }
 
 static StructEntry *
-new_entry(StructTable *table)
+alloc_entry(StructTable *table)
 {
   g_return_val_if_fail(table, NULL);
 
-  StructEntry *entry = table->free;
+  StructEntry *entry;
 
-  /* XXX: new entry memory is not zero'd */
-
-  if (entry)
-    table->free = entry->next;
-  else
-    entry = g_new(StructEntry, 1);
-
+  entry = g_slice_new(StructEntry);
   entry->next = NULL;
 
   return entry;
+}
+
+static void
+clear_entry(StructEntry *entry)
+{
+  g_return_if_fail(entry);
+
+  if (G_LIKELY(entry->path))
+  {
+    coil_path_unref(entry->path);
+    entry->path = NULL;
+  }
+
+  if (entry->value)
+  {
+    coil_value_free(entry->value);
+    entry->value = NULL;
+  }
+
+  entry->next = NULL;
+}
+
+static void
+destroy_entry(StructEntry *entry)
+{
+  g_return_if_fail(entry);
+
+  clear_entry(entry);
+  g_slice_free(StructEntry, entry);
 }
 
 static StructEntry **
@@ -224,8 +279,9 @@ find_bucket(StructTable  *table,
   g_return_val_if_fail(path_len > 0, NULL);
 
   StructEntry *entry, **bucket;
+  guint        idx = hash & table->max;
 
-  for (bucket = &table->bucket[hash & table->max], entry = *bucket;
+  for (bucket = &table->bucket[idx], entry = *bucket;
        entry; bucket = &entry->next, entry = *bucket)
   {
     const CoilPath *p = entry->path;
@@ -247,8 +303,9 @@ find_bucket_with_entry(StructTable *table,
   g_return_val_if_fail(entry, NULL);
 
   StructEntry *e, **bucket;
+  guint        idx = entry->hash & table->max;
 
-  for (bucket = &table->bucket[entry->hash & table->max], e = *bucket;
+  for (bucket = &table->bucket[idx], e = *bucket;
        e; bucket = &e->next, e = *bucket)
   {
     if (e == entry)
@@ -270,17 +327,6 @@ struct_table_calibrate(StructTable *table)
     struct_table_shrink(table);
 }
 
-void
-clear_struct_entry(StructEntry *entry)
-{
-  g_return_if_fail(entry);
-
-  if (G_LIKELY(entry->path))
-    coil_path_unref(entry->path);
-
-  if (entry->value)
-    free_value(entry->value);
-}
 
 StructEntry *
 struct_table_insert(StructTable *table,
@@ -290,16 +336,16 @@ struct_table_insert(StructTable *table,
 {
   g_return_val_if_fail(table, NULL);
   g_return_val_if_fail(path, NULL);
-  g_return_val_if_fail(path->flags & COIL_PATH_IS_ABSOLUTE, NULL);
+  g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(path), NULL);
 
   StructEntry *entry, **bucket;
 
   bucket = find_bucket(table, hash, path->path, path->path_len);
 
   if (*bucket == NULL)
-    *bucket = new_entry(table);
+    *bucket = alloc_entry(table);
   else
-    clear_struct_entry(*bucket);
+    clear_entry(*bucket);
 
   entry = *bucket;
   entry->hash = hash;
@@ -416,10 +462,8 @@ struct_table_delete(StructTable *table,
   StructEntry *entry;
 
   entry = struct_table_remove(table, hash, path, path_len);
-  clear_struct_entry(entry);
 
-  entry->next = table->free;
-  table->free = entry;
+  destroy_entry(entry);
 }
 
 void
@@ -430,10 +474,8 @@ struct_table_delete_entry(StructTable *table,
   g_return_if_fail(entry);
 
   struct_table_remove_entry(table, entry);
-  clear_struct_entry(entry);
 
-  entry->next = table->free;
-  table->free = entry;
+  destroy_entry(entry);
 }
 
 void
@@ -445,27 +487,17 @@ struct_table_destroy(StructTable *table)
   guint             n;
   StructEntry **bucket, *entry, *next;
 
+  /* clear entries in all buckets */
   if (table->size > 0)
-  {
-    /* clear entries in all buckets */
     for (n = table->max, bucket = &table->bucket[n];
          n-- > 0; bucket = &table->bucket[n])
     {
       for (entry = *bucket; entry; entry = next)
       {
         next = entry->next;
-        clear_struct_entry(entry);
-        g_free(entry);
+        destroy_entry(entry);
       }
     }
-  }
-
-  /* clear free list */
-  for (entry = table->free; entry; entry = next)
-  {
-    next = entry->next;
-    g_free(entry);
-  }
 
   g_free(table->bucket);
   g_free(table);

@@ -107,13 +107,13 @@ typedef struct _CoilLocation
 
 #define coil_struct_error(err, node, format, args...) \
   coil_expandable_error(err, COIL_ERROR_STRUCT, \
-                        node, "Struct error (%s): " format, \
+                        node, "<%s>: " format, \
                         coil_struct_get_path(node)->path, \
                         ##args)
 
 #define coil_link_error(err, link, format, args...) \
         coil_expandable_error(err, COIL_ERROR_LINK, \
-                        link, "Link error (%s): " format, \
+                        link, "<%s>: " format, \
                         coil_link_get_path(link)->path, \
                         ##args)
 
@@ -122,14 +122,11 @@ typedef struct _CoilLocation
 
 #define coil_path_error(err, _path, format, args...) \
         G_STMT_START { \
-        gchar buf[(_path)->path_len + 1]; \
-        memcpy(buf, (_path)->path, (_path)->path_len); \
-        buf[sizeof(buf)] = '\0'; \
         g_set_error(error, \
                     COIL_ERROR, \
                     COIL_ERROR_PATH, \
-                    "path error (%s): " format, \
-                    buf, ##args); \
+                    "path error (%.*s): " format, \
+                    _path->path_len, _path->path, ##args); \
         } G_STMT_END
 
 #define coil_propagate_error g_propagate_error

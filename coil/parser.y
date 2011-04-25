@@ -201,26 +201,18 @@ parser_push_container(CoilParser *parser)
   CoilStruct     *new_container, *container = PEEK_CONTAINER(parser);
   const CoilPath *path = parser->path;
 
-  new_container = coil_struct_create_containers(container,
-                                                path->path,
-                                                path->path_len,
-                                                FALSE, /* is prototype */
-                                                FALSE, /* has failed lookup */
-                                                &parser->error);
+  new_container = coil_struct_create_containers_fast(container,
+                                                     path->path, path->path_len,
+                                                     FALSE, FALSE,
+                                                     &parser->error);
 
-  if (G_UNLIKELY(parser->error))
-  {
-    if (new_container)
-      g_object_unref(new_container);
-
+  if (new_container == NULL)
     return FALSE;
-  }
 
   g_object_set(new_container,
                "accumulate", TRUE,
                NULL);
 
-  g_object_ref(new_container);
   PUSH_CONTAINER(parser, new_container);
 
   return TRUE;
@@ -288,12 +280,8 @@ parser_make_path_from_string(CoilParser  *parser,
   g_return_val_if_fail(parser, NULL);
   g_return_val_if_fail(gstring, NULL);
 
-  if (!coil_validate_path_strn(gstring->str, gstring->len))
+  if (!coil_check_path(gstring->str, gstring->len, &parser->error))
   {
-    parser_error(parser,
-                 "Expecting valid path in string but found '%s' instead.",
-                 gstring->str);
-
     g_string_free(gstring, TRUE);
     return NULL;
   }
@@ -399,8 +387,8 @@ parser_has_errors(CoilParser *const parser)
 %destructor { g_string_free($$, TRUE); } <gstring>
 %destructor { coil_path_unref($$); } <path>
 %destructor { coil_path_list_free($$); } <path_list>
-%destructor { free_value($$); } <value>
-%destructor { free_value_list($$); } <value_list>
+%destructor { coil_value_free($$); } <value>
+%destructor { coil_value_list_free($$); } <value_list>
 
 %start coil
 
@@ -413,13 +401,21 @@ coil
 context
   : /* empty */
   | context statement
+  |  error
+  {
+    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+
+    if (!coil_struct_is_root(container))
+      parser_pop_container(YYCTX);
+
+    parser_handle_error(YYCTX);
+  }
 ;
 
 statement
   : builtin_property
   | deletion
   | assignment
-  | error { parser_handle_error(YYCTX); }
 ;
 
 deletion
@@ -471,11 +467,12 @@ assignment_value
 ;
 
 container
-  : container_declaration { parser_pop_container(YYCTX); }
-  |  error
+  : container_declaration
   {
-    parser_pop_container(YYCTX);
-    parser_handle_error(YYCTX);
+    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+
+    if (!coil_struct_is_root(container))
+      parser_pop_container(YYCTX);
   }
 ;
 
@@ -602,24 +599,29 @@ link_path
   : path
   {
     CoilStruct *container = PEEK_CONTAINER(YYCTX);
+    CoilLink   *link;
 
   /* XXX: YYCTX->path is null when link is not assigned to a path
       ie. @extends: [ =..some_node ]
    */
-
-    new_value($$, COIL_TYPE_LINK, take_object,
-      coil_link_new("target_path", $1,
-                    "path", YYCTX->path,
-                    "container", container,
-                    "location", &@$,
-                    NULL));
+    link = coil_link_new(&YYCTX->error,
+                         "target_path", $1,
+                         "path", YYCTX->path,
+                         "container", container,
+                         "location", &@$,
+                         NULL);
 
     coil_path_unref($1);
+
+    if (link == NULL)
+      YYERROR;
+
+    coil_value_init($$, COIL_TYPE_LINK, take_object, link);
   }
 ;
 
 pathstring_value
-  : pathstring { new_value($$, COIL_TYPE_PATH, take_boxed, $1); }
+  : pathstring { coil_value_init($$, COIL_TYPE_PATH, take_boxed, $1); }
 ;
 
 pathstring
@@ -677,7 +679,7 @@ value
   : primative  { $$ = $1; }
   | string     { $$ = $1; }
   | link       { $$ = $1; }
-  | value_list { new_value($$, COIL_TYPE_LIST, take_boxed, $1); }
+  | value_list { coil_value_init($$, COIL_TYPE_LIST, take_boxed, $1); }
 ;
 
 path
@@ -689,17 +691,17 @@ path
 
 string
   : STRING_LITERAL
-  { new_value($$, G_TYPE_GSTRING, take_boxed, $1); }
+  { coil_value_init($$, G_TYPE_GSTRING, take_boxed, $1); }
   | STRING_EXPRESSION
-  { new_value($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL)); }
+  { coil_value_init($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL)); }
 ;
 
 primative
-  : NONE_SYM  { new_value($$, COIL_TYPE_NONE, set_object, coil_none_object); }
-  | TRUE_SYM  { new_value($$, G_TYPE_BOOLEAN, set_boolean, TRUE); }
-  | FALSE_SYM { new_value($$, G_TYPE_BOOLEAN, set_boolean, FALSE); }
-  | INTEGER   { new_value($$, G_TYPE_LONG, set_long, $1); }
-  | DOUBLE    { new_value($$, G_TYPE_DOUBLE, set_double, $1); }
+  : NONE_SYM  { coil_value_init($$, COIL_TYPE_NONE, set_object, coil_none_object); }
+  | TRUE_SYM  { coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, TRUE); }
+  | FALSE_SYM { coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, FALSE); }
+  | INTEGER   { coil_value_init($$, G_TYPE_LONG, set_long, $1); }
+  | DOUBLE    { coil_value_init($$, G_TYPE_DOUBLE, set_double, $1); }
 ;
 
 %%
@@ -951,7 +953,7 @@ COIL_API(CoilStruct *)
 coil_parse_string(const gchar *string,
                   GError     **error)
 {
-  return coil_parse_string_len(string, 0, error);
+  return coil_parse_string_len(string, strlen(string), error);
 }
 
 COIL_API(CoilStruct *)

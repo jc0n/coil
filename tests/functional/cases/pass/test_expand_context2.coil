@@ -1,0 +1,54 @@
+# another file used in tests
+sub: {@file: "example.coil"
+      x: "foo"
+      y.a: "bar"
+     }
+
+sub2: {@file: "example.coil"}
+
+sub3: {
+    @extends: ..sub
+    x: "zoink"
+}
+######################################
+
+test: {
+  one: ..sub
+  two: ..sub2
+  three: ..sub3
+}
+
+expected: {
+  one: {
+    x: 'foo'
+    y: {
+      a: 'bar'
+      x: 'foo'
+      a2: 'bar'
+      x2: 'foo'
+      x3: 'foo'
+    }
+  }
+
+  two: {
+    x: 1
+    y: {
+      a: 2
+      x: 1
+      a2: 2
+      x2: 1
+      x3: '1'
+    }
+  }
+
+  three: {
+    x: 'zoink'
+    y: {
+      a: 'bar'
+      x: 'zoink'
+      a2: 'bar'
+      x2: 'zoink'
+      x3: 'zoink'
+    }
+  }
+}

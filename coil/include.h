@@ -75,6 +75,14 @@ coil_include_to_string(CoilInclude      *self,
                        CoilStringFormat *format,
                        GError          **error);
 
+CoilStruct *
+coil_include_get_root_node(CoilInclude *self,
+                           GError     **error);
+
+CoilStruct *
+coil_include_dup_root_node(CoilInclude *self,
+                           GError     **error);
+
 G_END_DECLS
 
 #endif

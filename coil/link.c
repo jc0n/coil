@@ -52,38 +52,22 @@ link_expand(gconstpointer   link,
             GError        **error)
 {
   g_return_val_if_fail(COIL_IS_LINK(link), FALSE);
-//  g_return_val_if_fail(return_value == NULL || *return_value == NULL, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilLink        *const self = COIL_LINK(link);
   CoilStruct      *container = COIL_EXPANDABLE(link)->container;
-  CoilPath        *target_path;
+  const CoilPath  *container_path;
   const GValue    *value;
   GError          *internal_error = NULL;
 
-//#ifdef COIL_OLD_LINKS
-  const CoilPath  *container_path;
-  g_assert(container);
+  g_return_val_if_fail(container, FALSE);
   container_path = coil_struct_get_path(container);
-  g_assert(container_path);
-  target_path = coil_path_resolve(self->target_path, container_path, error);
-//#else
-//  CoilLinkPrivate *const priv = self->priv;
-//  const CoilPath  *container_path;
-//  container_path = coil_struct_get_path(container)
-//  target_path = coil_path_resolve(self->target_path, container_path, error);
-//#endif
+  g_return_val_if_fail(container_path, FALSE);
 
-  if (target_path == NULL)
+  if (!coil_path_resolve_into(&self->target_path, container_path, error))
     goto error;
 
-  if (target_path != self->target_path)
-  {
-    coil_path_unref(self->target_path);
-    self->target_path = coil_path_ref(target_path);
-  }
-
-  value = coil_struct_lookup_path(container, target_path,
+  value = coil_struct_lookup_path(container, self->target_path,
                                   FALSE, &internal_error);
 
   if (G_UNLIKELY(value == NULL))
@@ -103,53 +87,82 @@ link_expand(gconstpointer   link,
   if (return_value)
     *return_value = value;
 
-  coil_path_unref(target_path);
-
   return TRUE;
 
 error:
-  if (target_path != NULL)
-    coil_path_unref(target_path);
-
   if (return_value)
     *return_value = NULL;
 
   return FALSE;
 }
 
+static CoilExpandable *
+link_copy(gconstpointer obj,
+          const gchar  *first_property_name,
+          va_list       properties,
+          GError      **error)
+{
+  g_return_val_if_fail(COIL_IS_LINK(obj), NULL);
+  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
+
+  CoilLink *self, *copy;
+
+  self = COIL_LINK(obj);
+
+  copy = coil_link_new(error, "target_path", self->target_path, NULL);
+  if (copy == NULL)
+    return NULL;
+
+  g_object_set_valist(G_OBJECT(copy), first_property_name, properties);
+
+#ifdef COIL_PATH_TRANSLATION
+  if (COIL_PATH_IS_ABSOLUTE(copy->target_path))
+  {
+    CoilStruct     *new_container, *old_container;
+    const CoilPath *container_path;
+    CoilPath       *path;
+
+    new_container = COIL_EXPANDABLE(copy)->container;
+    old_container = COIL_EXPANDABLE(self)->container;
+
+    if (!coil_struct_has_same_root(old_container, new_container))
+    {
+      container_path = coil_struct_get_path(old_container);
+      path = coil_path_relativize(copy->target_path, container_path);
+      coil_path_unref(copy->target_path);
+      copy->target_path = path;
+    }
+  }
+#endif
+
+  return COIL_EXPANDABLE(copy);
+}
+
 COIL_API(gboolean)
-coil_link_equals(gconstpointer  self_,
-                 gconstpointer  other_,
+coil_link_equals(gconstpointer  self,
+                 gconstpointer  other,
                  GError       **error)
 {
-  g_return_val_if_fail(COIL_IS_LINK(self_), FALSE);
-  g_return_val_if_fail(COIL_IS_LINK(other_), FALSE);
+  g_return_val_if_fail(COIL_IS_LINK(self), FALSE);
+  g_return_val_if_fail(COIL_IS_LINK(other), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  const CoilLink *self = COIL_LINK(self_);
-  const CoilLink *other = COIL_LINK(other_);
+  CoilLink         *a, *b;
+  const GValue     *av, *bv;
 
-  if (self == other)
+  a = COIL_LINK(self);
+  b = COIL_LINK(other);
+
+  if (a == b)
     return TRUE;
 
-  // Check disjoint roots
-  const CoilStruct *self_ctnr = COIL_EXPANDABLE(self)->container;
-  const CoilStruct *other_ctnr = COIL_EXPANDABLE(self)->container;
-
-  if (coil_struct_has_same_root(self_ctnr, other_ctnr))
-    return coil_path_equal(self->target_path, other->target_path);
-
-  const GValue *self_value = NULL;
-  const GValue *other_value = NULL;
-
-  if (!coil_expand(COIL_EXPANDABLE(self), &self_value, FALSE, error)
-    || !coil_expand(COIL_EXPANDABLE(other), &other_value, FALSE, error))
+  if (!coil_expand(a, &av, FALSE, error))
     return FALSE;
 
-  g_assert(G_IS_VALUE(self_value));
-  g_assert(G_IS_VALUE(other_value));
+  if (!coil_expand(b, &bv, FALSE, error))
+    return FALSE;
 
-  return coil_value_compare(self_value, other_value, error) == 0;
+  return coil_value_compare(av, bv, error) == 0;
 }
 
 COIL_API(void)
@@ -223,18 +236,31 @@ linkval_to_stringval(const GValue *linkval,
   g_value_take_string(strval, string);
 }
 
-CoilLink *
-coil_link_new(const gchar *first_property_name, ...)
+COIL_API(CoilLink *)
+coil_link_new(GError **error,
+              const gchar *first_property_name,
+              ...)
 {
-  va_list          args;
+  va_list   properties;
+  CoilLink *link;
+
+  va_start(properties, first_property_name);
+  link = coil_link_new_valist(first_property_name, properties, error);
+  va_end(properties);
+
+  return link;
+}
+
+COIL_API(CoilLink *)
+coil_link_new_valist(const gchar *first_property_name,
+                     va_list      properties,
+                     GError     **error)
+{
   GObject         *object;
   CoilLink        *self;
   CoilLinkPrivate *priv;
 
-  va_start(args, first_property_name);
-  object = g_object_new_valist(COIL_TYPE_LINK, first_property_name, args);
-  va_end(args);
-
+  object = g_object_new_valist(COIL_TYPE_LINK, first_property_name, properties);
   self = COIL_LINK(object);
   priv = self->priv;
 
@@ -243,35 +269,13 @@ coil_link_new(const gchar *first_property_name, ...)
   if (self->target_path == NULL)
     g_error("Link must be constructed with a path.");
 
-  /* try to lookup the container of the target path
-   * so we can ref it incase the target container is deleted in the struct
-   */
-#if 0
-  CoilExpandable *super = COIL_EXPANDABLE(object);
-  g_assert(super->container);
-
-  CoilStruct     *container = super->container;
-  const CoilPath *container_path = coil_struct_get_path(container);
-  CoilPath       *target_path;
-  const GValue   *value;
-
-  coil_struct_expand(container, NULL);
-
-  target_path = coil_path_resolve(self->target_path, container_path, NULL);
-  if (target_path)
+  if (COIL_PATH_IS_ROOT(self->target_path))
   {
-    coil_path_unref(self->target_path);
-    self->target_path = target_path;
+    coil_link_error(error, self,
+                    "Cannot link to root path");
 
-    value = coil_struct_lookup_path(container, target_path, FALSE, NULL);
-    if (value && G_VALUE_HOLDS(value, COIL_TYPE_STRUCT))
-      priv->target_container = COIL_STRUCT(g_value_dup_object(value));
+    return NULL;
   }
-  /* oh well.. */
-#endif
-
-//  if (!priv->path || !(priv->path->flags & COIL_PATH_IS_ABSOLUTE))
-//    g_error("Link must be constructed with an absolute path.");
 
   return self;
 }
@@ -367,6 +371,7 @@ coil_link_class_init(CoilLinkClass *klass)
   gobject_class->finalize = coil_link_finalize;
 
   expandable_class->is_expanded = link_is_expanded;
+  expandable_class->copy = link_copy;
   expandable_class->expand = link_expand;
   expandable_class->equals = coil_link_equals;
   expandable_class->build_string = link_build_string;

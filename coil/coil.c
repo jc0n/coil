@@ -6,9 +6,9 @@
 #include "common.h"
 #include "value.h"
 
+/* TODO(jcon): namespace */
 CoilStringFormat default_string_format = {
     ( LEGACY
-    | BRACE_ON_PATH_LINE
     | BLANK_LINE_AFTER_BRACE
     | BLANK_LINE_AFTER_STRUCT
     | ESCAPE_QUOTES
@@ -16,6 +16,8 @@ CoilStringFormat default_string_format = {
     4, /* block indent */
     0,  /* brace indent */
     78, /* multiline len */
+    0, /* indent level */
+    (CoilStruct *)NULL, /* context */
 };
 
 /*

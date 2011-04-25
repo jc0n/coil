@@ -20,13 +20,18 @@ typedef enum {
 
 typedef struct _CoilPath
 {
-  gchar         *key;
-  guint8         key_len;
   gchar         *path;
   guint8         path_len;
+  gchar         *key;
+  guint8         key_len;
   CoilPathFlags  flags;
   volatile gint  ref_count;
 } CoilPath;
+
+extern CoilPath _coil_root_path;
+
+#define coil_root_path ((CoilPath *)(&_coil_root_path))
+#define CoilRootPath (coil_path_ref(coil_root_path))
 
 #define COIL_PATH_LEN 255
 #define COIL_PATH_BUFLEN (COIL_PATH_LEN + 1) /* +1 for '\0' */
@@ -46,10 +51,6 @@ typedef struct _CoilPath
 #define COIL_PATH_DELIM '.'
 #define COIL_PATH_DELIM_S "."
 
-#define COIL_PATH_IS_KEY(p) \
-        (((((p)->flags & COIL_STATIC_KEY) && (p)->key == (p)->path) \
-         || !memcmp((p)->key, (p)->path, (p)->key_len)) && (p)->key_len > 0)
-
 #define COIL_PATH_IS_RELATIVE(p) \
         (!((p)->flags & COIL_PATH_IS_ABSOLUTE))
 
@@ -57,7 +58,8 @@ typedef struct _CoilPath
         ((p)->flags & COIL_PATH_IS_ABSOLUTE)
 
 #define COIL_PATH_IS_ROOT(p) \
-        ((p)->flags & COIL_PATH_IS_ROOT)
+        (((p) == coil_root_path) \
+         || (p)->flags & COIL_PATH_IS_ROOT)
 
 #define COIL_PATH_IS_BACKREF(p) \
         ((p)->flags & COIL_PATH_IS_BACKREF)
@@ -96,6 +98,8 @@ typedef struct _CoilPath
   } \
   G_STMT_END\
 
+
+
 G_BEGIN_DECLS
 
 #ifdef COIL_DEBUG
@@ -103,11 +107,13 @@ void
 coil_path_debug(CoilPath *p);
 #endif
 
+void
+path_length_error(const gchar *path,
+                  guint        path_len,
+                  GError     **error);
+
 GType
 coil_path_get_type(void) G_GNUC_CONST;
-
-CoilPath *
-coil_path_alloc(void) G_GNUC_WARN_UNUSED_RESULT;
 
 void
 coil_path_list_free(GList *list);
@@ -121,10 +127,12 @@ coil_path_take_strings(gchar         *path,
 
 CoilPath *
 coil_path_new_len(const gchar  *buffer,
-                  guint8        buf_len);
+                  guint         buf_len,
+                  GError      **error);
 
 CoilPath *
-coil_path_new(const gchar *buffer);
+coil_path_new(const gchar *buffer,
+              GError     **error);
 
 CoilPath *
 coil_path_copy(const CoilPath *p);
@@ -148,59 +156,66 @@ coil_path_unref(CoilPath *p);
 
 CoilPath *
 coil_path_concat(const CoilPath *container,
-                 const CoilPath *key) G_GNUC_WARN_UNUSED_RESULT;
+                 const CoilPath *key,
+                 GError        **error) G_GNUC_WARN_UNUSED_RESULT;
 
 CoilPath *
-coil_path_build_new_vlen(guint8       path_len,
-                         const gchar *base,
-                         va_list      args);
+coil_build_path_valist(GError **error,
+                       const gchar *first_key,
+                       va_list  args);
 
 CoilPath *
-coil_path_build_new_len(guint8       path_len,
-                        const gchar *base,
-                        ...);
-
-CoilPath *
-coil_path_build_new(const gchar *base,
-                    ...);
+coil_build_path(GError     **error,
+                const gchar *first_key,
+                ...) G_GNUC_NULL_TERMINATED;
 
 gboolean
-coil_validate_path_strn(const gchar *path,
-                        guint8       path_len);
+coil_validate_path_len(const gchar *path,
+                       guint        path_len);
 
 gboolean
-coil_validate_path_str(const gchar *path);
+coil_validate_path(const gchar *path);
 
 gboolean
-coil_validate_path(const CoilPath *path);
+coil_validate_key_len(const gchar *key,
+                      guint        key_len);
 
 gboolean
-coil_validate_key_strn(const gchar *key,
-                       guint8       key_len);
+coil_validate_key(const gchar *key);
 
 gboolean
-coil_validate_key_str(const gchar *key);
+coil_check_key(const gchar *key,
+               guint        key_len,
+               GError     **error);
 
-void
-coil_path_change_container(CoilPath      **path,
-                           const CoilPath *ctnr);
+gboolean
+coil_check_path(const gchar *path,
+                guint        path_len,
+                GError     **error);
+
+
+gboolean
+coil_path_change_container(CoilPath      **path_ptr,
+                           const CoilPath *container,
+                           GError        **error);
 
 CoilPath *
 coil_path_resolve(const CoilPath *path,
-                  const CoilPath *prefix,
+                  const CoilPath *context,
                   GError        **error) G_GNUC_WARN_UNUSED_RESULT;
+
+gboolean
+coil_path_resolve_into(CoilPath      **path,
+                       const CoilPath *context,
+                       GError        **error);
 
 CoilPath *
 coil_path_relativize(const CoilPath  *path,
                      const CoilPath  *base) G_GNUC_WARN_UNUSED_RESULT;
 
 gboolean
-coil_path_is_descendent(const gchar *path,
-                        const gchar *maybe_container);
-
-gboolean
-coil_path_has_container(const gchar *path,
-                        const gchar *maybe_container);
+coil_path_has_container(const CoilPath *path,
+                        const CoilPath *container);
 
 G_END_DECLS
 #endif
