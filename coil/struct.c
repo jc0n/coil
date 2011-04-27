@@ -2673,16 +2673,16 @@ coil_struct_dependency_tree(CoilStruct *self,
   return result;
 }
 
-COIL_API(guint)
+COIL_API(gint)
 coil_struct_get_size(CoilStruct *self,
                      GError    **error)
 {
-  g_return_val_if_fail(COIL_IS_STRUCT(self), 0);
-  g_return_val_if_fail(error == NULL || *error == NULL, 0);
+  g_return_val_if_fail(COIL_IS_STRUCT(self), -1);
+  g_return_val_if_fail(error == NULL || *error == NULL, -1);
 
   if (!struct_is_expanded(self)
       && !coil_struct_expand(self, error))
-    return 0;
+    return -1;
 
   return self->priv->size;
 }

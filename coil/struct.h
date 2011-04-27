@@ -323,7 +323,7 @@ coil_struct_dependency_treev(CoilStruct *self,
                              GType      *allowed_types,
                              GError    **error);
 
-guint
+gint
 coil_struct_get_size(CoilStruct *self,
                      GError    **error);
 
