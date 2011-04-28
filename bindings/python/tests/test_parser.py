@@ -154,10 +154,10 @@ class TestParser(TestCase):
 #    self.assertEqual(root.get('sub.x'), 'x value')
 #    self.assertEqual(root.get('sub.y.z'), 'z value')
 
-  def testPackage(self):
-    root = cCoil.parse('@package: "coil.test:simple.coil"')
-    self.assertEquals(root.get('x'), 'x value')
-    self.assertEquals(root.get('y.z'), 'z value')
+#  def testPackage(self):
+#    root = cCoil.parse('@package: "coil.test:simple.coil"')
+#    self.assertEquals(root.get('x'), 'x value')
+#    self.assertEquals(root.get('y.z'), 'z value')
 
   def testComments(self):
     root = cCoil.parse('y: [12 #hello\n]')

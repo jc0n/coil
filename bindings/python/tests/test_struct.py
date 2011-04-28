@@ -123,8 +123,13 @@ class TestStruct(TestCase):
     self.assertRaises(cCoil.KeyValueError,
                       self.struct.set, 'first..second', '')
 
-  def testDict(self):
+  def testToDict(self):
     self.assertEquals(self.struct['first'].dict(), dict(self.data[0][1]))
+
+  def testFromDict(self):
+    root = Struct({'a.b.c.d': 123, 'x.y.z': 'Hello'})
+    self.assertEquals(root['a.b.c.d'], 123)
+    self.assertEquals(root['x.y.z'], 'Hello')
 
   def testSetShort(self):
     s = Struct()
@@ -197,6 +202,89 @@ class TestStruct(TestCase):
     self.assertEquals(s1['list'], [1, 2, [3, 4, 9], 8])
     self.assertEquals(s2['list'], [1, 2, [3, 4]])
 
+  def testCompareStruct(self):
+    a = Struct('a:1 b:2 c:3')
+    b = Struct('a:1 b:2 c:3')
+    c = Struct('x.y.z: 123')
+    d = Struct('x: { y: { z: 123 } }')
+
+    self.assertTrue(a == a, 'a == a')
+    self.assertTrue(a == b, 'a == b')
+    self.assertTrue(b == a, 'b == a')
+    self.assertTrue(a != c, 'a != c')
+    self.assertTrue(a != d, 'a != d')
+    self.assertTrue(c == c, 'c == c')
+    self.assertTrue(c == d, 'c == d')
+
+  def testCompareDict(self):
+    a = Struct('a.b.c: 123 x.y.z: "Hello"')
+    b = {'a.b.c': 123, 'x.y.z': 'Hello' }
+    c = {'a': {'b': {'c': 123}}, 'x': {'y': {'z': 'Hello'}}}
+# change one value
+    d = {'a': {'b': {'c': None}}, 'x': {'y': {'z': 'Hello'}}}
+# change one key
+    e = {'a': {'b': {'d': 123}}, 'x': {'y': {'z': 'Hello'}}}
+
+
+    self.assertTrue(a == b, 'a == b')
+    self.assertTrue(a == c, 'b == c')
+
+    self.assertTrue(a != d, 'a != d')
+    self.assertTrue(a != e, 'a != e')
+
+class PrototypeTestCase(TestCase):
+
+  def testExtendsConsistency(self):
+    buf = '''
+    test: base { myvalue: 'another value' }
+    base: {
+      x: True y: "some value"
+    }
+    base.z: "other value"
+    '''
+    root = Struct(buf)
+    self.assertRaises(cCoil.KeyMissingError, lambda: root['test.z'])
+    self.assertEquals(root['test'], {
+                      'x': True,
+                      'y': 'some value',
+                      'myvalue': 'another value'})
+    self.assertEquals(root['base'], {
+                      'x': True,
+                      'y': 'some value',
+                      'z': 'other value'})
+
+  def testMerge(self):
+    buf = '''
+    base: {
+      b: { x:1 y:2 z:3 }
+      c: ..test.d {}
+    }
+    test: base {
+      a: b, {}
+      d.a: 1
+    }
+    '''
+    root = Struct(buf)
+    base = {'b': {'x':1, 'y':2, 'z':3}, 'c.a': 1}
+    test = {'a': base['b'], 'b': base['b'], 'd.a': 1, 'c.a': 1}
+    self.assertEquals(root['base'], base)
+    self.assertEquals(root['test'], test)
+
+  def testMergeSub(self):
+    buf = '''
+    test: base {
+      a.b: { y: 2 z: 3 }
+    }
+    base: {
+      a.b.x: 1
+    }
+    '''
+    root = Struct(buf)
+    test = {'a.b': {'x': 1, 'y': 2, 'z': 3}}
+    base = {'a.b.x': 1}
+    self.assertEquals(root['test'], test)
+    self.assertEquals(root['base'], base)
+
 class ContainerTestCase(TestCase):
 
   def setUp(self):
@@ -214,6 +302,7 @@ class ContainerTestCase(TestCase):
   def testChangeContainer(self):
     a, b, x, y = self.blocks
 
+    # check sanity
     self.assertEquals(len(self.root), 2)
     self.assertEquals(a.path(), '@root.a')
     self.assertEquals(b.path(), '@root.a.b')
@@ -226,24 +315,41 @@ class ContainerTestCase(TestCase):
     self.assertEquals(b['c'], 123)
     self.assertEquals(y['z'], 'hello')
 
-    self.root['new.a'] = a
-    new = self.root['new']
+    # create new container and place 'a' within
+    new = self.root['new'] = Struct()
+    new['a'] = a
 
     self.assertEquals(len(new), 1)
     self.assertEquals(new.path(), '@root.new')
     self.assertEquals(a.path(), '@root.new.a')
     self.assertEquals(b.path(), '@root.new.a.b')
-    self.assertEquals(x.path(), '@root.new.x')
-    self.assertEquals(y.path(), '@root.new.x.y')
     self.assertEquals(a.container(), new)
     self.assertEquals(a.root(), self.root)
     self.assertEquals(b.container(), a)
     self.assertEquals(b.root(), self.root)
     self.assertEquals(new.container(), self.root)
     self.assertEquals(new.root(), self.root)
-    self.assertEquals(len(self.root), 0)
     self.assertEquals(b['c'], 123)
+
+    # check sanity
+    self.assertEquals(x.path(), '@root.x')
+    self.assertEquals(y.path(), '@root.x.y')
+    self.assertEquals(len(self.root), 2)
     self.assertEquals(y['z'], 'hello')
+
+    # place 'x' in new container
+    new['x'] = x
+    self.assertEquals(x.path(), '@root.new.x')
+    self.assertEquals(y.path(), '@root.new.x.y')
+    self.assertEquals(x.container(), new)
+    self.assertEquals(y.container(), x)
+    self.assertEquals(len(self.root), 1)
+    self.assertEquals(len(new), 2)
+    self.assertEquals(x.root(), self.root)
+    self.assertEquals(y.root(), self.root)
+    self.assertEquals(y['z'], 'hello')
+
+
 
   def testSetContainer(self):
     r = Struct((('s', True),))
@@ -322,42 +428,42 @@ class ExpansionTestCase(TestCase):
     self.assertEquals(root['b.y'], 2)
     self.assertEquals(root['b.z'], 3)
 
-  def testExpressionExpand(self):
-    root = Struct()
-    root["foo"] = "bbq"
-    root["bar"] = "omgwtf${foo}"
-    self.assertEquals(root.get('bar'), "omgwtfbbq")
-
-  def testExpandItem(self):
-    root = Struct()
-    root["foo"] = "bbq"
-    root["bar"] = "omgwtf${foo}"
-    self.assertEquals(root.get('bar'), "omgwtf${foo}")
-    self.assertEquals(root.expanditem('bar'), "omgwtfbbq")
-
-  def testExpandDefault(self):
-    root = Struct()
-    root["foo"] = "bbq"
-    root["bar"] = "omgwtf${foo}${baz}"
-    root.expand({'foo':"123",'baz':"456"})
-    self.assertEquals(root.get('bar'), "omgwtfbbq456")
-
-  def testExpandItemDefault(self):
-    root = Struct()
-    root["foo"] = "bbq"
-    root["bar"] = "omgwtf${foo}${baz}"
-    self.assertEquals(root.get('bar'), "omgwtf${foo}${baz}")
-    self.assertEquals(root.expanditem('bar',
-    defaults={'foo':"123",'baz':"456"}), "omgwtfbbq456")
-
-  def testExpandIgnore(self):
-    root = Struct()
-    root["foo"] = "bbq"
-    root["bar"] = "omgwtf${foo}${baz}"
-    root.expand(ignore_missing=True)
-    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
-    root.expand(ignore_missing=('baz',))
-    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
+#  def testExpressionExpand(self):
+#    root = Struct()
+#    root["foo"] = "bbq"
+#    root["bar"] = "omgwtf${foo}"
+#    self.assertEquals(root.get('bar'), "omgwtfbbq")
+#
+#  def testExpandItem(self):
+#    root = Struct()
+#    root["foo"] = "bbq"
+#    root["bar"] = "omgwtf${foo}"
+#    self.assertEquals(root.get('bar'), "omgwtf${foo}")
+#    self.assertEquals(root.expanditem('bar'), "omgwtfbbq")
+#
+#  def testExpandDefault(self):
+#    root = Struct()
+#    root["foo"] = "bbq"
+#    root["bar"] = "omgwtf${foo}${baz}"
+#    root.expand({'foo':"123",'baz':"456"})
+#    self.assertEquals(root.get('bar'), "omgwtfbbq456")
+#
+#  def testExpandItemDefault(self):
+#    root = Struct()
+#    root["foo"] = "bbq"
+#    root["bar"] = "omgwtf${foo}${baz}"
+#    self.assertEquals(root.get('bar'), "omgwtf${foo}${baz}")
+#    self.assertEquals(root.expanditem('bar',
+#    defaults={'foo':"123",'baz':"456"}), "omgwtfbbq456")
+#
+#  def testExpandIgnore(self):
+#    root = Struct()
+#    root["foo"] = "bbq"
+#    root["bar"] = "omgwtf${foo}${baz}"
+#    root.expand(ignore_missing=True)
+#    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
+#    root.expand(ignore_missing=('baz',))
+#    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
 #
 #  def testUnexpanded(self):
 #    root = Struct()
@@ -416,7 +522,52 @@ class ExpansionTestCase(TestCase):
 #    self.assertEquals(a.get("foo"), [ "omgwtfa" ])
 #    self.assertEquals(b.get("foo"), [ "omgwtfb" ])
 #
-#class StringTestCase(TestCase):
-#    def testNestedList(self):
-#        root = struct.Struct({'x': ['a', ['b', 'c']]})
-#        self.assertEquals(str(root), 'x: ["a" ["b" "c"]]')
+
+class StringTestCase(TestCase):
+
+  def testTrue(self):
+    root = Struct("value: True")
+    self.assertEquals(str(root), "value: True")
+
+  def testFalse(self):
+    root = Struct("value: False")
+    self.assertEquals(str(root), "value: False")
+
+  def testNone(self):
+    root = Struct("value: None")
+    self.assertEquals(str(root), "value: None")
+
+  def testInteger(self):
+    root = Struct("value: 123")
+    self.assertEquals(str(root), "value: 123")
+
+  def testContainer(self):
+    root = Struct("a.b.c: 123 a.b.d: 'Hello'")
+    self.assertEquals(str(root),
+'''\
+a: {
+    b: {
+        c: 123
+        d: 'Hello'
+    }
+}''')
+
+  def testString1(self):
+    root = Struct("value: 'Hello World!'")
+    self.assertEquals(str(root), "value: 'Hello World!'")
+
+  def testString2(self):
+    root = Struct("value: '''Hello World!'''")
+    self.assertEquals(str(root), "value: 'Hello World!'")
+
+  def testString3(self):
+    root = Struct("value: 'Hello\nWorld!'")
+    self.assertEquals(str(root), "value: '''Hello\nWorld!'''")
+
+  def testString4(self):
+    root = Struct("value: '%s'" % ("A" * 80))
+    self.assertEquals(str(root), "value: '''%s'''" % ("A" * 80))
+
+  def testNestedList(self):
+    root = Struct({'x': ['a', ['b', 'c']]})
+    self.assertEquals(str(root), "x: ['a' ['b' 'c']]")

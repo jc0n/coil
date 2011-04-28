@@ -54,6 +54,7 @@ struct_register_types(PyObject *m,
   return 1;
 }
 
+/* steals reference to node */
 PyObject *
 cCoil_struct_new(CoilStruct *node)
 {
@@ -79,6 +80,7 @@ cCoil_struct_new(CoilStruct *node)
   {
     Py_INCREF(self);
     g_assert(self->node);
+    g_object_unref(node);
   }
 
   return (PyObject *)self;
@@ -142,6 +144,7 @@ struct_update_from_pyitems(CoilStruct *node,
   GError         *error = NULL;
 
   node_path = coil_struct_get_path(node);
+  g_assert(node_path);
 
   if (PyMapping_Check(items))
     items = PyMapping_Items(items);
@@ -197,14 +200,18 @@ struct_update_from_pyitems(CoilStruct *node,
       goto error;
     }
 
-    v = PySequence_Fast_GET_ITEM(fast, 1);
-
     path = coil_path_from_pystring(k, &error);
     if (path == NULL)
       goto error;
 
     if (!coil_path_resolve_into(&path, node_path, &error))
       goto error;
+
+    value = (GValue *)coil_struct_lookup_path(node, path, FALSE, &error);
+    if (value)
+      goto next;
+
+    v = PySequence_Fast_GET_ITEM(fast, 1);
 
     if (PyDict_Check(v))
     {
@@ -217,33 +224,33 @@ struct_update_from_pyitems(CoilStruct *node,
       if (s == NULL)
         goto error;
 
-      g_object_set(G_OBJECT(s), "accumulate", TRUE, NULL);
       Py_INCREF(v);
+
       if (!struct_update_from_pyitems(s, v))
       {
         g_object_unref(s);
         Py_DECREF(v);
         goto error;
       }
-      Py_DECREF(v);
-      g_object_set(G_OBJECT(s), "accumulate", FALSE, NULL);
 
-      coil_value_init(value, COIL_TYPE_STRUCT, take_object, s);
+      Py_DECREF(v);
+      g_object_unref(s);
     }
     else
     {
       value = coil_value_from_pyobject(v);
       if (value == NULL)
         goto error;
+
+      if (!coil_struct_insert_path(node, path, value, FALSE, &error))
+      {
+        path = NULL;
+        value = NULL;
+        goto error;
+      }
     }
 
-    if (!coil_struct_insert_path(node, path, value, FALSE, &error))
-    {
-      path = NULL;
-      value = NULL;
-      goto error;
-    }
-
+next:
     Py_DECREF(fast);
     Py_DECREF(item);
   }
@@ -269,6 +276,17 @@ error:
   return FALSE;
 }
 
+static CoilStruct *
+struct_from_pyitems(PyObject *items)
+{
+  CoilStruct *node;
+
+  node = coil_struct_new(NULL, NULL);
+  if (!struct_update_from_pyitems(node, items))
+    return NULL;
+
+  return node;
+}
 
 static PyObject *
 struct_copy(PyCoilStruct *self,
@@ -583,7 +601,6 @@ error:
 
   return NULL;
 }
-
 #if 0
 static PyObject *
 struct_expanditem(PyCoilStruct *self,
@@ -760,6 +777,62 @@ struct_contains(PyCoilStruct *self,
      Py_RETURN_TRUE;
 
   Py_RETURN_FALSE;
+}
+
+static PyObject *
+struct_richcompare(PyCoilStruct *self,
+                   PyObject     *other,
+                   int           op)
+{
+  GError     *error = NULL;
+  CoilStruct *node;
+  gboolean    result;
+  PyObject   *r;
+
+  if (!(op == Py_EQ  || op == Py_NE))
+  {
+    PyErr_SetString(PyExc_TypeError,
+                    "unsupported rich comparison operation");
+    return NULL;
+  }
+
+  if ((PyObject *)self == other)
+  {
+    r = (op == Py_EQ) ? Py_True : Py_False;
+    Py_INCREF(r);
+    return r;
+  }
+
+  if (!PyMapping_Check(other))
+  {
+    PyErr_Format(PyExc_ValueError,
+                 "cannot compare struct with non-mapping type '%s'",
+                 Py_TYPE_NAME(other));
+
+    return NULL;
+  }
+
+  if (!PyCoilStruct_Check(other))
+  {
+    node = struct_from_pyitems(other);
+    if (node == NULL)
+      return NULL;
+  }
+  else
+    node = g_object_ref(((PyCoilStruct *)other)->node);
+
+  result = coil_struct_equals(self->node, node, &error);
+  g_object_unref(node);
+
+  if (error)
+  {
+    cCoil_error(&error);
+    return NULL;
+  }
+
+  r = !(result ^ (op == Py_EQ)) ? Py_True : Py_False;
+  Py_INCREF(r);
+  return r;
 }
 
 static PyObject *
@@ -1358,24 +1431,6 @@ struct_validate_path(PyCoilStruct *self,
   Py_RETURN_FALSE;
 }
 
-
-static int
-struct_compare(PyCoilStruct *a,
-               PyCoilStruct *b)
-{
-  gboolean result;
-  GError  *error = NULL;
-
-  result = coil_struct_equals(a->node, b->node, &error);
-  if (G_UNLIKELY(error))
-  {
-    cCoil_error(&error);
-    return -1;
-  }
-
-  return (result) ? 0 : -1;
-}
-
 static PyObject *
 struct_str(PyCoilStruct *self)
 {
@@ -1422,14 +1477,11 @@ struct_mp_get(PyCoilStruct *self,
 
   if (value == NULL)
   {
-    gchar buf[2 * COIL_PATH_LEN + 128];
+    PyErr_Format(KeyMissingError,
+                 "<%s> The path '%s' was not found.",
+                 coil_struct_get_path(self->node)->path,
+                 path->path);
 
-    g_snprintf(buf, sizeof(buf),
-               "<%s> The path '%s' was not found.",
-               coil_struct_get_path(self->node)->path,
-               path->path);
-
-    PyErr_SetString(KeyMissingError, buf);
     goto error;
   }
 
@@ -1744,6 +1796,11 @@ struct_init(PyCoilStruct *self,
   if (self->node == NULL)
     goto error;
 
+  g_object_set_qdata_full(G_OBJECT(self->node),
+                          struct_wrapper_key,
+                          self,
+                          NULL);
+
   if (base == NULL)
     return 0;
 
@@ -1795,15 +1852,15 @@ error:
 static PyMethodDef struct_methods[] =
 {
   { "__contains__",  (PyCFunction)struct_contains, METH_O | METH_COEXIST, NULL},
-
   { "copy",          (PyCFunction)struct_copy, METH_VARARGS | METH_KEYWORDS, NULL},
   { "container",     (PyCFunction)struct_get_container, METH_NOARGS, NULL},
   { "clear",         (PyCFunction)struct_empty, METH_NOARGS, NULL},
   { "dict",          (PyCFunction)struct_to_dict, METH_VARARGS | METH_KEYWORDS, NULL},
-  { "expand",        (PyCFunction)struct_expand, METH_VARARGS | METH_KEYWORDS, NULL}, /*
+  { "expand",        (PyCFunction)struct_expand, METH_VARARGS | METH_KEYWORDS, NULL},
+#if 0
   { "expanditem",    (PyCFunction)struct_expanditem, METH_VARARGS | METH_KEYWORDS, NULL},
   { "expandvalue",   (PyCFunction)struct_expandvalue, METH_VARARGS | METH_KEYWORDS, NULL},
-  */
+#endif
   { "extend",        (PyCFunction)struct_extend, METH_VARARGS | METH_KEYWORDS, NULL},
   { "extend_path",   (PyCFunction)struct_extend_path, METH_VARARGS | METH_KEYWORDS, NULL},
   { "get",           (PyCFunction)struct_get, METH_VARARGS | METH_KEYWORDS, NULL},
@@ -1865,7 +1922,7 @@ PyTypeObject PyCoilStruct_Type =
   (printfunc)0,                                 /* tp_print */
   (getattrfunc)0,                               /* tp_getattr */
   (setattrfunc)0,                               /* tp_setattr */
-  (cmpfunc)struct_compare,                      /* tp_compare */
+  (cmpfunc)0,                                   /* tp_compare */
   (reprfunc)0,                                  /* tp_repr */
 
   /* number methods */
@@ -1885,14 +1942,13 @@ PyTypeObject PyCoilStruct_Type =
 
   /* flags */
   (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC) & (
-  ~Py_TPFLAGS_HAVE_RICHCOMPARE &
   ~Py_TPFLAGS_HAVE_GETCHARBUFFER &
   ~Py_TPFLAGS_HAVE_INPLACEOPS),
 
   NULL,                                         /* tp_doc */
   (traverseproc)struct_traverse,                /* tp_traverse */
   (inquiry)struct_clear,                        /* tp_clear */
-  (richcmpfunc)0,                               /* tp_richcompare */
+  (richcmpfunc)struct_richcompare,              /* tp_richcompare */
   0,                                            /* tp_weaklistoffset */
   (getiterfunc)struct_iter,                     /* tp_iter */
   (iternextfunc)0,                              /* tp_iternext */

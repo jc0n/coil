@@ -16,9 +16,9 @@ RUN_TESTS = $(PYTHON) $(srcdir)/runtests.py $(top_buildir) $(top_srcdir)
 check-local:
 	@test $(SHELL) = "/bin/bash" \
 		&& $(RUN_TESTS) 2>&1 | \
-		$(SED) -e 's/[oO][kK]$$/\o033[0;32m\0\o033[0m/g' \
-				   -e 's/\(FAIL\(ED\)\?\)/\o033[0;31m\0\o033[0m/g' \
-				   -e 's/\(ERROR\)/\o033[0;31m\0\o033[0m/g'; \
+		$(SED) -e 's/[oO][kK]$$/\r\t\t\t\t\t\t\t\t\t\[\o033[0;32m\U\0\E\o033[0m\]/g' \
+				   -e 's/\(FAIL\(ED\)\?\|ERROR\)$$/\r\t\t\t\t\t\t\t\t\t\[\o033[0;31m\U\0\E\o033[0m\]/g' \
+				   -e 's/\.\(FAIL\(ED\)\?\)/\r\t\t\t\t\t\t\t\t\t\[\0\]/g'; \
 		exit $${PIPESTATUS[0]:-1}
 	@test $(SHELL) = "/bin/bash" || $(RUN_TESTS)
 	@rm -fr *.pyc

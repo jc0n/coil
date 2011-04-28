@@ -127,7 +127,9 @@ coil_value_from_pyobject(PyObject *o)
     coil_value_init(value, COIL_TYPE_STRUCT, take_object, node);
   }
   else
-    PyErr_SetString(PyExc_TypeError, "Unsupported coil value type");
+    PyErr_Format(PyExc_TypeError,
+                 "Unsupported python type '%s' for coil value",
+                 Py_TYPE_NAME(o));
 
   return value;
 }
@@ -135,14 +137,10 @@ coil_value_from_pyobject(PyObject *o)
 PyObject *
 coil_value_as_pyobject(const GValue *value)
 {
-  gchar buf[128];
   GType type;
 
   if (value == NULL)
-  {
-    Py_INCREF(Py_None);
-    return Py_None;
-  }
+    Py_RETURN_NONE;
 
   type = G_VALUE_TYPE(value);
 
@@ -212,8 +210,7 @@ coil_value_as_pyobject(const GValue *value)
       const gchar *str = g_value_get_string(value);
       if (str)
         return PyString_FromString(str);
-      Py_INCREF(Py_None);
-      return Py_None;
+      Py_RETURN_NONE;
     }
     case G_TYPE_OBJECT:
     {
@@ -221,10 +218,7 @@ coil_value_as_pyobject(const GValue *value)
         return cCoil_struct_new(g_value_dup_object(value));
 
       if (type == COIL_TYPE_NONE)
-      {
-        Py_INCREF(Py_None);
-        return Py_None;
-      }
+        Py_RETURN_NONE;
 
       break;
     }
@@ -240,12 +234,13 @@ coil_value_as_pyobject(const GValue *value)
         return pylist_from_value_list(g_value_get_boxed(value));
   }
 
-  g_snprintf(buf, sizeof(buf), "unknown type %s",
-       g_type_name(type));
-  PyErr_SetString(PyExc_TypeError, buf);
+  PyErr_Format(PyExc_TypeError,
+               "Unknown coil type '%s'",
+               g_type_name(type));
 
   return NULL;
 }
+
 void
 cCoil_error(GError **error)
 {
