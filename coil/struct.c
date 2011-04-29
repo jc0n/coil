@@ -118,6 +118,7 @@ struct_lookup_internal(CoilStruct     *self,
                        const gchar    *path,
                        guint8          path_len,
                        gboolean        expand_value,
+                       gboolean        expand_container,
                        GError        **error);
 
 static void
@@ -1692,7 +1693,7 @@ coil_struct_extend_path(CoilStruct  *self,
 
   value = struct_lookup_internal(context, hash,
                                  path->path, path->path_len,
-                                 FALSE, &internal_error);
+                                 FALSE, FALSE, &internal_error);
 
   if (G_UNLIKELY(internal_error))
     goto error;
@@ -2337,6 +2338,7 @@ lookup_internal_expand(CoilStruct  *self,
                                              path,
                                              lens[i],
                                              FALSE,
+                                             FALSE,
                                              error);
 
     if (container_value == NULL)
@@ -2383,6 +2385,7 @@ struct_lookup_internal(CoilStruct     *self,
                        const gchar    *path,
                        guint8          path_len,
                        gboolean        expand_value,
+                       gboolean        expand_container,
                        GError        **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
@@ -2397,6 +2400,9 @@ struct_lookup_internal(CoilStruct     *self,
   entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
   if (entry == NULL)
   {
+    if (!expand_container)
+      return NULL;
+
     if (!lookup_internal_expand(self, path, path_len, error))
       return NULL;
 
@@ -2435,7 +2441,7 @@ coil_struct_lookup_path(CoilStruct *self,
 
   result = struct_lookup_internal(self, hash,
                                   path->path, path->path_len,
-                                  expand_value, error);
+                                  expand_value, TRUE, error);
 
   coil_path_unref(path);
   return result;
@@ -2466,7 +2472,7 @@ coil_struct_lookup_key_fast(CoilStruct  *self,
 
   return struct_lookup_internal(self, hash,
                                 path, path_len,
-                                expand_value, error);
+                                expand_value, TRUE, error);
 }
 
 COIL_API(const GValue *)
