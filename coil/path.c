@@ -830,20 +830,25 @@ backref:
 
 COIL_API(gboolean)
 coil_path_has_container(const CoilPath *path,
-                        const CoilPath *container)
+                        const CoilPath *container,
+                        gboolean        strict)
 {
   g_return_val_if_fail(path, FALSE);
   g_return_val_if_fail(container, FALSE);
 
+  guint key_len;
+
   if (container->path_len >= path->path_len)
     return FALSE;
 
-  if (!(path->path[container->path_len] == COIL_PATH_DELIM
-    && path->path_len - container->path_len - 1 == path->key_len))
+  if (path->path[container->path_len] != COIL_PATH_DELIM)
     return FALSE;
 
-  if (memcmp(path->path, container->path, container->path_len))
-    return FALSE;
+  if (!strict)
+    return g_str_has_prefix(path->path, container->path);
 
-  return TRUE;
+  key_len = path->path_len - container->path_len - 1;
+
+  return key_len == path->key_len
+    && memcmp(path->path, container->path, container->path_len) == 0;
 }

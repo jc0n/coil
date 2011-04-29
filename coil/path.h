@@ -215,7 +215,8 @@ coil_path_relativize(const CoilPath  *path,
 
 gboolean
 coil_path_has_container(const CoilPath *path,
-                        const CoilPath *container);
+                        const CoilPath *container,
+                        gboolean        strict);
 
 G_END_DECLS
 #endif
