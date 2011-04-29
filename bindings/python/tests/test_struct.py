@@ -50,6 +50,10 @@ class TestStruct(TestCase):
     keys = zip(*self.data)[0]
     self.assertEquals(tuple(self.struct.keys()),  keys)
 
+  def testPathOrder(self):
+    paths = map(lambda k: "@root.%s" % k, zip(*self.data)[0])
+    self.assertEquals(self.struct.paths(), paths)
+
   def testGetItem(self):
     self.assertEquals(self.struct['second'], 'something else')
 
@@ -95,6 +99,10 @@ class TestStruct(TestCase):
   def testIterKeys(self):
     keys = zip(*self.data)[0]
     self.assertEquals(tuple(self.struct.iterkeys()), keys);
+
+  def testIterPaths(self):
+    paths = map(lambda k: "@root.%s" % k, zip(*self.data)[0])
+    self.assertEquals(list(self.struct.iterpaths()), paths)
 
   def testIterValues(self):
     values = tuple((v.dict() if isinstance(v, Struct) else v

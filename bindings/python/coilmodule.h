@@ -39,6 +39,7 @@
 extern PyTypeObject PyCoilStruct_Type;
 extern PyTypeObject PyCoilStructIterItem_Type;
 extern PyTypeObject PyCoilStructIterKey_Type;
+extern PyTypeObject PyCoilStructIterPath_Type;
 extern PyTypeObject PyCoilStructIterValue_Type;
 
 typedef struct _structiter_object structiter_object;

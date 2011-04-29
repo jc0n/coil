@@ -17,6 +17,321 @@ struct _structiter_object
   CoilStructIter  si_iter;
 };
 
+static PyObject *
+structiter_new(PyCoilStruct *iterstruct,
+               PyTypeObject *itertype)
+{
+  structiter_object *si;
+
+  si = PyObject_GC_New(structiter_object, itertype);
+
+  Py_INCREF(iterstruct);
+  si->si_struct = iterstruct;
+
+  coil_struct_iter_init(&si->si_iter, iterstruct->node);
+
+  PyObject_GC_Track((PyObject *)si);
+  return (PyObject *)si;
+}
+
+static void
+structiter_dealloc(structiter_object *si)
+{
+  PyObject_GC_UnTrack((PyObject *)si);
+
+  Py_XDECREF(si->si_struct);
+  PyObject_GC_Del((PyObject *)si);
+}
+
+static int
+structiter_traverse(structiter_object *si,
+                    visitproc          visit,
+                    void              *arg)
+{
+  Py_VISIT(si->si_struct);
+  return 0;
+}
+
+static PyObject *
+struct_iter(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterKey_Type);
+}
+
+static PyObject *
+struct_iteritems(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterItem_Type);
+}
+
+static PyObject *
+struct_iterkeys(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterKey_Type);
+}
+
+static PyObject *
+struct_iterpaths(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterPath_Type);
+}
+
+static PyObject *
+struct_itervalues(PyCoilStruct *self)
+{
+  return structiter_new(self, &PyCoilStructIterValue_Type);
+}
+
+static PyObject *
+structiter_iternextitem(structiter_object *si)
+{
+  g_return_val_if_fail(si, NULL);
+
+  const CoilPath *path;
+  const GValue   *value;
+
+  if (si->si_struct == NULL)
+    return NULL;
+
+  assert(PyCoilStruct_Check(si->si_struct));
+
+  if (coil_struct_iter_next(&si->si_iter, &path, &value))
+  {
+    PyObject *k = NULL, *v = NULL, *item;
+
+    k = PyString_FromStringAndSize(path->key, path->key_len);
+    if (k == NULL)
+      return NULL;
+
+    v = coil_value_as_pyobject(value);
+    if (v == NULL)
+    {
+      Py_DECREF(k);
+      return NULL;
+    }
+
+    item = PyTuple_New(2);
+    PyTuple_SET_ITEM(item, 0, k);
+    PyTuple_SET_ITEM(item, 1, v);
+    return item;
+  }
+
+  PyErr_SetNone(PyExc_StopIteration);
+  return NULL;
+}
+
+static PyObject *
+structiter_iternextkey(structiter_object *si)
+{
+  g_return_val_if_fail(si, NULL);
+
+  const CoilPath *path;
+
+  if (si->si_struct == NULL)
+    return NULL;
+
+  assert(PyCoilStruct_Check(si->si_struct));
+
+  if (coil_struct_iter_next(&si->si_iter, &path, NULL))
+  {
+    PyObject *k;
+
+    k = PyString_FromStringAndSize(path->key, path->key_len);
+    return k;
+  }
+
+  PyErr_SetNone(PyExc_StopIteration);
+  return NULL;
+}
+
+static PyObject *
+structiter_iternextpath(structiter_object *si)
+{
+  g_return_val_if_fail(si, NULL);
+
+  const CoilPath *path;
+
+  if (si->si_struct == NULL)
+    return NULL;
+
+  assert(PyCoilStruct_Check(si->si_struct));
+
+  if (coil_struct_iter_next(&si->si_iter, &path, NULL))
+  {
+    PyObject *p;
+
+    p = PyString_FromStringAndSize(path->path, path->path_len);
+    return p;
+  }
+
+  PyErr_SetNone(PyExc_StopIteration);
+  return NULL;
+}
+
+static PyObject *
+structiter_iternextvalue(structiter_object *si)
+{
+  g_return_val_if_fail(si, NULL);
+
+  const GValue *value;
+
+  if (si->si_struct == NULL)
+    return NULL;
+
+  assert(PyCoilStruct_Check(si->si_struct));
+
+  if (coil_struct_iter_next(&si->si_iter, NULL, &value))
+  {
+    PyObject *v;
+
+    v = coil_value_as_pyobject(value);
+    return v;
+  }
+
+  PyErr_SetNone(PyExc_StopIteration);
+  return NULL;
+}
+
+PyTypeObject PyCoilStructIterItem_Type =
+{
+  PyObject_HEAD_INIT(NULL)
+  0,
+  "cCoil.StructItemIterator",
+  sizeof(structiter_object),
+  0,
+  /* methods */
+  (destructor)structiter_dealloc,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  PyObject_GenericGetAttr,
+  0,
+  0,
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+  0,
+  (traverseproc)structiter_traverse,
+  0,
+  0,
+  0,
+  PyObject_SelfIter,
+  (iternextfunc)structiter_iternextitem,
+  0,
+  0,
+};
+
+PyTypeObject PyCoilStructIterKey_Type =
+{
+  PyObject_HEAD_INIT(NULL)
+  0,
+  "cCoil.StructKeyIterator",
+  sizeof(structiter_object),
+  0,
+  /* methods */
+  (destructor)structiter_dealloc,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  PyObject_GenericGetAttr,
+  0,
+  0,
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+  0,
+  (traverseproc)structiter_traverse,
+  0,
+  0,
+  0,
+  PyObject_SelfIter,
+  (iternextfunc)structiter_iternextkey,
+  0,
+  0,
+};
+
+PyTypeObject PyCoilStructIterPath_Type =
+{
+  PyObject_HEAD_INIT(NULL)
+  0,
+  "cCoil.StructPathIterator",
+  sizeof(structiter_object),
+  0,
+  /* methods */
+  (destructor)structiter_dealloc,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  PyObject_GenericGetAttr,
+  0,
+  0,
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+  0,
+  (traverseproc)structiter_traverse,
+  0,
+  0,
+  0,
+  PyObject_SelfIter,
+  (iternextfunc)structiter_iternextpath,
+  0,
+  0,
+};
+
+PyTypeObject PyCoilStructIterValue_Type =
+{
+  PyObject_HEAD_INIT(NULL)
+  0,
+  "cCoil.StructValueIterator",
+  sizeof(structiter_object),
+  0,
+  /* methods */
+  (destructor)structiter_dealloc,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  PyObject_GenericGetAttr,
+  0,
+  0,
+  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+  0,
+  (traverseproc)structiter_traverse,
+  0,
+  0,
+  0,
+  PyObject_SelfIter,
+  (iternextfunc)structiter_iternextvalue,
+  0,
+  0,
+};
+
 static void
 struct_free(PyCoilStruct *self)
 {
@@ -46,6 +361,7 @@ struct_register_types(PyObject *m,
 
   Py_INCREF(gobject_type);
   Py_DECREF(gobject_module);
+
   PyCoilStruct_Type.tp_free = (freefunc)struct_free;
   PyCoilStruct_Type.tp_base = gobject_type;
 
@@ -912,93 +1228,51 @@ struct_items(PyCoilStruct *self,
 
   return items;
 }
-
 static PyObject *
-structiter_iternextitem(structiter_object *si)
+struct_keys(PyCoilStruct *self,
+            PyObject     *unused)
 {
-  g_return_val_if_fail(si, NULL);
+  PyObject *it, *keys;
 
-  const CoilPath *path;
-  const GValue   *value;
-
-  if (si->si_struct == NULL)
+  it = struct_iterkeys(self);
+  if (it == NULL)
     return NULL;
 
-  assert(PyCoilStruct_Check(si->si_struct));
+  keys = PySequence_List(it);
 
-  if (coil_struct_iter_next(&si->si_iter, &path, &value))
-  {
-    PyObject *k = NULL, *v = NULL, *item;
-
-    k = PyString_FromStringAndSize(path->key, path->key_len);
-    if (k == NULL)
-      return NULL;
-
-    v = coil_value_as_pyobject(value);
-    if (v == NULL)
-    {
-      Py_DECREF(k);
-      return NULL;
-    }
-
-    item = PyTuple_New(2);
-    PyTuple_SET_ITEM(item, 0, k);
-    PyTuple_SET_ITEM(item, 1, v);
-    return item;
-  }
-
-  PyErr_SetNone(PyExc_StopIteration);
-  return NULL;
+  Py_DECREF(it);
+  return keys;
 }
 
 static PyObject *
-structiter_iternextkey(structiter_object *si)
+struct_paths(PyCoilStruct *self,
+             PyObject     *unused)
 {
-  g_return_val_if_fail(si, NULL);
+  PyObject *it, *paths;
 
-  const CoilPath *path;
-
-  if (si->si_struct == NULL)
+  it = struct_iterpaths(self);
+  if (it == NULL)
     return NULL;
 
-  assert(PyCoilStruct_Check(si->si_struct));
+  paths = PySequence_List(it);
 
-  if (coil_struct_iter_next(&si->si_iter, &path, NULL))
-  {
-    PyObject *k;
-
-    k = PyString_FromStringAndSize(path->key, path->key_len);
-    return k;
-  }
-
-  PyErr_SetNone(PyExc_StopIteration);
-  return NULL;
+  Py_DECREF(it);
+  return paths;
 }
 
+#if 0
 static PyObject *
-structiter_iternextvalue(structiter_object *si)
+struct_paths(PyCoilStruct *self,
+             PyObject     *unused)
 {
-  g_return_val_if_fail(si, NULL);
+  Py_ssize_t  i, n;
+  PyObject   *it, *paths;
+  GError     *error = NULL;
 
-  const GValue *value;
-
-  if (si->si_struct == NULL)
-    return NULL;
-
-  assert(PyCoilStruct_Check(si->si_struct));
-
-  if (coil_struct_iter_next(&si->si_iter, NULL, &value))
-  {
-    PyObject *v;
-
-    v = coil_value_as_pyobject(value);
-    return v;
-  }
-
-  PyErr_SetNone(PyExc_StopIteration);
-  return NULL;
+  n =
 }
-
+#endif
+#if 0
 static PyObject *
 struct_keys(PyCoilStruct *self,
             PyObject     *args,
@@ -1059,6 +1333,7 @@ struct_keys(PyCoilStruct *self,
   g_list_free(keys);
   return result;
 }
+#endif
 
 static PyObject *
 struct_values(PyCoilStruct *self,
@@ -1571,172 +1846,6 @@ struct_mp_size(PyCoilStruct *self)
 
   return size;
 }
-
-
-static PyObject *
-structiter_new(PyCoilStruct *iterstruct,
-               PyTypeObject *itertype)
-{
-  structiter_object *si;
-
-  si = PyObject_GC_New(structiter_object, itertype);
-
-  Py_INCREF(iterstruct);
-  si->si_struct = iterstruct;
-
-  coil_struct_iter_init(&si->si_iter, iterstruct->node);
-
-  PyObject_GC_Track((PyObject *)si);
-  return (PyObject *)si;
-}
-
-static void
-structiter_dealloc(structiter_object *si)
-{
-  PyObject_GC_UnTrack((PyObject *)si);
-
-  Py_XDECREF(si->si_struct);
-  PyObject_GC_Del((PyObject *)si);
-}
-
-static int
-structiter_traverse(structiter_object *si,
-                    visitproc          visit,
-                    void              *arg)
-{
-  Py_VISIT(si->si_struct);
-  return 0;
-}
-
-static PyObject *
-struct_iter(PyCoilStruct *self)
-{
-  return structiter_new(self, &PyCoilStructIterKey_Type);
-}
-
-PyTypeObject PyCoilStructIterItem_Type =
-{
-  PyObject_HEAD_INIT(NULL)
-  0,
-  "cCoil.StructItemIterator",
-  sizeof(structiter_object),
-  0,
-  /* methods */
-  (destructor)structiter_dealloc,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  PyObject_GenericGetAttr,
-  0,
-  0,
-  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-  0,
-  (traverseproc)structiter_traverse,
-  0,
-  0,
-  0,
-  PyObject_SelfIter,
-  (iternextfunc)structiter_iternextitem,
-  0,
-  0,
-};
-
-static PyObject *
-struct_iteritems(PyCoilStruct *self)
-{
-  return structiter_new(self, &PyCoilStructIterItem_Type);
-}
-
-static PyObject *
-struct_iterkeys(PyCoilStruct *self)
-{
-  return structiter_new(self, &PyCoilStructIterKey_Type);
-}
-
-PyTypeObject PyCoilStructIterKey_Type =
-{
-  PyObject_HEAD_INIT(NULL)
-  0,
-  "cCoil.StructKeyIterator",
-  sizeof(structiter_object),
-  0,
-  /* methods */
-  (destructor)structiter_dealloc,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  PyObject_GenericGetAttr,
-  0,
-  0,
-  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-  0,
-  (traverseproc)structiter_traverse,
-  0,
-  0,
-  0,
-  PyObject_SelfIter,
-  (iternextfunc)structiter_iternextkey,
-  0,
-  0,
-};
-
-static PyObject *
-struct_itervalues(PyCoilStruct *self)
-{
-  return structiter_new(self, &PyCoilStructIterValue_Type);
-}
-
-PyTypeObject PyCoilStructIterValue_Type =
-{
-  PyObject_HEAD_INIT(NULL)
-  0,
-  "cCoil.StructValueIterator",
-  sizeof(structiter_object),
-  0,
-  /* methods */
-  (destructor)structiter_dealloc,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  PyObject_GenericGetAttr,
-  0,
-  0,
-  Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-  0,
-  (traverseproc)structiter_traverse,
-  0,
-  0,
-  0,
-  PyObject_SelfIter,
-  (iternextfunc)structiter_iternextvalue,
-  0,
-  0,
-};
-
 /*
 """
 :param base: A *dict*, *Struct*, or a sequence of (key, value)
@@ -1868,11 +1977,13 @@ static PyMethodDef struct_methods[] =
   { "items",         (PyCFunction)struct_items, METH_VARARGS | METH_KEYWORDS, NULL},
   { "iteritems",     (PyCFunction)struct_iteritems, METH_NOARGS, NULL},
   { "iterkeys",      (PyCFunction)struct_iterkeys, METH_NOARGS, NULL},
+  { "iterpaths",     (PyCFunction)struct_iterpaths, METH_NOARGS, NULL},
   { "itervalues",    (PyCFunction)struct_itervalues, METH_NOARGS, NULL},
   { "is_ancestor",   (PyCFunction)struct_is_ancestor, METH_O, NULL},
   { "is_descendent", (PyCFunction)struct_is_descendent, METH_O, NULL},
   { "is_root",       (PyCFunction)struct_is_root, METH_NOARGS, NULL},
-  { "keys",          (PyCFunction)struct_keys, METH_VARARGS | METH_KEYWORDS, NULL},
+  { "keys",          (PyCFunction)struct_keys, METH_NOARGS, NULL},
+  { "paths",         (PyCFunction)struct_paths, METH_NOARGS, NULL},
   { "merge",         (PyCFunction)struct_merge, METH_VARARGS, NULL},
   { "path",          (PyCFunction)struct_path, METH_VARARGS | METH_KEYWORDS, NULL},
   { "root",          (PyCFunction)struct_get_root, METH_NOARGS, NULL},
