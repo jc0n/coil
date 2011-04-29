@@ -460,7 +460,10 @@ assignment_value
     if (!coil_struct_insert_path(container,
                                  YYCTX->path, $1, FALSE,
                                  &YYCTX->error))
+    {
+      YYCTX->path = NULL;
       YYERROR;
+    }
 
     YYCTX->path = NULL;
   }

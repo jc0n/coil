@@ -509,8 +509,8 @@ coil_check_key(const gchar *key,
     g_set_error(error,
                 COIL_ERROR,
                 COIL_ERROR_KEY,
-                "The key '%s' contains invalid characters",
-                key);
+                "The key '%.*s' contains invalid characters",
+                key_len, key);
 
     return FALSE;
   }
@@ -538,8 +538,8 @@ coil_check_path(const gchar *path,
     g_set_error(error,
                 COIL_ERROR,
                 COIL_ERROR_PATH,
-                "The path '%s' contains invalid characters.",
-                path);
+                "The path '%.*s' contains invalid characters.",
+                path_len, path);
 
     return FALSE;
   }
