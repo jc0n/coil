@@ -206,9 +206,9 @@ struct_change_container(CoilStruct *self,
                         GError    **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
-  g_return_val_if_fail(new_container == NULL || COIL_IS_STRUCT(new_container), FALSE);
-  g_return_val_if_fail(self != new_container, FALSE);
-  g_return_val_if_fail(!coil_struct_is_root(self) || new_path != NULL, FALSE);
+  g_return_val_if_fail(container == NULL || COIL_IS_STRUCT(container), FALSE);
+  g_return_val_if_fail(self != container, FALSE);
+  g_return_val_if_fail(!coil_struct_is_root(self) || path != NULL, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
