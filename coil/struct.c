@@ -3161,7 +3161,7 @@ coil_struct_new_valist(const gchar *first_property_name,
   priv = self->priv;
   container = COIL_EXPANDABLE(self)->container;
 
-  if (priv->path)
+  if (priv->path && !COIL_PATH_IS_ROOT(priv->path))
   {
     if (!container)
       g_error("path specified with no container");
@@ -3169,42 +3169,52 @@ coil_struct_new_valist(const gchar *first_property_name,
     priv->root = coil_struct_get_root(container);
     priv->entry_table = struct_table_ref(container->priv->entry_table);
 
-    if (!coil_path_has_container(priv->path, container->priv->path))
+    if (!coil_path_has_container(priv->path, container->priv->path, FALSE))
     {
       g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
                   "Invalid path '%s' for struct with container '%s'",
                   priv->path->path,
                   container->priv->path->path);
 
-      g_object_unref(self);
-      return NULL;
+      goto error;
     }
+
+    /* container may be an ancestor, we want the direct container */
+    container = coil_struct_create_containers_fast(self,
+                                                   priv->path->path,
+                                                   COIL_PATH_CONTAINER_LEN(priv->path),
+                                                   priv->is_prototype,
+                                                   FALSE, error);
+
+    if (container == NULL)
+      goto error;
+
+    g_object_set(object, "container", container, NULL);
 
     path = struct_resolve_path(container, priv->path, &priv->hash, error);
     if (path == NULL)
-    {
-      g_object_unref(self);
-      return NULL;
-    }
+      goto error;
 
     /* XXX: add self to the tree now */
     coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
     if (!struct_insert_internal(container, path, value, priv->hash, TRUE, error))
-    {
-      g_object_unref(self);
-      return NULL;
-    }
+      goto error;
   }
   else if (!container)
      become_root_struct(self);
   else
-    g_error("container specified with no path");
+    g_error("container specified with no path or root path");
 
   g_signal_emit(object,
                 struct_signals[CREATE],
                 priv->is_prototype ? coil_struct_prototype_quark() : 0);
 
   return self;
+
+error:
+  g_object_unref(self);
+
+  return NULL;
 }
 
 static void
