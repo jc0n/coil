@@ -36,6 +36,7 @@
 # define Py_TYPE_NAME(o) (Py_TYPE(o)->tp_name)
 #endif
 
+extern PyTypeObject PyCoilList_Type;
 extern PyTypeObject PyCoilStruct_Type;
 extern PyTypeObject PyCoilStructIterItem_Type;
 extern PyTypeObject PyCoilStructIterKey_Type;
@@ -51,6 +52,14 @@ struct _PyCoilStruct
 
   CoilStruct        *node;
   structiter_object *iter;
+};
+
+typedef struct _PyCoilList PyCoilList;
+struct _PyCoilList
+{
+  PyObject_HEAD
+
+  GList *list;
 };
 
 int
