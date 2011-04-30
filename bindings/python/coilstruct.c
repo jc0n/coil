@@ -7,90 +7,6 @@
 #include "coilmodule.h"
 #include "coilstruct.h"
 
-PyDoc_STRVAR(struct_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(contains_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(empty_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(get_container_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(copy_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(to_dict_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(expand_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(extend_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(extend_path_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(get_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(is_ancestor_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(is_descendent_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(is_root_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(items_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(iteritems_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(iterkeys_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(iterpaths_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(itervalues_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(keys_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(merge_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(path_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(paths_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(root_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(set_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(string_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(validate_key_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(validate_path_doc,
-    "TODO(jcon): Document this");
-
-PyDoc_STRVAR(values_doc,
-    "TODO(jcon): Document this");
-
 static GQuark struct_wrapper_key = 0;
 
 struct _structiter_object
@@ -1914,8 +1830,90 @@ error:
   return -1;
 }
 
+
+PyDoc_STRVAR(contains__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(empty__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(get_container__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(copy__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(to_dict__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(expand__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(extend__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(extend_path__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(get__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(is_ancestor__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(is_descendent__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(is_root__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(items__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(iteritems__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(iterkeys__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(iterpaths__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(itervalues__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(keys__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(merge__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(path__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(paths__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(root__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(set__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(string__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(validate_key__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(validate_path__doc__,
+    "TODO(jcon): Document this");
+
+PyDoc_STRVAR(values__doc__,
+    "TODO(jcon): Document this");
+
 #define Py_METHOD(name, func, flags) \
-  { name, (PyCFunction)struct_##func, flags, func##_doc },
+  { name, (PyCFunction)struct_##func, flags, func##__doc__ },
 
 static PyMethodDef struct_methods[] =
 {
@@ -1973,6 +1971,9 @@ struct_as_mapping =
  (binaryfunc)struct_mp_get,
  (objobjargproc)struct_mp_set,
 };
+
+PyDoc_STRVAR(struct_doc,
+    "TODO(jcon): Document this");
 
 PyTypeObject PyCoilStruct_Type =
 {
