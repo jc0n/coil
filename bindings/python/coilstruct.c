@@ -1104,58 +1104,72 @@ error:
 
 
 static PyObject *
-struct_richcompare(PyCoilStruct *self,
-                   PyObject     *other,
-                   int           op)
+struct_richcompare(PyObject *self,
+                   PyObject *other,
+                   int       op)
 {
-  GError     *error = NULL;
-  CoilStruct *node;
-  gboolean    result;
-  PyObject   *r;
+  PyObject     *r;
+  CoilStruct   *a = NULL, *b = NULL;
+  gboolean      result;
+  GError       *error = NULL;
 
-  if (!(op == Py_EQ  || op == Py_NE))
+  if (!(op == Py_EQ || op == Py_NE))
   {
-    PyErr_SetString(PyExc_TypeError,
-                    "unsupported rich comparison operation");
-    return NULL;
+    r = Py_NotImplemented;
+    goto end;
   }
 
-  if ((PyObject *)self == other)
+  if (PyDict_Check(self))
+    a = struct_from_pyitems(self);
+  else if (!PyCoilStruct_Check(self))
   {
-    r = (op == Py_EQ) ? Py_True : Py_False;
-    Py_INCREF(r);
-    return r;
-  }
-
-  if (!PyMapping_Check(other))
-  {
-    PyErr_Format(PyExc_ValueError,
-                 "cannot compare struct with non-mapping type '%s'",
-                 Py_TYPE_NAME(other));
-
-    return NULL;
-  }
-
-  if (!PyCoilStruct_Check(other))
-  {
-    node = struct_from_pyitems(other);
-    if (node == NULL)
-      return NULL;
+    r = Py_NotImplemented;
+    goto end;
   }
   else
-    node = g_object_ref(((PyCoilStruct *)other)->node);
+  {
+    a = ((PyCoilStruct *)self)->node;
+    g_object_ref(a);
+  }
 
-  result = coil_struct_equals(self->node, node, &error);
-  g_object_unref(node);
+  if (PyDict_Check(other))
+    b = struct_from_pyitems(other);
+  else if (!PyCoilStruct_Check(other))
+  {
+    r = Py_NotImplemented;
+    goto end;
+  }
+  else
+  {
+    b = ((PyCoilStruct *)other)->node;
+    g_object_ref(b);
+  }
 
+  if (a == b)
+  {
+    r = (op == Py_EQ) ? Py_True : Py_False;
+    goto end;
+  }
+
+  result = coil_struct_equals(a, b, &error);
   if (error)
   {
     cCoil_error(&error);
-    return NULL;
+    r = NULL;
+    goto end;
   }
 
-  r = !(result ^ (op == Py_EQ)) ? Py_True : Py_False;
-  Py_INCREF(r);
+//  r = !(result ^ (op == Py_EQ)) ? Py_True : Py_False;
+  r = (result == (op == Py_EQ)) ? Py_True : Py_False;
+
+end:
+  if (a)
+    g_object_unref(a);
+
+  if (b)
+    g_object_unref(b);
+
+  Py_XINCREF(r);
   return r;
 }
 
