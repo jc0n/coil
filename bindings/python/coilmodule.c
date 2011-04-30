@@ -562,6 +562,50 @@ error:
   return 0;
 }
 
+static int
+init_constants(PyObject *m)
+{
+  PyObject *version, *version_info;
+
+  version_info = Py_BuildValue("(iii)",
+                               COIL_MAJOR_VERSION,
+                               COIL_MINOR_VERSION,
+                               COIL_RELEASE_VERSION);
+
+  if (PyModule_AddObject(m, "__version_info__", version_info) < 0)
+    return 0;
+
+  version = PyString_FromFormat("%d.%d.%d",
+                                COIL_MAJOR_VERSION,
+                                COIL_MINOR_VERSION,
+                                COIL_RELEASE_VERSION);
+
+  if (PyModule_AddObject(m, "__version__", version) < 0)
+    return 0;
+
+
+  if (PyModule_AddStringConstant(m, "__author__",
+                                 PACKAGE_BUGREPORT) < 0)
+    return 0;
+
+  if (PyModule_AddIntMacro(m, COIL_DEBUG) < 0)
+    return 0;
+
+  if (PyModule_AddIntMacro(m, COIL_INCLUDE_CACHING) < 0)
+    return 0;
+
+  if (PyModule_AddIntMacro(m, COIL_PATH_TRANSLATION) < 0)
+    return 0;
+
+  if (PyModule_AddIntMacro(m, COIL_STRICT_CONTEXT) < 0)
+    return 0;
+
+  if (PyModule_AddIntMacro(m, COIL_STRICT_FILE_CONTEXT) < 0)
+    return 0;
+
+  return 1;
+}
+
 #ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
 #define PyMODINIT_FUNC void
 #endif
@@ -578,6 +622,9 @@ initcCoil(void)
     return;
 
   d = PyModule_GetDict(m);
+
+  if (!init_constants(m))
+    return;
 
   if (!init_exceptions(d))
     return;
