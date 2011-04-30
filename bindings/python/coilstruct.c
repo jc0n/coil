@@ -702,10 +702,16 @@ struct_sq_contains(PyCoilStruct *self,
 
   path = coil_path_from_pystring(arg, &error);
   if (path == NULL)
+  {
+    cCoil_error(&error);
     return -1;
+  }
 
   value = coil_struct_lookup_path(self->node, path, FALSE, &error);
   coil_path_unref(path);
+
+  if (error)
+    cCoil_error(&error);
 
   return (value == NULL) ? 0 : 1;
 }
