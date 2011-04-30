@@ -322,7 +322,7 @@ coil_path_unref(CoilPath *p)
     coil_path_free(p);
 }
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
 void
 coil_path_debug(CoilPath *p)
 {

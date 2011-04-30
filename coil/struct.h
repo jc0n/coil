@@ -50,7 +50,7 @@ struct _CoilStructIter
 {
   CoilStruct *node;
   GList      *position;
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   guint       version;
 #endif
 };

@@ -204,7 +204,7 @@ coil_expr_to_string(CoilExpr         *self,
   return g_string_free(buffer, FALSE);
 }
 
-#ifdef COIL_PATH_TRANSLATION
+#if COIL_PATH_TRANSLATION
 static gboolean
 expr_translate_path(GString    *expr,
                     CoilStruct *old_container,
@@ -272,7 +272,7 @@ expr_copy(gconstpointer     _self,
   string = g_string_new_len(priv->expr->str, priv->expr->len);
   copy = coil_expr_new_valist(string, first_property_name, properties);
 
-#ifdef COIL_PATH_TRANSLATION
+#if COIL_PATH_TRANSLATION
   CoilStruct     *new_container, *old_container;
 
   new_container = COIL_EXPANDABLE(copy)->container;

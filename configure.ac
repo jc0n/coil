@@ -19,6 +19,10 @@ AC_SUBST([LIBCOIL_API_VERSION],
 AC_SUBST([LIBCOIL_SO_VERSION],
           ["$COIL_MAJOR_VERSION:$COIL_MINOR_VERSION:$COIL_RELEASE_VERSION"])
 
+AC_DEFINE_UNQUOTED([COIL_MAJOR_VERSION], $COIL_MAJOR_VERSION, [ ])
+AC_DEFINE_UNQUOTED([COIL_MINOR_VERSION], $COIL_MINOR_VERSION, [ ])
+AC_DEFINE_UNQUOTED([COIL_RELEASE_VERSION], $COIL_RELEASE_VERSION, [ ])
+
 # TODO: Check for AWK properly
 
 AC_PROG_CC
@@ -53,6 +57,8 @@ COIL_ARG_ENABLE(debug, whether to enable debugging,
 
 if test "$COIL_DEBUG" = "yes"; then
   AC_DEFINE([COIL_DEBUG], [1], [ ])
+else
+  AC_DEFINE([COIL_DEBUG], [0], [ ])
 fi
 
 dnl
@@ -65,6 +71,8 @@ COIL_ARG_ENABLE(include-caching, whether to cache included files,
 
 if test "$COIL_INCLUDE_CACHING" = "yes"; then
   AC_DEFINE([COIL_INCLUDE_CACHING], [1], [ ])
+else
+  AC_DEFINE([COIL_INCLUDE_CACHING], [0], [ ])
 fi
 
 dnl
@@ -77,6 +85,8 @@ COIL_ARG_ENABLE(path-translation, whether to enable path translation,
 
 if test "$COIL_PATH_TRANSLATION" = "yes"; then
   AC_DEFINE([COIL_PATH_TRANSLATION], [1], [ ])
+else
+  AC_DEFINE([COIL_PATH_TRANSLATION], [0], [ ])
 fi
 
 COIL_ARG_ENABLE(strict-context, whether to enable strict context,
@@ -84,6 +94,8 @@ COIL_ARG_ENABLE(strict-context, whether to enable strict context,
 
 if test "$COIL_STRICT_CONTEXT" = "yes"; then
   AC_DEFINE([COIL_STRICT_CONTEXT], [1], [ ])
+else
+  AC_DEFINE([COIL_STRICT_CONTEXT], [0], [ ])
 fi
 
 COIL_ARG_ENABLE(strict-file-context, whether to enable strict file context,
@@ -92,6 +104,8 @@ COIL_ARG_ENABLE(strict-file-context, whether to enable strict file context,
 
 if test "$COIL_STRICT_FILE_CONTEXT" = "yes"; then
   AC_DEFINE([COIL_STRICT_FILE_CONTEXT], [1], [ ])
+else
+  AC_DEFINE([COIL_STRICT_FILE_CONTEXT], [0], [ ])
 fi
 
 dnl

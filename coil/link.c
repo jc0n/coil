@@ -115,7 +115,7 @@ link_copy(gconstpointer obj,
 
   g_object_set_valist(G_OBJECT(copy), first_property_name, properties);
 
-#ifdef COIL_PATH_TRANSLATION
+#if COIL_PATH_TRANSLATION
   if (COIL_PATH_IS_ABSOLUTE(copy->target_path))
   {
     CoilStruct     *new_container, *old_container;

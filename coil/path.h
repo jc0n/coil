@@ -102,7 +102,7 @@ extern CoilPath _coil_root_path;
 
 G_BEGIN_DECLS
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
 void
 coil_path_debug(CoilPath *p);
 #endif

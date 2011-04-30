@@ -14,7 +14,7 @@
 
 #define HASH_BYTE(hash, byte) hash = (hash * 33 + (byte))
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
 void struct_table_assert(StructTable *) G_GNUC_UNUSED;
 void struct_table_print(StructTable *) G_GNUC_UNUSED;
 

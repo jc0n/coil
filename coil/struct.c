@@ -35,7 +35,7 @@ struct _CoilStructPrivate
   guint                size;
   guint                hash;
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   guint                version;
 #endif
 
@@ -430,7 +430,7 @@ coil_struct_empty(CoilStruct *self,
 
   priv->size = 0;
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   priv->version = 0;
 #endif
 }
@@ -747,7 +747,7 @@ struct_insert_internal(CoilStruct     *self,
                                        replace, error))
     goto error;
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   priv->version++;
 #endif
 
@@ -1096,7 +1096,7 @@ struct_remove_entry(CoilStruct            *self,
 
   g_queue_remove(&priv->entries, (gpointer)entry);
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   priv->version++;
 #endif
 
@@ -1317,7 +1317,7 @@ struct_mark_deleted_internal(CoilStruct  *self,
 
   struct_table_insert(priv->entry_table, hash, path, NULL);
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   priv->version++;
 #endif
 
@@ -1558,7 +1558,7 @@ coil_struct_add_dependency(CoilStruct     *self,
   g_object_ref(object);
   g_queue_push_tail(&priv->dependencies, object);
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   priv->version++;
 #endif
 
@@ -1776,7 +1776,7 @@ coil_struct_iter_init(CoilStructIter *iter,
 
   CoilStructPrivate *const priv = self->priv;
   iter->node = self;
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   iter->version = priv->version;
 #endif
   iter->position = g_queue_peek_head_link(&priv->entries);
@@ -1789,7 +1789,7 @@ struct_iter_next_entry(CoilStructIter *iter,
   g_return_val_if_fail(iter, FALSE);
   g_return_val_if_fail(entry, FALSE);
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   const CoilStruct *self = iter->node;
 
   if (self == NULL
@@ -2178,7 +2178,7 @@ struct_expand(gconstpointer    object,
     list = g_list_next(list);
   }
 
-#ifdef COIL_DEBUG
+#if COIL_DEBUG
   priv->version++;
 #endif
 

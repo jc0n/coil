@@ -51,7 +51,7 @@ typedef enum
 /* TODO(jcon): consider moving caching into separate file and
  * explore smarter cache coherency approaches */
 
-#ifdef COIL_INCLUDE_CACHING
+#if COIL_INCLUDE_CACHING
 
 static GHashTable *open_files = NULL;
 
@@ -343,7 +343,7 @@ process_import_arg(CoilInclude *self,
 
   source = COIL_STRUCT(g_value_dup_object(import_value));
 
-#ifdef COIL_STRICT_FILE_CONTEXT
+#if COIL_STRICT_FILE_CONTEXT
   result = coil_struct_merge_full(source, container, FALSE, TRUE, error);
 #else
   result = coil_struct_merge(source, container, error);
@@ -544,7 +544,7 @@ include_load_root(CoilInclude *self,
     goto error;
   }
 
-#ifdef COIL_INCLUDE_CACHING
+#if COIL_INCLUDE_CACHING
   root = include_cache_lookup(filepath, &internal_error);
 
   if (G_UNLIKELY(internal_error))
@@ -637,7 +637,7 @@ include_expand(gconstpointer   include,
     CoilExpandable *const super = COIL_EXPANDABLE(self);
     CoilStruct     *container = super->container;
 
-#ifdef COIL_STRICT_FILE_CONTEXT
+#if COIL_STRICT_FILE_CONTEXT
     /*
      * XXX: this expands objects in the file root context
      * before merging into container context.
@@ -935,7 +935,7 @@ coil_include_class_init(CoilIncludeClass *klass)
                          G_PARAM_READWRITE |
                          G_PARAM_CONSTRUCT_ONLY));
 
-#ifdef COIL_INCLUDE_CACHING
+#if COIL_INCLUDE_CACHING
   include_cache_init();
 #endif
 }

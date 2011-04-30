@@ -14,7 +14,7 @@
 #  include "config.h"
 #endif
 
-#ifndef COIL_DEBUG
+#if COIL_DEBUG
 #  define G_DISABLE_CHECKS 1
 #endif
 
