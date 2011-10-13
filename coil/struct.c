@@ -26,11 +26,11 @@ struct _CoilStructPrivate
 
   CoilPath            *path;
 
-  StructTable         *entry_table;
+  StructTable         *table;
 
   GQueue               entries;
   GQueue               dependencies;
-  GList               *last_expand_ptr;
+  GList               *expand_ptr;
 
   guint                size;
   guint                hash;
@@ -146,7 +146,7 @@ destroy_root_struct(gpointer data,
 
     g_object_ref(object);
     g_object_remove_toggle_ref(object, (GToggleNotify)destroy_root_struct, data);
-    struct_table_delete_entry(priv->entry_table, entry);
+    struct_table_delete_entry(priv->table, entry);
   }
 }
 
@@ -166,15 +166,15 @@ become_root_struct(CoilStruct *self)
   priv->path = CoilRootPath;
   priv->root = self;
 
-  if (priv->entry_table)
-    struct_table_unref(priv->entry_table);
-  priv->entry_table = struct_table_new();
+  if (priv->table)
+    struct_table_unref(priv->table);
+  priv->table = struct_table_new();
 
   g_object_set(G_OBJECT(self), "container", NULL, NULL);
 
   coil_value_init(value, COIL_TYPE_STRUCT, take_object, self);
 
-  entry = struct_table_insert(priv->entry_table, 0,
+  entry = struct_table_insert(priv->table, 0,
                               coil_path_ref(priv->path), value);
 
   g_object_add_toggle_ref(G_OBJECT(self),
@@ -239,14 +239,14 @@ struct_change_container(CoilStruct *self,
       /* struct WAS root */
       StructEntry *entry;
 
-      entry = struct_table_lookup(priv->entry_table, 0,
+      entry = struct_table_lookup(priv->table, 0,
                                   COIL_ROOT_PATH, COIL_ROOT_PATH_LEN);
       g_assert(entry);
       g_object_ref(self);
       g_object_remove_toggle_ref(G_OBJECT(self),
                                  (GToggleNotify)destroy_root_struct,
                                  entry);
-      struct_table_delete_entry(priv->entry_table, entry);
+      struct_table_delete_entry(priv->table, entry);
     }
 
     if (!path)
@@ -270,15 +270,15 @@ struct_change_container(CoilStruct *self,
                                       priv->path->key,
                                       priv->path->key_len);
 
-    old_table = priv->entry_table;
-    priv->entry_table = struct_table_ref(container->priv->entry_table);
+    old_table = priv->table;
+    priv->table = struct_table_ref(container->priv->table);
     priv->root = coil_struct_get_root(container);
 
     g_object_set(G_OBJECT(self), "container", container, NULL);
   }
   else
   {
-    old_table = struct_table_ref(priv->entry_table);
+    old_table = struct_table_ref(priv->table);
     become_root_struct(self);
   }
 
@@ -299,7 +299,7 @@ struct_change_container(CoilStruct *self,
                                      entry->path->key,
                                      entry->path->key_len);
 
-    struct_table_insert_entry(priv->entry_table, entry);
+    struct_table_insert_entry(priv->table, entry);
 
     /* if value is struct recursively change containers */
     if (entry->value && G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT))
@@ -426,7 +426,7 @@ coil_struct_empty(CoilStruct *self,
 
   StructEntry *entry;
   while ((entry = g_queue_pop_head(&priv->entries)))
-    struct_table_delete_entry(priv->entry_table, entry);
+    struct_table_delete_entry(priv->table, entry);
 
   priv->size = 0;
 
@@ -462,7 +462,7 @@ struct_is_expanded(gconstpointer s)
   GQueue            *deps = &priv->dependencies;
 
   return g_queue_is_empty(deps) ||
-    priv->last_expand_ptr == g_queue_peek_tail_link(deps);
+    priv->expand_ptr == g_queue_peek_tail_link(deps);
 }
 
 /*
@@ -730,12 +730,12 @@ struct_insert_internal(CoilStruct     *self,
     value_is_struct = TRUE;
   }
 
-  entry = struct_table_lookup(priv->entry_table, hash,
+  entry = struct_table_lookup(priv->table, hash,
                               path->path, path->path_len);
 
   if (entry == NULL)
   {
-    entry = struct_table_insert(priv->entry_table, hash, path, value);
+    entry = struct_table_insert(priv->table, hash, path, value);
     g_queue_push_tail(&priv->entries, entry);
     priv->size++;
 
@@ -877,7 +877,7 @@ coil_struct_create_containers_fast(CoilStruct     *self,
   {
     StructEntry *entry;
 
-    entry = struct_table_lookup(priv->entry_table, hashes[i], path, lens[i]);
+    entry = struct_table_lookup(priv->table, hashes[i], path, lens[i]);
     if (entry == NULL)
       continue;
 
@@ -1118,7 +1118,7 @@ struct_delete_entry(CoilStruct      *self,
   if (!struct_remove_entry(self, entry, error))
       return FALSE;
 
-  struct_table_delete_entry(priv->entry_table, entry);
+  struct_table_delete_entry(priv->table, entry);
 
   return TRUE;
 }
@@ -1143,7 +1143,7 @@ struct_delete_internal(CoilStruct   *self,
   CoilStruct        *container;
   StructEntry       *entry;
 
-  entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
+  entry = struct_table_lookup(priv->table, hash, path, path_len);
 
   if (entry == NULL)
   {
@@ -1287,7 +1287,7 @@ struct_mark_deleted_internal(CoilStruct  *self,
   CoilStructPrivate *const priv = self->priv;
   StructEntry       *entry;
 
-  entry = struct_table_lookup(priv->entry_table, hash,
+  entry = struct_table_lookup(priv->table, hash,
                               path->path, path->path_len);
 
   if (entry && !force)
@@ -1315,7 +1315,7 @@ struct_mark_deleted_internal(CoilStruct  *self,
   }
 */
 
-  struct_table_insert(priv->entry_table, hash, path, NULL);
+  struct_table_insert(priv->table, hash, path, NULL);
 
 #if COIL_DEBUG
   priv->version++;
@@ -1910,7 +1910,7 @@ struct_merge_item(CoilStruct     *self,
   if (path == NULL)
     goto error;
 
-  entry = struct_table_lookup(priv->entry_table, hash,
+  entry = struct_table_lookup(priv->table, hash,
                               path->path, path->path_len);
 
   if (entry && !overwrite)
@@ -2159,15 +2159,15 @@ struct_expand(gconstpointer    object,
   /* TODO(jcon): remove this  -- handle in merge */
   g_object_set(self, "accumulate", TRUE, NULL);
 
-  if (priv->last_expand_ptr == NULL)
+  if (priv->expand_ptr == NULL)
     list = g_queue_peek_head_link(&priv->dependencies);
   else
-    list = g_list_next(priv->last_expand_ptr);
+    list = g_list_next(priv->expand_ptr);
 
   while (list)
   {
     dependency = COIL_EXPANDABLE(list->data);
-    priv->last_expand_ptr = list;
+    priv->expand_ptr = list;
 
     if (!struct_expand_dependency(self, dependency, error))
     {
@@ -2290,7 +2290,7 @@ struct_lookup_container_internal(CoilStruct  *self,
 
   hash = hash_absolute_path(path, container_path_len);
 
-  entry = struct_table_lookup(priv->entry_table,
+  entry = struct_table_lookup(priv->table,
                               hash, /* container hash */
                               path, /* conatiner path */
                               container_path_len);
@@ -2397,7 +2397,7 @@ struct_lookup_internal(CoilStruct     *self,
   StructEntry       *entry;
   const GValue      *result;
 
-  entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
+  entry = struct_table_lookup(priv->table, hash, path, path_len);
   if (entry == NULL)
   {
     if (!expand_container)
@@ -2406,7 +2406,7 @@ struct_lookup_internal(CoilStruct     *self,
     if (!lookup_internal_expand(self, path, path_len, error))
       return NULL;
 
-    entry = struct_table_lookup(priv->entry_table, hash, path, path_len);
+    entry = struct_table_lookup(priv->table, hash, path, path_len);
     result = (entry) ? entry->value : NULL;
   }
   else
@@ -3167,7 +3167,7 @@ coil_struct_new_valist(const gchar *first_property_name,
       g_error("path specified with no container");
 
     priv->root = coil_struct_get_root(container);
-    priv->entry_table = struct_table_ref(container->priv->entry_table);
+    priv->table = struct_table_ref(container->priv->table);
 
     if (!coil_path_has_container(priv->path, container->priv->path, FALSE))
     {
@@ -3241,7 +3241,7 @@ coil_struct_finalize(GObject *object)
   CoilStructPrivate *const priv = self->priv;
 
   coil_path_unref(priv->path);
-  struct_table_unref(priv->entry_table);
+  struct_table_unref(priv->table);
 
   G_OBJECT_CLASS(coil_struct_parent_class)->finalize(object);
 }
