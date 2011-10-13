@@ -40,9 +40,8 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_FILES([
     Makefile
     coil/Makefile
-    bindings/Makefile
-    bindings/python/Makefile
-    bindings/python/tests/Makefile
+    python/Makefile
+    python/tests/Makefile
     tests/Makefile
     tests/functional/Makefile
     tests/benchmark/Makefile

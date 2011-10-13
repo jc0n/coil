@@ -7,10 +7,10 @@
 #include "coilmodule.h"
 #include "coilstruct.h"
 
-PyDoc_STRVAR(cCoil_module_documentation,
+PyDoc_STRVAR(ccoil_module_documentation,
     "C implementation and optimization of the Python coil module.");
 
-PyObject *cCoilError;
+PyObject *ccoilError;
 PyObject *StructError;
 PyObject *LinkError;
 PyObject *IncludeError;
@@ -215,7 +215,7 @@ coil_value_as_pyobject(const GValue *value)
     case G_TYPE_OBJECT:
     {
       if (type == COIL_TYPE_STRUCT)
-        return cCoil_struct_new(g_value_dup_object(value));
+        return ccoil_struct_new(g_value_dup_object(value));
 
       if (type == COIL_TYPE_NONE)
         Py_RETURN_NONE;
@@ -242,7 +242,7 @@ coil_value_as_pyobject(const GValue *value)
 }
 
 void
-cCoil_error(GError **error)
+ccoil_error(GError **error)
 {
   g_return_if_fail(error && *error);
   g_return_if_fail((*error)->domain == COIL_ERROR);
@@ -253,7 +253,7 @@ cCoil_error(GError **error)
   switch ((*error)->code)
   {
     case COIL_ERROR_INTERNAL:
-      e = cCoilError;
+      e = ccoilError;
       break;
 
     case COIL_ERROR_INCLUDE:
@@ -356,7 +356,7 @@ parse_pysequence(PyObject *seq)
 
 error:
   if (error)
-    cCoil_error(&error);
+    ccoil_error(&error);
 
   Py_XDECREF(o);
   Py_XDECREF(s);
@@ -367,7 +367,7 @@ error:
 }
 
 static PyObject *
-cCoil_parse(PyObject *ignored,
+ccoil_parse(PyObject *ignored,
             PyObject *args,
             PyObject *kwargs)
 {
@@ -432,18 +432,18 @@ cCoil_parse(PyObject *ignored,
 
   /* TODO(jcon): implement expand, defaults, and ignore_missing later */
 
-  return cCoil_struct_new(root);
+  return ccoil_struct_new(root);
 
 
 error:
   if (error)
-    cCoil_error(&error);
+    ccoil_error(&error);
 
   return NULL;
 }
 
 static PyObject *
-cCoil_parse_file(PyObject *ignored,
+ccoil_parse_file(PyObject *ignored,
                  PyObject *args,
                  PyObject *kwargs)
 {
@@ -463,19 +463,19 @@ cCoil_parse_file(PyObject *ignored,
   root = coil_parse_file(filepath, &error);
   if (root == NULL)
   {
-    cCoil_error(&error);
+    ccoil_error(&error);
     return NULL;
   }
 
   /* TODO(jcon): expand, defaults, ignore_missing */
 
-  return cCoil_struct_new(root);
+  return ccoil_struct_new(root);
 }
 
-static PyMethodDef cCoil_functions[] =
+static PyMethodDef ccoil_functions[] =
 {
-  { "parse",      (PyCFunction)cCoil_parse,      METH_VARARGS | METH_KEYWORDS, NULL},
-  { "parse_file", (PyCFunction)cCoil_parse_file, METH_VARARGS | METH_KEYWORDS, NULL},
+  { "parse",      (PyCFunction)ccoil_parse,      METH_VARARGS | METH_KEYWORDS, NULL},
+  { "parse_file", (PyCFunction)ccoil_parse_file, METH_VARARGS | METH_KEYWORDS, NULL},
   { NULL, NULL, 0, NULL },
 };
 
@@ -485,15 +485,15 @@ init_exceptions(PyObject *d)
   PyObject *bases = NULL;
 
   /* CoilError */
-  cCoilError = PyErr_NewException("cCoil.CoilError", NULL, NULL);
-  if (cCoilError == NULL)
+  ccoilError = PyErr_NewException("ccoil.CoilError", NULL, NULL);
+  if (ccoilError == NULL)
     goto error;
 
-  if (PyDict_SetItemString(d, "CoilError", cCoilError) < 0)
+  if (PyDict_SetItemString(d, "CoilError", ccoilError) < 0)
     goto error;
 
   /* StructError */
-  StructError = PyErr_NewException("cCoil.StructError", cCoilError, NULL);
+  StructError = PyErr_NewException("ccoil.StructError", ccoilError, NULL);
   if (StructError == NULL)
     goto error;
 
@@ -501,7 +501,7 @@ init_exceptions(PyObject *d)
     goto error;
 
   /* Link Error */
-  LinkError = PyErr_NewException("cCoil.LinkError", StructError, NULL);
+  LinkError = PyErr_NewException("ccoil.LinkError", StructError, NULL);
   if (LinkError == NULL)
     goto error;
 
@@ -509,19 +509,19 @@ init_exceptions(PyObject *d)
     goto error;
 
   /* Include Error */
-  IncludeError = PyErr_NewException("cCoil.IncludeError", StructError, NULL);
+  IncludeError = PyErr_NewException("ccoil.IncludeError", StructError, NULL);
   if (IncludeError == NULL)
     goto error;
 
   if (PyDict_SetItemString(d, "IncludeError", IncludeError) < 0)
     goto error;
 
-  bases = PyTuple_Pack(2, cCoilError, PyExc_KeyError);
+  bases = PyTuple_Pack(2, ccoilError, PyExc_KeyError);
   if (bases == NULL)
     goto error;
 
   /* Key Missing Error */
-  KeyMissingError = PyErr_NewException("cCoil.KeyMissingError", bases, NULL);
+  KeyMissingError = PyErr_NewException("ccoil.KeyMissingError", bases, NULL);
   if (KeyMissingError == NULL)
     goto error;
 
@@ -529,7 +529,7 @@ init_exceptions(PyObject *d)
     goto error;
 
   /* Key Value Error */
-  KeyValueError = PyErr_NewException("cCoil.KeyValueError", bases, NULL);
+  KeyValueError = PyErr_NewException("ccoil.KeyValueError", bases, NULL);
   if (KeyValueError == NULL)
     goto error;
 
@@ -537,7 +537,7 @@ init_exceptions(PyObject *d)
     goto error;
 
   /* KeyType Error */
-  KeyTypeError = PyErr_NewException("cCoil.KeyTypeError", bases, NULL);
+  KeyTypeError = PyErr_NewException("ccoil.KeyTypeError", bases, NULL);
   if (KeyTypeError == NULL)
     goto error;
 
@@ -548,7 +548,7 @@ init_exceptions(PyObject *d)
 
 
   /* ParseError */
-  ParseError = PyErr_NewException("cCoil.ParseError", cCoilError, NULL);
+  ParseError = PyErr_NewException("ccoil.ParseError", ccoilError, NULL);
   if (ParseError == NULL)
     return 0;
 
@@ -611,13 +611,13 @@ init_constants(PyObject *m)
 #endif
 
 PyMODINIT_FUNC
-initcCoil(void)
+initccoil(void)
 {
   PyObject *m, *d;
 
   coil_init();
 
-  m = Py_InitModule3("cCoil", cCoil_functions, cCoil_module_documentation);
+  m = Py_InitModule3("ccoil", ccoil_functions, ccoil_module_documentation);
   if (m == NULL)
     return;
 

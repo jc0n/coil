@@ -3,9 +3,9 @@
 import operator
 
 from unittest import TestCase
-from common import cCoil
+from common import ccoil
 
-Struct = cCoil.Struct
+Struct = ccoil.Struct
 
 
 class TestStruct(TestCase):
@@ -110,8 +110,8 @@ class TestStruct(TestCase):
     self.assertEquals(values, zip(*self.data)[1])
 
   def testKeyMissing(self):
-    self.assertRaises(cCoil.KeyMissingError, lambda: self.struct['bogus'])
-    self.assertRaises(cCoil.KeyMissingError, self.struct.get, 'bad')
+    self.assertRaises(ccoil.KeyMissingError, lambda: self.struct['bogus'])
+    self.assertRaises(ccoil.KeyMissingError, self.struct.get, 'bad')
 
   def testKeyType(self):
     for k in (None, True, False, 1, 1.0, {}, []):
@@ -119,16 +119,16 @@ class TestStruct(TestCase):
       self.assertRaises(TypeError,
                         lambda: self.struct[k])
 
-      self.assertRaises(cCoil.KeyTypeError, self.struct.get, k)
+      self.assertRaises(ccoil.KeyTypeError, self.struct.get, k)
       # TODO(jcon): use coil exceptions
       self.assertRaises(TypeError, self.struct.set, k)
       self.assertRaises(ValueError, lambda: Struct([(k, 123)]))
 
   def testKeyValue(self):
-    self.assertRaises(cCoil.KeyValueError,
+    self.assertRaises(ccoil.KeyValueError,
                       self.struct.set, 'first#', '')
 
-    self.assertRaises(cCoil.KeyValueError,
+    self.assertRaises(ccoil.KeyValueError,
                       self.struct.set, 'first..second', '')
 
   def testToDict(self):
@@ -251,7 +251,7 @@ class PrototypeTestCase(TestCase):
     base.z: "other value"
     '''
     root = Struct(buf)
-    self.assertRaises(cCoil.KeyMissingError, lambda: root['test.z'])
+    self.assertRaises(ccoil.KeyMissingError, lambda: root['test.z'])
     self.assertEquals(root['test'], {
                       'x': True,
                       'y': 'some value',
@@ -300,7 +300,7 @@ class ContainerTestCase(TestCase):
     a.b.c: 123
     x.y.z: "hello"
     '''
-    self.root = cCoil.parse(self.buf)
+    self.root = ccoil.parse(self.buf)
     a = self.root['a']
     b = self.root['a.b']
     x = self.root['x']
@@ -428,7 +428,7 @@ class ContainerTestCase(TestCase):
 class ExpansionTestCase(TestCase):
 
   def testExpand(self):
-    root = cCoil.parse("a: {x:1 y:2 z:3} b: a{}")
+    root = ccoil.parse("a: {x:1 y:2 z:3} b: a{}")
     self.assertEquals(root['a.x'], 1)
     self.assertEquals(root['a.y'], 2)
     self.assertEquals(root['a.z'], 3)

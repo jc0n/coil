@@ -67,7 +67,7 @@ struct_register_types(PyObject *m,
                       PyObject *d);
 
 void
-cCoil_error(GError **error);
+ccoil_error(GError **error);
 
 PyObject *
 pylist_from_value_list(const GList *list);
@@ -88,9 +88,9 @@ struct_update_from_pyitems(CoilStruct *node,
 
 
 PyObject *
-cCoil_struct_new(CoilStruct *node);
+ccoil_struct_new(CoilStruct *node);
 
-extern PyObject *cCoilError;
+extern PyObject *ccoilError;
 extern PyObject *StructError;
 extern PyObject *LinkError;
 extern PyObject *IncludeError;

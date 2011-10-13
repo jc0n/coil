@@ -5,7 +5,7 @@ import sys
 def importModules(buildDir):
   sys.path.insert(0, buildDir)
 
-  cCoil = importModule("cCoil")
+  ccoil = importModule("ccoil")
 
   globals().update(locals())
 

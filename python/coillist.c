@@ -49,7 +49,7 @@ PyTypeObject PyCoilList_Type =
 {
   PyObject_HEAD_INIT(NULL)
   0,
-  "cCoil.List",                                 /* tp_name */
+  "ccoil.List",                                 /* tp_name */
   sizeof(PyCoilList),                           /* tp_basicsize */
   0,                                            /* tp_itemsize */
 
