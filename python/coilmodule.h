@@ -46,49 +46,33 @@ extern PyTypeObject PyCoilStructIterValue_Type;
 typedef struct _structiter_object structiter_object;
 typedef struct _PyCoilStruct PyCoilStruct;
 
-struct _PyCoilStruct
-{
-  PyObject_HEAD
-
-  CoilStruct        *node;
-  structiter_object *iter;
+struct _PyCoilStruct {
+    PyObject_HEAD CoilStruct * node;
+    structiter_object *iter;
 };
 
 typedef struct _PyCoilList PyCoilList;
-struct _PyCoilList
-{
-  PyObject_HEAD
-
-  GList *list;
+struct _PyCoilList {
+    PyObject_HEAD GList * list;
 };
 
 int
-struct_register_types(PyObject *m,
-                      PyObject *d);
+ struct_register_types(PyObject * m, PyObject * d);
 
 void
-ccoil_error(GError **error);
+ ccoil_error(GError ** error);
 
-PyObject *
-pylist_from_value_list(const GList *list);
+PyObject *pylist_from_value_list(const GList * list);
 
-GValue *
-coil_value_from_pyobject(PyObject *o);
+GValue *coil_value_from_pyobject(PyObject * o);
 
-PyObject *
-coil_value_as_pyobject(const GValue *value);
+PyObject *coil_value_as_pyobject(const GValue * value);
 
-CoilPath *
-coil_path_from_pystring(PyObject *o,
-                        GError   **error);
+CoilPath *coil_path_from_pystring(PyObject * o, GError ** error);
 
-gboolean
-struct_update_from_pyitems(CoilStruct *node,
-                          PyObject   *o);
+gboolean struct_update_from_pyitems(CoilStruct * node, PyObject * o);
 
-
-PyObject *
-ccoil_struct_new(CoilStruct *node);
+PyObject *ccoil_struct_new(CoilStruct * node);
 
 extern PyObject *ccoilError;
 extern PyObject *StructError;
