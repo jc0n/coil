@@ -160,8 +160,27 @@ coil_value_from_pyobject(PyObject *o)
                         ((PyCoilStruct *) o)->node);
     }
     else if (PyString_Check(o)) {
-        coil_value_init(value, G_TYPE_STRING, set_string,
-                (gchar *) PyString_AsString(o));
+        /* check for an expression */
+        Py_ssize_t len;
+        char *str;
+        const char *s, *e = NULL;
+
+        if (PyString_AsStringAndSize(o, &str, &len) < 0)
+            return NULL;
+
+        /* this is a hack, it is possible that the expression
+         * characters are escaped but it will still work fine */
+        s = memmem(str, len, "${", 2);
+        if (s != NULL && len - 3 > str - s)
+            e = memchr(s + 3, '}', (str + len) - s);
+        if (s == NULL || e == NULL) {
+            coil_value_init(value, G_TYPE_STRING, set_string,
+                    (gchar *) PyString_AsString(o));
+        }
+        else {
+            coil_value_init(value, COIL_TYPE_EXPR, take_object,
+                    coil_expr_new_string(str, len, NULL));
+        }
     }
     else if (PyList_Check(o) || PyTuple_Check(o)) {
         coil_value_init(value, COIL_TYPE_LIST, take_boxed,
