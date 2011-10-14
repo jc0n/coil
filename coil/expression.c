@@ -57,7 +57,7 @@ expr_expand(CoilObject *self, const GValue **return_value)
     CoilExprPrivate *priv = COIL_EXPR(self)->priv;
     CoilStringFormat format = default_string_format;
     GString *expr = priv->expr, *buffer;
-    const gchar *s, *p;
+    const gchar *s, *p, *e;
 
     if (priv->is_expanded) {
         goto done;
@@ -68,6 +68,7 @@ expr_expand(CoilObject *self, const GValue **return_value)
     format.options &= ~ESCAPE_QUOTES;
     format.options |= DONT_QUOTE_STRINGS;
 
+    e = expr->str + expr->len;
     for (s = expr->str; *s; s++) {
         if (*s == '\\') {
             g_string_append_c(buffer, *++s);
@@ -79,8 +80,14 @@ expr_expand(CoilObject *self, const GValue **return_value)
          */
         if (*s == '$' && s[1] == '{') {
             s += 2;
-            /* XXX: safe b.c lexer has already found '}' */
-            p = rawmemchr(s + 1, '}');
+            /* FIXME: make sure this isnt escaped */
+            p = memchr(s + 1, '}', e - s);
+            if (p == NULL) {
+                coil_object_error(COIL_ERROR_VALUE, self,
+                    "Unterminated expression ${%.*s", (int)(p - s), s);
+                g_string_free(buffer, TRUE);
+                return FALSE;
+            }
             append_path_substitution(self, buffer, &format, s, p - s);
             if (coil_error_occurred()) {
                 g_string_free(buffer, TRUE);
@@ -177,7 +184,12 @@ expr_translate_path(GString *expr, CoilObject *old_container,
         if (*s == '$' && s[1] == '{') {
             s += 2;
             i += 2;
-            e = rawmemchr(s + 1, '}');
+            e = memchr(s + 1, '}', e - s);
+            if (e == NULL) {
+                coil_set_error(COIL_ERROR_VALUE, NULL,
+                        "Unterminated expression ${%.*s", (int)(e - s), s);
+                return FALSE;
+            }
             path = coil_path_new_len(s, e - s);
             if (path == NULL) {
                 return FALSE;
