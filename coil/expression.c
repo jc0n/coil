@@ -80,10 +80,10 @@ expr_expand(gconstpointer  object,
   CoilExprPrivate *const priv = self->priv;
   CoilStringFormat format = default_string_format;
   GString         *expr = priv->expr, *buffer;
-  const gchar     *s, *p;
+  const gchar     *s, *p, *e;
   GError          *internal_error = NULL;
 
-  if (priv->is_expanded)
+  if (priv->is_expanded && priv->expanded_value != NULL)
     goto done;
 
   buffer = g_string_sized_new(128);
@@ -92,6 +92,7 @@ expr_expand(gconstpointer  object,
   format.options &= ~ESCAPE_QUOTES;
   format.options |= DONT_QUOTE_STRINGS;
 
+  e = expr->str + expr->len;
   for (s = expr->str; *s; s++)
   {
     if (*s == '\\')
@@ -107,8 +108,14 @@ expr_expand(gconstpointer  object,
     if (*s == '$' && s[1] == '{')
     {
       s += 2;
-      /* XXX: safe b.c lexer has already found '}' */
-      p = rawmemchr(s + 1, '}');
+      p = memchr(s, '}', e - s);
+      if (p == NULL)
+      {
+        coil_expandable_error(error, COIL_ERROR_VALUE, self,
+            "Unterminated expression ${%.*s", (int)(e - s), s);
+        g_string_free(buffer, TRUE);
+        return FALSE;
+      }
 
       append_path_substitution(self, buffer, &format, s, p - s, &internal_error);
 
@@ -211,21 +218,25 @@ coil_expr_to_string(CoilExpr         *self,
 
 #if COIL_PATH_TRANSLATION
 static gboolean
-expr_translate_path(GString    *expr,
+expr_translate_path(CoilExpr   *self,
                     CoilStruct *old_container,
-                    CoilStruct *new_container,
                     GError    **error)
 {
+  g_return_val_if_fail(COIL_IS_EXPR(self), FALSE);
   g_return_val_if_fail(COIL_IS_STRUCT(old_container), FALSE);
-  g_return_val_if_fail(COIL_IS_STRUCT(new_container), FALSE);
 
   guint           i;
-  const gchar    *s, *e;
+  const gchar    *s, *e, *p;
   CoilPath       *path, *new_path;
   const CoilPath *container_path;
+  CoilExprPrivate *priv = self->priv;
+  GString *expr = priv->expr;
+  CoilStruct *new_container;
 
-  for (i = 0, s = expr->str;
-       i < expr->len; i++, s++)
+  g_object_get(self, "container", &new_container, NULL);
+
+  e = expr->str + expr->len;
+  for (i = 0, s = expr->str; s < e; i++, s++)
   {
     if (*s == '\\')
     {
@@ -239,9 +250,15 @@ expr_translate_path(GString    *expr,
       s += 2;
       i += 2;
 
-      e = rawmemchr(s + 1, '}');
+      p = memchr(s, '}', e - s);
+      if (p == NULL)
+      {
+        coil_expandable_error(error, COIL_ERROR_VALUE, self,
+            "Unterminated expression ${%.*s", (int)(e - s), s);
+        return FALSE;
+      }
 
-      path = coil_path_new_len(s, e - s, error);
+      path = coil_path_new_len(s, p - s, error);
       if (path == NULL)
         return FALSE;
 
@@ -272,20 +289,25 @@ expr_copy(gconstpointer     _self,
   CoilExpr        *self = COIL_EXPR(_self);
   CoilExpr        *copy;
   CoilExprPrivate *priv = self->priv;
-  GString         *string;
+  GString         *expr = priv->expr, *newexpr;
 
-  string = g_string_new_len(priv->expr->str, priv->expr->len);
-  copy = coil_expr_new_valist(string, first_property_name, properties);
+  if (expr == NULL)
+    return (CoilExpandable *)coil_expr_new(NULL, NULL);
+
+  newexpr = g_string_new_len(expr->str, expr->len);
+  copy = coil_expr_new_valist(newexpr, first_property_name, properties);
+  if (copy == NULL)
+    return NULL;
 
 #if COIL_PATH_TRANSLATION
-  CoilStruct     *new_container, *old_container;
-
-  new_container = COIL_EXPANDABLE(copy)->container;
-  old_container = COIL_EXPANDABLE(self)->container;
-
-  if (!coil_struct_compare_root(old_container, new_container)
-    && !expr_translate_path(string, old_container, new_container, error))
-      return NULL;
+  CoilStruct *new_container = COIL_EXPANDABLE(copy)->container;
+  if (new_container)
+  {
+    CoilStruct *old_container = COIL_EXPANDABLE(self)->container;
+    if (!coil_struct_compare_root(old_container, new_container)
+      && !expr_translate_path(copy, old_container, error))
+        return NULL;
+  }
 #endif
 
   return COIL_EXPANDABLE(copy);
