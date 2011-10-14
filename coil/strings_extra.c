@@ -48,3 +48,20 @@ mempcpy(void *dst, const unsigned char *src, size_t n)
   return (char *)dp;
 }
 #endif
+
+#if !HAVE_MEMMEM
+void *
+memmem(void *haystack, size_t n,
+       void *needle, size_t m)
+{
+    const unsigned char *p;
+
+    for (p = haystack; n > 0; n--) {
+        if (memcmp(p, needle, m) == 0)
+            return (void *)p;
+        p++;
+    }
+    return NULL;
+}
+#endif
+

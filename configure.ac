@@ -147,7 +147,7 @@ if test "x$have_glib" = "xno"; then
     AC_MSG_ERROR($GLIB_PKG_ERRORS)
 fi
 
-AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr)
+AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr memmem)
 
 AC_SUBST(CFLAGS)
 AC_SUBST(LDFLAGS)
