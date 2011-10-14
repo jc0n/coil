@@ -3003,8 +3003,10 @@ coil_struct_copy_valist(CoilStruct  *self,
   if (copy == NULL)
     return NULL;
 
+#if 0
   if (!coil_struct_expand_items(self, TRUE, error))
     goto error;
+#endif
 
   if (!coil_struct_merge(self, copy, error))
     goto error;
