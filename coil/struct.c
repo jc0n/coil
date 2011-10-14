@@ -453,7 +453,7 @@ coil_struct_is_prototype(const CoilStruct *self)
 }
 
 static gboolean
-struct_is_expanded(gconstpointer s)
+struct_needs_expand(gconstpointer s)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(s), FALSE);
 
@@ -461,8 +461,13 @@ struct_is_expanded(gconstpointer s)
   CoilStructPrivate *priv = self->priv;
   GQueue            *deps = &priv->dependencies;
 
-  return g_queue_is_empty(deps) ||
-    priv->expand_ptr == g_queue_peek_tail_link(deps);
+  if (g_queue_is_empty(deps))
+    return FALSE;
+
+  if (priv->expand_ptr == NULL)
+    return FALSE;
+
+  return priv->expand_ptr != g_queue_peek_tail_link(deps);
 }
 
 /*
@@ -480,7 +485,7 @@ struct_is_definitely_empty(const CoilStruct *self)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
 
-  return !self->priv->size && struct_is_expanded(self);
+  return !self->priv->size && struct_needs_expand(self);
 }
 
 COIL_API(gboolean)
@@ -492,7 +497,7 @@ coil_struct_is_empty(CoilStruct *self,
   if (self->priv->size)
     return FALSE;
 
-  if (!struct_is_expanded(self)
+  if (!struct_needs_expand(self)
     && !coil_struct_expand(self, error))
     return FALSE;
 
@@ -2110,8 +2115,6 @@ struct_expand_dependency(CoilStruct     *self,
     return FALSE;
   }
 
-  g_assert(struct_is_expanded(parent));
-
 #if COIL_STRICT_CONTEXT
   if (!coil_struct_merge_full(parent, self, FALSE, TRUE, error))
     return FALSE;
@@ -2151,7 +2154,7 @@ struct_expand(gconstpointer    object,
 
   g_return_val_if_fail(!priv->is_prototype, FALSE);
 
-  if (struct_is_expanded(self))
+  if (struct_needs_expand(self))
     return TRUE;
 
   /* Since we waited to expand we're not really changing anything
@@ -2746,7 +2749,7 @@ coil_struct_get_size(CoilStruct *self,
   g_return_val_if_fail(COIL_IS_STRUCT(self), -1);
   g_return_val_if_fail(error == NULL || *error == NULL, -1);
 
-  if (!struct_is_expanded(self)
+  if (!struct_needs_expand(self)
       && !coil_struct_expand(self, error))
     return -1;
 
@@ -3349,7 +3352,7 @@ coil_struct_class_init (CoilStructClass *klass)
    /* override expandable methods */
   CoilExpandableClass *expandable_class = COIL_EXPANDABLE_CLASS(klass);
   expandable_class->copy = struct_copy_valist;
-  expandable_class->is_expanded = struct_is_expanded;
+  expandable_class->is_expanded = struct_needs_expand;
   expandable_class->expand = struct_expand;
   expandable_class->equals = coil_struct_equals;
   expandable_class->build_string = _struct_build_string;
