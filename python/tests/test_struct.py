@@ -152,7 +152,7 @@ class TestStruct(TestCase):
     s = Struct()
     s['x'] = '${y}'
     s['y'] = 123
-    self.assertEquals(s['x'], s['y'])
+    self.assertEquals(s['x'], str(s['y']))
     self.assertEquals(s['y'], 123)
 
   def testSetSubStruct(self):
@@ -442,12 +442,12 @@ class ExpansionTestCase(TestCase):
     self.assertEquals(root['b.y'], 2)
     self.assertEquals(root['b.z'], 3)
 
-#  def testExpressionExpand(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}"
-#    self.assertEquals(root.get('bar'), "omgwtfbbq")
-#
+  def testExpressionExpand(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = "omgwtf${foo}"
+    self.assertEquals(root.get('bar'), "omgwtfbbq")
+
 #  def testExpandItem(self):
 #    root = Struct()
 #    root["foo"] = "bbq"
@@ -455,12 +455,12 @@ class ExpansionTestCase(TestCase):
 #    self.assertEquals(root.get('bar'), "omgwtf${foo}")
 #    self.assertEquals(root.expanditem('bar'), "omgwtfbbq")
 #
-#  def testExpandDefault(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    root.expand({'foo':"123",'baz':"456"})
-#    self.assertEquals(root.get('bar'), "omgwtfbbq456")
+  def testExpandDefault(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = "omgwtf${foo}${baz}"
+    root.expand({'foo':"123",'baz':"456"})
+    self.assertEquals(root.get('bar'), "omgwtfbbq456")
 #
 #  def testExpandItemDefault(self):
 #    root = Struct()
@@ -495,11 +495,11 @@ class ExpansionTestCase(TestCase):
 #    self.assertEquals(root.expanditem('bar', ignore_missing=('baz',)),
 #                "omgwtfbbq${baz}")
 #
-#  def testExpandError(self):
-#    root = Struct()
-#    root["bar"] = "omgwtf${foo}"
-#    self.assertRaises(KeyError, root.expand)
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}")
+  def testExpandError(self):
+    root = Struct()
+    root["bar"] = "omgwtf${foo}"
+    self.assertRaises(KeyError, root.expand)
+    self.assertEquals(root.get('bar'), "omgwtf${foo}")
 #
 #  def testExpandItemError(self):
 #    root = Struct()
@@ -508,13 +508,13 @@ class ExpansionTestCase(TestCase):
 #    self.assertRaises(KeyError, root.expanditem, 'bar')
 #    self.assertEquals(root.get('bar'), "omgwtf${foo}")
 #
-#  def testExpandInList(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = [ "omgwtf${foo}" ]
+  def testExpandInList(self):
+    root = Struct()
+    root["foo"] = "bbq"
+    root["bar"] = [ "omgwtf${foo}" ]
 #    self.assertEquals(root['bar'][0], "omgwtf${foo}")
 #    root.expand()
-#    self.assertEquals(root['bar'][0], "omgwtfbbq")
+    self.assertEquals(root['bar'][0], "omgwtfbbq")
 #
 #  def testExpandMixed(self):
 #    root = Struct()
