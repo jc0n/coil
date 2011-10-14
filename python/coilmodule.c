@@ -10,6 +10,7 @@
 PyDoc_STRVAR(ccoil_module_documentation,
              "C implementation and optimization of the Python coil module.");
 
+
 PyObject *ccoilError;
 PyObject *StructError;
 PyObject *LinkError;
@@ -19,19 +20,34 @@ PyObject *KeyValueError;
 PyObject *KeyTypeError;
 PyObject *ParseError;
 
+#if PY_MAJOR_VERSION >= 3
+static struct PyModuleDef ccoil_module = {
+    PyModuleDef_HEAD_INIT,
+    "ccoil",
+    NULL, 0,
+    ccoil_functions,
+    NULL,
+    ccoil_traverse,
+    ccoil_clear,
+    NULL
+};
+#endif
+
+
 /* TODO(jcon): replace pylist with list proxy object to propagate updates
  * back to coil list */
 PyObject *
-pylist_from_value_list(const GList * list)
+pylist_from_value_list(GList * list)
 {
+    g_return_val_if_fail(list, NULL);
+
     Py_ssize_t i, size;
     PyObject *pylist, *pyitem;
 
     if (list == NULL)
         return PyList_New(0);
 
-    size = g_list_length((GList *) list);
-
+    size = g_list_length(list);
     pylist = PyList_New(size);
     if (pylist == NULL)
         return NULL;
@@ -64,8 +80,14 @@ value_list_from_pysequence(PyObject * obj)
 
     n = PySequence_Fast_GET_SIZE(fast);
     while (n-- > 0) {
+        GValue *value;
         item = PySequence_Fast_GET_ITEM(fast, n);
-        list = g_list_prepend(list, coil_value_from_pyobject(item));
+        value = coil_value_from_pyobject(item);
+        if (value == NULL) {
+            coil_value_list_free(list);
+            return NULL;
+        }
+        list = g_list_prepend(list, value);
     }
 
     Py_DECREF(fast);
@@ -73,52 +95,77 @@ value_list_from_pysequence(PyObject * obj)
 }
 
 CoilPath *
-coil_path_from_pystring(PyObject * o, GError ** error)
+coil_path_from_pyobject(PyObject *obj, GError **error)
 {
-    gchar *str;
+    gchar *str = NULL;
     Py_ssize_t len;
 
-    if (PyString_AsStringAndSize(o, &str, &len) < 0)
+    if (PyUnicode_Check(obj)) {
+        PyObject *str;
+        str = PyUnicode_AsEncodedString(obj, "ascii", NULL);
+        if (str == NULL)
+            return NULL;
+        obj = str;
+    }
+    if (PyString_Check(obj)) {
+        if (PyString_AsStringAndSize(obj, &str, &len) < 0)
+            return NULL;
+    }
+    else {
+        PyErr_Format(PyExc_TypeError,
+            "Unsupported type %s for coil path.",
+            Py_TYPE_NAME(obj));
         return NULL;
-
-    return coil_path_new_len(str, (guint) len, error);
+    }
+    return coil_path_new_len(str, (guint)len, error);
 }
 
 GValue *
-coil_value_from_pyobject(PyObject * o)
+coil_value_from_pyobject(PyObject *o)
 {
     GValue *value = NULL;
     PyTypeObject *type = (PyTypeObject *) o->ob_type;
 
-    if (o == NULL)
+    if (o == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "NULL python object.");
-    else if (o == Py_None)
+        return NULL;
+    }
+    else if (o == Py_None) {
         coil_value_init(value, COIL_TYPE_NONE, set_object, coil_none_object);
-    else if (o == Py_True)
+    }
+    else if (o == Py_True) {
         coil_value_init(value, G_TYPE_BOOLEAN, set_boolean, TRUE);
-    else if (o == Py_False)
+    }
+    else if (o == Py_False) {
         coil_value_init(value, G_TYPE_BOOLEAN, set_boolean, FALSE);
-    else if (type == &PyInt_Type)
+    }
+#if PYTHON_MAJOR_VERSION <= 2
+    else if (type == &PyInt_Type) {
         coil_value_init(value, G_TYPE_INT, set_int, (gint) PyInt_AsLong(o));
-    else if (type == &PyLong_Type)
+    }
+#endif
+    else if (type == &PyLong_Type) {
         coil_value_init(value, G_TYPE_LONG, set_long,
                         (glong) PyLong_AsLong(o));
-    else if (type == &PyFloat_Type)
+    }
+    else if (type == &PyFloat_Type) {
         coil_value_init(value, G_TYPE_FLOAT, set_float,
                         (gfloat) PyFloat_AsDouble(o));
-    else if (type == &PyCoilStruct_Type)
+    }
+    else if (type == &PyCoilStruct_Type) {
         coil_value_init(value, COIL_TYPE_STRUCT, set_object,
                         ((PyCoilStruct *) o)->node);
-    else if (PyString_Check(o))
+    }
+    else if (PyString_Check(o)) {
         coil_value_init(value, G_TYPE_STRING, set_string,
-                        (gchar *) PyString_AsString(o));
-    else if (PyList_Check(o) || PyTuple_Check(o))
+                (gchar *) PyString_AsString(o));
+    }
+    else if (PyList_Check(o) || PyTuple_Check(o)) {
         coil_value_init(value, COIL_TYPE_LIST, take_boxed,
                         value_list_from_pysequence(o));
+    }
     else if (PyDict_Check(o)) {
-        CoilStruct *node;
-
-        node = coil_struct_new(NULL, NULL);
+        CoilStruct *node = coil_struct_new(NULL, NULL);
         if (node == NULL)
             return NULL;
 
@@ -126,14 +173,14 @@ coil_value_from_pyobject(PyObject * o)
             g_object_unref(node);
             return NULL;
         }
-
         coil_value_init(value, COIL_TYPE_STRUCT, take_object, node);
     }
-    else
+    else {
         PyErr_Format(PyExc_TypeError,
                      "Unsupported python type '%s' for coil value",
                      Py_TYPE_NAME(o));
-
+    }
+    /* TODO(jcon): unicode support */
     return value;
 }
 
@@ -148,74 +195,49 @@ coil_value_as_pyobject(const GValue * value)
     type = G_VALUE_TYPE(value);
 
     switch (G_TYPE_FUNDAMENTAL(type)) {
-    case G_TYPE_CHAR:
-        {
+        case G_TYPE_CHAR: {
             gint8 val = g_value_get_char(value);
             return PyString_FromStringAndSize((char *)&val, 1);
         }
-    case G_TYPE_UCHAR:
-        {
+        case G_TYPE_UCHAR: {
             guint8 val = g_value_get_uchar(value);
             return PyString_FromStringAndSize((char *)&val, 1);
         }
-    case G_TYPE_BOOLEAN:
-        {
+        case G_TYPE_BOOLEAN:
             return PyBool_FromLong(g_value_get_boolean(value));
-        }
-    case G_TYPE_INT:
-        return PyInt_FromLong(g_value_get_int(value));
-    case G_TYPE_UINT:
-        {
-            /* in Python, the Int object is backed by a long.  If a
-               long can hold the whole value of an unsigned int, use
-               an Int.  Otherwise, use a Long object to avoid overflow.
-               This matches the ULongArg behavior in codegen/argtypes.h */
-#if (G_MAXUINT <= G_MAXLONG)
-            return PyLong_FromLong((glong) g_value_get_uint(value));
-#else
+        case G_TYPE_INT:
+            return PyLong_FromLong(g_value_get_int(value));
+        case G_TYPE_UINT:
             return PyLong_FromUnsignedLong((gulong) g_value_get_uint(value));
-#endif
-        }
-    case G_TYPE_LONG:
-        return PyLong_FromLong(g_value_get_long(value));
-    case G_TYPE_ULONG:
-        {
-            gulong val = g_value_get_ulong(value);
-            if (val <= G_MAXLONG)
-                return PyLong_FromLong((glong) val);
-            else
-                return PyLong_FromUnsignedLong(val);
-        }
-    case G_TYPE_INT64:
-        {
+        case G_TYPE_LONG:
+            return PyLong_FromLong(g_value_get_long(value));
+        case G_TYPE_ULONG:
+            return PyLong_FromUnsignedLong(g_value_get_ulong(value));
+        case G_TYPE_INT64: {
             gint64 val = g_value_get_int64(value);
             if (G_MINLONG <= val && val <= G_MAXLONG)
                 return PyLong_FromLong((glong) val);
             else
                 return PyLong_FromLongLong(val);
         }
-    case G_TYPE_UINT64:
-        {
+        case G_TYPE_UINT64: {
             guint64 val = g_value_get_uint64(value);
-
             if (val <= G_MAXLONG)
                 return PyLong_FromLong((glong) val);
             else
                 return PyLong_FromUnsignedLongLong(val);
         }
-    case G_TYPE_FLOAT:
-        return PyFloat_FromDouble(g_value_get_float(value));
-    case G_TYPE_DOUBLE:
-        return PyFloat_FromDouble(g_value_get_double(value));
-    case G_TYPE_STRING:
-        {
+        case G_TYPE_FLOAT:
+            return PyFloat_FromDouble(g_value_get_float(value));
+        case G_TYPE_DOUBLE:
+            return PyFloat_FromDouble(g_value_get_double(value));
+        case G_TYPE_STRING: {
             const gchar *str = g_value_get_string(value);
             if (str)
                 return PyString_FromString(str);
             Py_RETURN_NONE;
         }
-    case G_TYPE_OBJECT:
-        {
+        case G_TYPE_OBJECT: {
             if (type == COIL_TYPE_STRUCT)
                 return ccoil_struct_new(g_value_dup_object(value));
 
@@ -224,18 +246,18 @@ coil_value_as_pyobject(const GValue * value)
 
             break;
         }
-
-    case G_TYPE_BOXED:
-        if (type == G_TYPE_GSTRING) {
-            GString *buf = g_value_get_boxed(value);
-            return PyString_FromStringAndSize(buf->str, buf->len);
-        }
-
-        if (type == COIL_TYPE_LIST)
-            return pylist_from_value_list(g_value_get_boxed(value));
+        case G_TYPE_BOXED:
+            if (type == G_TYPE_GSTRING) {
+                GString *buf = g_value_get_boxed(value);
+                return PyString_FromStringAndSize(buf->str, buf->len);
+            }
+            if (type == COIL_TYPE_LIST)
+                return pylist_from_value_list(g_value_get_boxed(value));
+            break;
     }
 
-    PyErr_Format(PyExc_TypeError, "Unknown coil type '%s'", g_type_name(type));
+    PyErr_Format(PyExc_TypeError,
+                 "Unable to handle coil value type '%s'", g_type_name(type));
 
     return NULL;
 }
@@ -309,77 +331,52 @@ ccoil_error(GError ** error)
     """
 */
 static CoilStruct *
-parse_pysequence(PyObject * seq)
+parse_pysequence(PyObject *seqobj)
 {
-    CoilStruct *result;
-    PyObject *s = NULL, *o = NULL;
-    Py_ssize_t n, i;
-    GString *buffer;
+    CoilStruct *root;
+    PyObject *sepobj, *bufobj;
+    Py_ssize_t n;
+    const char *buffer;
     GError *error = NULL;
 
-    buffer = g_string_sized_new(8192);
-
-    n = PySequence_Size(seq);
+    n = PySequence_Size(seqobj);
     if (n < 0)
         return NULL;
+    if (n == 0)
+        return coil_struct_new(NULL, NULL);
 
-    for (i = 0; i < n; i++) {
-        char *str;
-        Py_ssize_t len;
+    sepobj = PyString_FromStringAndSize(NULL, 0);
+    if (sepobj == NULL)
+        return NULL;
 
-        o = PySequence_ITEM(seq, i);
-        if (o == NULL)
-            goto error;
+    bufobj = PyObject_CallMethod(sepobj, "join", "O", seqobj);
+    Py_DECREF(sepobj);
+    if (bufobj == NULL)
+        return NULL;
 
-        s = PyObject_Str(o);
-        if (s == NULL)
-            goto error;
+    buffer = PyString_AS_STRING(bufobj);
+    n = Py_SIZE(bufobj);
 
-        if (PyString_AsStringAndSize(s, &str, &len) < 0)
-            goto error;
-
-        g_string_append_len(buffer, str, len);
-
-        Py_DECREF(o);
-        Py_DECREF(s);
-    }
-
-    result = coil_parse_string_len(buffer->str, buffer->len, &error);
-    if (result == NULL)
-        goto error;
-
-    g_string_free(buffer, TRUE);
-    return result;
-
- error:
-    if (error)
+    root = coil_parse_string_len(buffer, n, &error);
+    if (root == NULL) {
         ccoil_error(&error);
-
-    Py_XDECREF(o);
-    Py_XDECREF(s);
-
-    g_string_free(buffer, TRUE);
-
-    return NULL;
+        Py_DECREF(bufobj);
+        return NULL;
+    }
+    return root;
 }
 
 static PyObject *
-ccoil_parse(PyObject * ignored, PyObject * args, PyObject * kwargs)
+ccoil_parse(PyObject *ignored, PyObject *args, PyObject *kwargs)
 {
-    static char *kwlist[] = { "expand", "defaults", "ignore_missing", NULL };
-    PyObject *input = NULL;
-    PyObject *expand = NULL;
-    PyObject *defaults = NULL;
-    PyObject *ignore_missing = NULL;
-
+    static char *kwlist[] = {"expand", "defaults", "ignore_missing", NULL};
+    PyObject *input = NULL, *expand = NULL;
+    PyObject *defaults = NULL, *ignore_missing = NULL;
     CoilStruct *root;
     GError *error = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "O|OOO:parse",
-                                     kwlist,
-                                     &input,
-                                     &expand, &defaults, &ignore_missing))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO:parse", kwlist,
+                                     &input, &expand, &defaults, &ignore_missing))
         return NULL;
 
     if (PyFile_Check(input)) {
@@ -441,9 +438,9 @@ ccoil_parse_file(PyObject * ignored, PyObject * args, PyObject * kwargs)
     PyObject *ignore_missing = NULL;
     gchar *filepath = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|OOO:parse_file",
-                                     kwlist, &filepath, &expand,
-                                     &defaults, &ignore_missing))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|OOO:parse_file", kwlist,
+                                     &filepath, &expand, &defaults,
+                                     &ignore_missing))
         return NULL;
 
     root = coil_parse_file(filepath, &error);
@@ -458,91 +455,120 @@ ccoil_parse_file(PyObject * ignored, PyObject * args, PyObject * kwargs)
 }
 
 static PyMethodDef ccoil_functions[] = {
-    {"parse", (PyCFunction) ccoil_parse, METH_VARARGS | METH_KEYWORDS, NULL},
-    {"parse_file", (PyCFunction) ccoil_parse_file,
+    {"parse", (PyCFunction)ccoil_parse, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"parse_file", (PyCFunction)ccoil_parse_file,
      METH_VARARGS | METH_KEYWORDS, NULL},
     {NULL, NULL, 0, NULL},
 };
 
 static int
-init_exceptions(PyObject * d)
+init_errors(PyObject *m, PyObject * d)
 {
     PyObject *bases = NULL;
+    PyObject *errors = NULL;
+
+    errors = PyModule_New("ccoil.errors");
+    if (errors == NULL)
+        goto error;
+
+    if (PyModule_AddObject(m, "errors", errors) < 0)
+        goto error;
+
 
     /* CoilError */
-    ccoilError = PyErr_NewException("ccoil.CoilError", NULL, NULL);
+    ccoilError = PyErr_NewException("errors.CoilError",
+                                    NULL, NULL);
     if (ccoilError == NULL)
         goto error;
 
-    if (PyDict_SetItemString(d, "CoilError", ccoilError) < 0)
+    if (PyModule_AddObject(errors, "CoilError", ccoilError) < 0)
         goto error;
 
+
     /* StructError */
-    StructError = PyErr_NewException("ccoil.StructError", ccoilError, NULL);
+    StructError = PyErr_NewException("errors.StructError",
+                                     ccoilError, NULL);
     if (StructError == NULL)
         goto error;
 
-    if (PyDict_SetItemString(d, "StructError", StructError) < 0)
+    if (PyModule_AddObject(errors, "StructError", StructError) < 0)
         goto error;
 
+
     /* Link Error */
-    LinkError = PyErr_NewException("ccoil.LinkError", StructError, NULL);
+    LinkError = PyErr_NewException("errors.LinkError",
+                                   StructError, NULL);
     if (LinkError == NULL)
         goto error;
 
-    if (PyDict_SetItemString(d, "LinkError", LinkError) < 0)
+    if (PyModule_AddObject(errors, "LinkError", LinkError) < 0)
         goto error;
 
+
     /* Include Error */
-    IncludeError = PyErr_NewException("ccoil.IncludeError", StructError, NULL);
+    IncludeError = PyErr_NewException("errors.IncludeError",
+                                      StructError, NULL);
     if (IncludeError == NULL)
         goto error;
 
-    if (PyDict_SetItemString(d, "IncludeError", IncludeError) < 0)
+    if (PyModule_AddObject(errors, "IncludeError", IncludeError) < 0)
         goto error;
+
+
 
     bases = PyTuple_Pack(2, ccoilError, PyExc_KeyError);
     if (bases == NULL)
         goto error;
 
+
     /* Key Missing Error */
-    KeyMissingError = PyErr_NewException("ccoil.KeyMissingError", bases, NULL);
+    KeyMissingError = PyErr_NewException("errors.KeyMissingError",
+                                         bases, NULL);
     if (KeyMissingError == NULL)
         goto error;
 
-    if (PyDict_SetItemString(d, "KeyMissingError", KeyMissingError) < 0)
+    if (PyModule_AddObject(errors, "KeyMissingError", KeyMissingError) < 0)
         goto error;
 
+
     /* Key Value Error */
-    KeyValueError = PyErr_NewException("ccoil.KeyValueError", bases, NULL);
+    KeyValueError = PyErr_NewException("errors.KeyValueError",
+                                       bases, NULL);
     if (KeyValueError == NULL)
         goto error;
 
-    if (PyDict_SetItemString(d, "KeyValueError", KeyValueError) < 0)
+    if (PyModule_AddObject(errors, "KeyValueError", KeyValueError) < 0)
         goto error;
 
+
+    Py_DECREF(bases);
+    bases = PyTuple_Pack(1, PyExc_TypeError);
+
     /* KeyType Error */
-    KeyTypeError = PyErr_NewException("ccoil.KeyTypeError", bases, NULL);
+    KeyTypeError = PyErr_NewException("errors.KeyTypeError", bases, NULL);
     if (KeyTypeError == NULL)
         goto error;
 
-    if (PyDict_SetItemString(d, "KeyTypeError", KeyTypeError) < 0)
+    if (PyModule_AddObject(errors, "KeyTypeError", KeyTypeError) < 0)
         goto error;
 
     Py_DECREF(bases);
 
+
     /* ParseError */
-    ParseError = PyErr_NewException("ccoil.ParseError", ccoilError, NULL);
+    ParseError = PyErr_NewException("errors.ParseError",
+                                    ccoilError, NULL);
     if (ParseError == NULL)
         return 0;
 
-    if (PyDict_SetItemString(d, "ParseError", ParseError) < 0)
+    if (PyModule_AddObject(errors, "ParseError", ParseError) < 0)
         return 0;
 
     return 1;
 
  error:
     Py_XDECREF(bases);
+    Py_XDECREF(errors);
     return 0;
 }
 
@@ -553,14 +579,16 @@ init_constants(PyObject * m)
 
     version_info = Py_BuildValue("(iii)",
                                  COIL_MAJOR_VERSION,
-                                 COIL_MINOR_VERSION, COIL_RELEASE_VERSION);
+                                 COIL_MINOR_VERSION,
+                                 COIL_RELEASE_VERSION);
 
     if (PyModule_AddObject(m, "__version_info__", version_info) < 0)
         return 0;
 
     version = PyString_FromFormat("%d.%d.%d",
                                   COIL_MAJOR_VERSION,
-                                  COIL_MINOR_VERSION, COIL_RELEASE_VERSION);
+                                  COIL_MINOR_VERSION,
+                                  COIL_RELEASE_VERSION);
 
     if (PyModule_AddObject(m, "__version__", version) < 0)
         return 0;
@@ -586,29 +614,42 @@ init_constants(PyObject * m)
     return 1;
 }
 
-#ifndef PyMODINIT_FUNC          /* declarations for DLL import/export */
-#define PyMODINIT_FUNC void
-#endif
 
-PyMODINIT_FUNC
+#if PY_MAJOR_VERSION >= 3
+PyObject *
+PyInit_ccoil(void)
+#define INITERROR return NULL
+#else
+void
 initccoil(void)
+#define INITERROR return
+#endif
 {
     PyObject *m, *d;
 
     coil_init();
 
+ #if PY_MAJOR_VERSION >= 3
+    m = PyModule_Create(&ccoil_module);
+#else
     m = Py_InitModule3("ccoil", ccoil_functions, ccoil_module_documentation);
+#endif
+
     if (m == NULL)
-        return;
+        INITERROR;
 
     d = PyModule_GetDict(m);
 
     if (!init_constants(m))
-        return;
+        INITERROR;
 
-    if (!init_exceptions(d))
-        return;
+    if (!init_errors(m, d))
+        INITERROR;
 
     if (!struct_register_types(m, d))
-        return;
+        INITERROR;
+
+#if PY_MAJOR_VERSION >= 3
+    return m;
+#endif
 }

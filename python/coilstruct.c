@@ -491,7 +491,7 @@ struct_update_from_pyitems(CoilStruct * node, PyObject * items)
             goto error;
         }
 
-        path = coil_path_from_pystring(k, &error);
+        path = coil_path_from_pyobject(k, &error);
         if (path == NULL)
             goto error;
 
@@ -658,7 +658,7 @@ struct_sq_contains(PyCoilStruct * self, PyObject * arg)
         return -1;
     }
 
-    path = coil_path_from_pystring(arg, &error);
+    path = coil_path_from_pyobject(arg, &error);
     if (path == NULL) {
         ccoil_error(&error);
         return -1;
@@ -706,7 +706,7 @@ struct_copy(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
 
     if (pyname) {
         container = pycontainer->node;
-        path = coil_path_from_pystring(pyname, &error);
+        path = coil_path_from_pyobject(pyname, &error);
         if (path == NULL)
             goto error;
 
@@ -949,7 +949,7 @@ struct_extend_path(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
          &PyCoilStruct_Type, &context))
         return NULL;
 
-    path = coil_path_from_pystring(py_path, &error);
+    path = coil_path_from_pyobject(py_path, &error);
     if (path == NULL)
         return NULL;
 
@@ -979,14 +979,7 @@ struct_get(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
                                      kwlist, &py_key, &py_default))
         return NULL;
 
-    if (!PyString_Check(py_key)) {
-        PyErr_Format(KeyTypeError, "keys must be type string, got type %s",
-                     Py_TYPE_NAME(py_key));
-
-        return NULL;
-    }
-
-    path = coil_path_from_pystring(py_key, &error);
+    path = coil_path_from_pyobject(py_key, &error);
     if (path == NULL)
         goto error;
 
@@ -1207,7 +1200,7 @@ struct_path(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
             const CoilPath *node_path;
             node_path = coil_struct_get_path(self->node);
 
-            path = coil_path_from_pystring(pyref, &error);
+            path = coil_path_from_pyobject(pyref, &error);
             if (path == NULL)
                 goto error;
 
@@ -1223,7 +1216,7 @@ struct_path(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
             coil_path_ref(path);
         }
 
-        target = coil_path_from_pystring(pypath, &error);
+        target = coil_path_from_pyobject(pypath, &error);
         if (target == NULL)
             goto error;
 
@@ -1273,7 +1266,7 @@ struct_set(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
                                      kwlist, &pypath, &pyvalue, &pylocation))
         return NULL;
 
-    path = coil_path_from_pystring(pypath, &error);
+    path = coil_path_from_pyobject(pypath, &error);
     if (path == NULL)
         goto error;
 
@@ -1501,7 +1494,7 @@ struct_mp_get(PyCoilStruct * self, PyObject * pypath)
     const GValue *value = NULL;
     GError *error = NULL;
 
-    path = coil_path_from_pystring(pypath, &error);
+    path = coil_path_from_pyobject(pypath, &error);
     if (path == NULL)
         goto error;
 
@@ -1537,17 +1530,7 @@ struct_mp_set(PyCoilStruct * self, PyObject * py_key, PyObject * py_value)
     GValue *value;
     GError *error = NULL;
 
-#if 0
-    if (!PyString_Check(py_key)) {
-        PyErr_Format(KeyTypeError,
-                     "keys must be strings, got type %s",
-                     Py_TYPE_NAME(py_key));
-
-        return -1;
-    }
-#endif
-
-    path = coil_path_from_pystring(py_key, &error);
+    path = coil_path_from_pyobject(py_key, &error);
     if (path == NULL)
         goto error;
 

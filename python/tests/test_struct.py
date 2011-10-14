@@ -110,25 +110,23 @@ class TestStruct(TestCase):
     self.assertEquals(values, zip(*self.data)[1])
 
   def testKeyMissing(self):
-    self.assertRaises(ccoil.KeyMissingError, lambda: self.struct['bogus'])
-    self.assertRaises(ccoil.KeyMissingError, self.struct.get, 'bad')
+    self.assertRaises(ccoil.errors.KeyMissingError,
+                      lambda: self.struct['bogus'])
+    self.assertRaises(ccoil.errors.KeyMissingError,
+                      self.struct.get, 'bad')
 
   def testKeyType(self):
     for k in (None, True, False, 1, 1.0, {}, []):
-      # TODO(jcon): use coil exception
-      self.assertRaises(TypeError,
-                        lambda: self.struct[k])
-
-      self.assertRaises(ccoil.KeyTypeError, self.struct.get, k)
-      # TODO(jcon): use coil exceptions
+      self.assertRaises(TypeError, lambda: self.struct[k])
+      self.assertRaises(TypeError, self.struct.get, k)
       self.assertRaises(TypeError, self.struct.set, k)
       self.assertRaises(ValueError, lambda: Struct([(k, 123)]))
 
   def testKeyValue(self):
-    self.assertRaises(ccoil.KeyValueError,
+    self.assertRaises(ccoil.errors.KeyValueError,
                       self.struct.set, 'first#', '')
 
-    self.assertRaises(ccoil.KeyValueError,
+    self.assertRaises(ccoil.errors.KeyValueError,
                       self.struct.set, 'first..second', '')
 
   def testToDict(self):
@@ -251,7 +249,7 @@ class PrototypeTestCase(TestCase):
     base.z: "other value"
     '''
     root = Struct(buf)
-    self.assertRaises(ccoil.KeyMissingError, lambda: root['test.z'])
+    self.assertRaises(ccoil.errors.KeyMissingError, lambda: root['test.z'])
     self.assertEquals(root['test'], {
                       'x': True,
                       'y': 'some value',

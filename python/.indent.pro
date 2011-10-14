@@ -1,1 +1,1 @@
--linux -psl -i4 -nut -l79 -nce
+-linux -psl -i4 -nut -l79 -nce -nsc

@@ -102,8 +102,8 @@ class TestParser(TestCase):
     root = ccoil.parse(buf)
     self.assertEquals(root['b.x'], 'x')
     self.assertEquals(root['b']['x'], 'x')
-    self.assertRaises(ccoil.KeyMissingError, lambda: root['b.y'])
-    self.assertRaises(ccoil.KeyMissingError, lambda: root['b']['y'])
+    self.assertRaises(ccoil.errors.KeyMissingError, lambda: root['b.y'])
+    self.assertRaises(ccoil.errors.KeyMissingError, lambda: root['b']['y'])
     self.assertEquals(len(root), 2)
     self.assertEquals(len(root['a']), 2)
     self.assertEquals(len(root['b']), 1)
@@ -181,7 +181,7 @@ class TestParser(TestCase):
         r'z: "lalalal \"',
         'a: [1 2 3]]',
         ):
-      self.assertRaises(ccoil.CoilError, ccoil.parse, coil)
+      self.assertRaises(ccoil.errors.CoilError, ccoil.parse, coil)
 
   def testOrder(self):
     self.assertEqual(ccoil.parse('x: =y y: "foo"')['x'], 'foo')

@@ -62,13 +62,13 @@ int
 void
  ccoil_error(GError ** error);
 
-PyObject *pylist_from_value_list(const GList * list);
+PyObject *pylist_from_value_list(GList * list);
 
 GValue *coil_value_from_pyobject(PyObject * o);
 
 PyObject *coil_value_as_pyobject(const GValue * value);
 
-CoilPath *coil_path_from_pystring(PyObject * o, GError ** error);
+CoilPath *coil_path_from_pyobject(PyObject * o, GError ** error);
 
 gboolean struct_update_from_pyitems(CoilStruct * node, PyObject * o);
 
@@ -82,5 +82,10 @@ extern PyObject *KeyMissingError;
 extern PyObject *KeyValueError;
 extern PyObject *KeyTypeError;
 extern PyObject *ParseError;
+
+#if PY_MAJOR_VERSION >= 3
+#define PyString PyBytes
+#define PyInt PyLong
+#endif
 
 #endif
