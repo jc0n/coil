@@ -43,8 +43,12 @@ append_path_substitution(CoilObject *self, GString *buffer,
     value = coil_struct_lookup(self->container, path, len, TRUE);
     if (coil_error_occurred())
         return;
-    if (value == NULL)
+    if (value == NULL) {
+        coil_object_error(COIL_ERROR_PATH, self,
+                "expression path '%.*s' not found.",
+                len, path);
         return;
+    }
     coil_value_build_string(value, buffer, format);
 }
 
