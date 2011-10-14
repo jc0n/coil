@@ -132,7 +132,7 @@ if test "x$have_glib" = "xno"; then
 fi
 
 AC_CHECK_FUNCS(strcmp strcpy strlen)
-AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr)
+AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr memmem)
 AC_CHECK_FUNCS(stat lstat)
 
 AC_HEADER_TIME

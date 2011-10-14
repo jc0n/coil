@@ -50,6 +50,22 @@ mempcpy(void *dst, const unsigned char *src, size_t n)
 }
 #endif
 
+#if !HAVE_MEMMEM
+void *
+memmem(void *haystack, size_t n,
+       void *needle, size_t m)
+{
+    const unsigned char *p;
+
+    for (p = haystack; n > 0; n--) {
+        if (memcmp(p, needle, m) == 0)
+            return (void *)p;
+        p++;
+    }
+    return NULL;
+}
+#endif
+
 char *
 strtrunc(const char *delim, gint mode, guint max, const char *str, guint len)
 {
@@ -92,3 +108,4 @@ strtrunc(const char *delim, gint mode, guint max, const char *str, guint len)
     *p = '\0';
     return new;
 }
+
