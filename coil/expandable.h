@@ -6,7 +6,6 @@
 #ifndef __COIL_EXPANDABLE_H
 #define __COIL_EXPANDABLE_H
 
-#include "error.h"
 #include "path.h"
 #include "value.h"
 
@@ -30,15 +29,6 @@
 #define COIL_EXPANDABLE_GET_CLASS(obj)  \
         (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_EXPANDABLE, \
           CoilExpandableClass))
-
-#define coil_expandable_error_new(code, exp, format, args...)         \
-        coil_error_new(code, (COIL_EXPANDABLE(exp))->location,        \
-                        format, ## args)
-
-#define coil_expandable_error_new_literal(code, exp, message)         \
-        coil_error_new_literal(code,                                  \
-                                (COIL_EXPANDABLE(exp))->location,     \
-                                message)
 
 typedef struct _CoilExpandable         CoilExpandable;
 typedef struct _CoilExpandableClass    CoilExpandableClass;

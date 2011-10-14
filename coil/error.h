@@ -6,6 +6,21 @@
 #ifndef _COIL_ERROR_H
 #define _COIL_ERROR_H
 
+#define COIL_TYPE_LOCATION (coil_location_get_type())
+
+typedef struct _CoilLocation
+{
+  guint first_line;
+  guint first_column;
+  guint last_line;
+  guint last_column;
+  gchar *filepath;
+} CoilLocation;
+
+#include "struct.h"
+#include "expandable.h"
+#include "link.h"
+
 typedef enum
 {
   COIL_ERROR_INCLUDE,
@@ -19,103 +34,7 @@ typedef enum
   COIL_ERROR_VALUE,
 } CoilError;
 
-typedef struct _CoilLocation
-{
-  guint first_line;
-  guint first_column;
-  guint last_line;
-  guint last_column;
-  gchar *filepath;
-} CoilLocation;
-
-#define coil_error_occured(e) (G_UNLIKELY((e) != NULL))
-
-#define COIL_TYPE_LOCATION (coil_location_get_type())
-
-#define COIL_LOCATION_FORMAT "line %d in file %s "
-#define COIL_LOCATION_FORMAT_ARGS(loc)                            \
-        (loc).first_line, (loc).filepath
-/*
-        (loc).first_line, (loc).first_column,
-        (loc).last_line, (loc).last_column
-*/
-
-#define _COIL_NOT_IMPLEMENTED_ACTION                              \
-    g_error("%s:%s Not implemented.",                             \
-            G_STRFUNC,                                            \
-            G_STRLOC);                                            \
-    g_assert_not_reached();                                       \
-
-#define COIL_NOT_IMPLEMENTED(rtype)                               \
-  G_STMT_START                                                    \
-  {                                                               \
-    _COIL_NOT_IMPLEMENTED_ACTION                                  \
-    return (rtype);                                               \
-  }                                                               \
-  G_STMT_END
-
-#define COIL_NOT_IMPLEMENTED_VOID                                 \
-  G_STMT_START                                                    \
-  {                                                               \
-    _COIL_NOT_IMPLEMENTED_ACTION                                  \
-  }                                                               \
-  G_STMT_END
-
 #define COIL_ERROR coil_error_quark()
-
-#define coil_error_new(code, location, format, args...)           \
-        g_error_new(COIL_ERROR,                                   \
-                    (code),                                       \
-                    COIL_LOCATION_FORMAT format,                  \
-                    COIL_LOCATION_FORMAT_ARGS(location),          \
-                    ##args)
-
-#define coil_error_new_literal(code, location, message)           \
-        g_error_new(COIL_ERROR,                                   \
-                    (code),                                       \
-                    COIL_LOCATION_FORMAT "%s",                    \
-                    COIL_LOCATION_FORMAT_ARGS(location),          \
-                    message)
-
-#define coil_set_error(err, code, location, format, args...)      \
-        g_set_error((err),                                        \
-                    COIL_ERROR,                                   \
-                    (code),                                       \
-                    COIL_LOCATION_FORMAT format,                  \
-                    COIL_LOCATION_FORMAT_ARGS(location),          \
-                    ##args)
-
-#define coil_set_error_literal(err, code, location, message)      \
-        g_set_error_literal((err),                                \
-                            COIL_ERROR,                           \
-                            (code),                               \
-                            COIL_LOCATION_FORMAT "%s",            \
-                            message)
-
-#define coil_expandable_error(err, code, ex, format, args...) \
-        coil_set_error(err, code, \
-                       COIL_EXPANDABLE(ex)->location, \
-                       format, \
-                       ##args)
-/*
-#define coil_struct_error(err, st, format, args...) \
-        coil_expandable_set_error(err, COIL_ERROR_STRUCT, \
-                        st, "(in struct %s) " format, \
-                        coil_struct_get_path(st)->path, \
-                        ##args)
-                        */
-
-#define coil_struct_error(err, node, format, args...) \
-  coil_expandable_error(err, COIL_ERROR_STRUCT, \
-                        node, "<%s>: " format, \
-                        coil_struct_get_path(node)->path, \
-                        ##args)
-
-#define coil_link_error(err, link, format, args...) \
-        coil_expandable_error(err, COIL_ERROR_LINK, \
-                        link, "<%s>: " format, \
-                        coil_link_get_path(link)->path, \
-                        ##args)
 
 #define coil_error_matches(err, code)                             \
         g_error_matches(err, COIL_ERROR, (code))
@@ -134,13 +53,48 @@ typedef struct _CoilLocation
 
 G_BEGIN_DECLS
 
-extern GError **coil_error;
-
 GQuark
 coil_error_quark(void);
 
 GType
 coil_location_get_type(void) G_GNUC_CONST;
+
+GError *
+coil_error_new_valist(int code, CoilLocation *location,
+                      const char *format, va_list args);
+
+GError *
+coil_error_new(int code, CoilLocation *location,
+               const char *format, ...);
+
+
+void
+coil_set_error(GError **error, int code,
+               CoilLocation *location,
+               const char *format, ...);
+
+void
+coil_set_error_valist(GError **error, int code,
+                      CoilLocation *location, const char *format,
+                      va_list args);
+
+void
+coil_set_error_literal(GError **error, int code, CoilLocation *location,
+                       const char *message);
+
+void
+coil_expandable_error(GError **error, int code, gconstpointer obj,
+                      const char *format,
+                      ...);
+
+
+void
+coil_struct_error(GError **error, const CoilStruct *obj,
+                  const char *format, ...);
+
+void
+coil_link_error(GError **error, const CoilLink *obj,
+                const char *format, ...);
 
 G_END_DECLS
 
