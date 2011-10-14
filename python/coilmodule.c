@@ -266,6 +266,19 @@ coil_value_as_pyobject(const GValue * value)
             if (type == COIL_TYPE_NONE)
                 Py_RETURN_NONE;
 
+            if (type == COIL_TYPE_EXPR) {
+                PyObject *res;
+                CoilExpr *expr = g_value_get_object(value);
+                GError *error = NULL;
+                char *str = coil_expr_to_string(expr, NULL, &error);
+                if (str == NULL || error != NULL) {
+                    ccoil_error(&error);
+                    return NULL;
+                }
+                res = PyString_FromString(str);
+                g_free(str);
+                return res;
+            }
             break;
         }
         case G_TYPE_BOXED:
