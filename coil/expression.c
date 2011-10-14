@@ -265,6 +265,7 @@ expr_translate_path(CoilExpr   *self,
       container_path = coil_struct_get_path(old_container);
       new_path = coil_path_relativize(path, container_path);
 
+      /* TODO(jcon): these will break if multiple replacements are made */
       g_string_erase(expr, i, path->path_len);
       g_string_insert_len(expr, i, new_path->path, new_path->path_len);
 
