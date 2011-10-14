@@ -148,9 +148,17 @@ class TestStruct(TestCase):
     self.assertEquals(s['new.sub'], True)
     self.assertEquals(s['new']['sub'], True)
 
+  def testSetExpression(self):
+    s = Struct()
+    s['x'] = '${y}'
+    s['y'] = 123
+    self.assertEquals(s['x'], s['y'])
+    self.assertEquals(s['y'], 123)
+
   def testSetSubStruct(self):
-    s = Struct({'sub': {'x': '${y}'}})
-    self.assertRaises(KeyError, s.expand)
+    s = Struct('sub.x: "${y}"')
+#    self.assertRaises(KeyError, s.expand)
+    self.assertRaises(KeyError, s.get, 'sub.x')
     s['sub.y'] = 'zap'
     s.expand()
     self.assertEquals(s['sub.x'], 'zap')
