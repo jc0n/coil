@@ -22,11 +22,14 @@
   if (dict) \
     PyDict_SetItemString(dict, name, (PyObject *)&type);
 
+#define ListProxyObject_Check(obj) \
+    (&ListProxyObject_Type == (PyTypeObject *)((PyObject *)obj)->ob_type)
+
 #define PyCoilStruct_Check(obj) \
-  (&PyCoilStruct_Type == (PyTypeObject *)((PyObject *)obj)->ob_type)
+    (&PyCoilStruct_Type == (PyTypeObject *)((PyObject *)obj)->ob_type)
 
 #define PyCoilStructIter_Check(o) \
-  (&PyCoilStructIter_Type == (PyTypeObject *)((PyObject *)o)->ob_type)
+    (&PyCoilStructIter_Type == (PyTypeObject *)((PyObject *)o)->ob_type)
 
 #ifndef Py_TYPE
 # define Py_TYPE(o) ((o)->ob_type)
@@ -36,7 +39,7 @@
 # define Py_TYPE_NAME(o) (Py_TYPE(o)->tp_name)
 #endif
 
-extern PyTypeObject PyCoilList_Type;
+extern PyTypeObject ListProxyObject_Type;
 extern PyTypeObject PyCoilStruct_Type;
 extern PyTypeObject PyCoilStructIterItem_Type;
 extern PyTypeObject PyCoilStructIterKey_Type;
@@ -45,34 +48,31 @@ extern PyTypeObject PyCoilStructIterValue_Type;
 
 typedef struct _structiter_object structiter_object;
 typedef struct _PyCoilStruct PyCoilStruct;
-
-struct _PyCoilStruct {
-    PyObject_HEAD CoilStruct * node;
-    structiter_object *iter;
-};
-
-typedef struct _PyCoilList PyCoilList;
-struct _PyCoilList {
-    PyObject_HEAD GList * list;
-};
+typedef struct _ListProxyObject ListProxyObject;
 
 int
- struct_register_types(PyObject * m, PyObject * d);
+struct_register_types(PyObject * m, PyObject * d);
+
+int
+listproxy_register_types(PyObject *m, PyObject *d);
 
 void
- ccoil_error(GError ** error);
+ccoil_error(GError ** error);
 
 PyObject *pylist_from_value_list(GList * list);
 
 GValue *coil_value_from_pyobject(PyObject * o);
 
-PyObject *coil_value_as_pyobject(const GValue * value);
+PyObject *coil_value_as_pyobject(CoilStruct *node, GValue *value);
 
 CoilPath *coil_path_from_pyobject(PyObject * o, GError ** error);
 
 gboolean struct_update_from_pyitems(CoilStruct * node, PyObject * o);
 
+PyObject *ccoil_listproxy_new(CoilStruct *node, GValueArray *arr);
 PyObject *ccoil_struct_new(CoilStruct * node);
+
+CoilStruct *ccoil_struct_get_real(PyObject *obj);
 
 extern PyObject *ccoilError;
 extern PyObject *StructError;

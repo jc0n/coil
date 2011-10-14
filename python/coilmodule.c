@@ -34,8 +34,7 @@ static struct PyModuleDef ccoil_module = {
 #endif
 
 
-/* TODO(jcon): replace pylist with list proxy object to propagate updates
- * back to coil list */
+#if 0
 PyObject *
 pylist_from_value_list(GList * list)
 {
@@ -66,6 +65,7 @@ pylist_from_value_list(GList * list)
 
     return pylist;
 }
+#endif
 
 static CoilList *
 coil_list_from_pysequence(PyObject * obj)
@@ -158,7 +158,7 @@ coil_value_from_pyobject(PyObject *o)
     }
     else if (type == &PyCoilStruct_Type) {
         coil_value_init(value, COIL_TYPE_STRUCT, set_object,
-                        ((PyCoilStruct *) o)->node);
+                        ccoil_struct_get_real(o));
     }
     else if (PyString_Check(o)) {
         /* check for an expression */
@@ -183,7 +183,7 @@ coil_value_from_pyobject(PyObject *o)
                     coil_expr_new_string(str, len, NULL));
         }
     }
-    else if (PyList_Check(o) || PyTuple_Check(o)) {
+    else if (PySequence_Check(o)) {
         coil_value_init(value, COIL_TYPE_LIST, take_boxed,
                         coil_list_from_pysequence(o));
     }
@@ -208,7 +208,7 @@ coil_value_from_pyobject(PyObject *o)
 }
 
 PyObject *
-coil_value_as_pyobject(const GValue * value)
+coil_value_as_pyobject(CoilStruct *node, GValue *value)
 {
     GType type;
 
@@ -292,8 +292,12 @@ coil_value_as_pyobject(const GValue * value)
                 GString *buf = g_value_get_boxed(value);
                 return PyString_FromStringAndSize(buf->str, buf->len);
             }
-            if (type == COIL_TYPE_LIST)
-                return pylist_from_value_list(g_value_get_boxed(value));
+            if (type == COIL_TYPE_LIST) {
+                assert(node != NULL);
+                assert(value != NULL);
+                GValueArray *arr = (GValueArray *)g_value_get_boxed(value);
+                return ccoil_listproxy_new(node, arr);
+            }
             break;
     }
 
@@ -692,6 +696,9 @@ initccoil(void)
         INITERROR;
 
     if (!struct_register_types(m, d))
+        INITERROR;
+
+    if (!listproxy_register_types(m, d))
         INITERROR;
 
 #if PY_MAJOR_VERSION >= 3

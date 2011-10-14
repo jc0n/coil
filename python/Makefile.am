@@ -26,7 +26,8 @@ ccoil_HEADERS = \
 
 ccoil_la_SOURCES = \
 				   coilstruct.c \
-				   coilmodule.c
+				   coilmodule.c \
+				   coillistproxy.c
 
 ccoil_la_LIBADD = \
 				  @GLIB_LIBS@ \

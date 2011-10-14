@@ -9,10 +9,21 @@
 
 static GQuark struct_wrapper_key = 0;
 
+struct _PyCoilStruct {
+    PyObject_HEAD CoilStruct * node;
+    structiter_object *iter;
+};
+
 struct _structiter_object {
     PyObject_HEAD PyCoilStruct * si_struct;
     CoilStructIter si_iter;
 };
+
+CoilStruct *
+ccoil_struct_get_real(PyObject *self)
+{
+    return ((PyCoilStruct *)self)->node;
+}
 
 static PyObject *
 structiter_new(PyCoilStruct * iterstruct, PyTypeObject * itertype)
@@ -82,21 +93,21 @@ structiter_iternextitem(structiter_object * si)
     g_return_val_if_fail(si, NULL);
 
     const CoilPath *path;
-    const GValue *value;
+    GValue *value;
 
     if (si->si_struct == NULL)
         return NULL;
 
     assert(PyCoilStruct_Check(si->si_struct));
 
-    if (coil_struct_iter_next(&si->si_iter, &path, &value)) {
+    if (coil_struct_iter_next(&si->si_iter, &path, (const GValue **)&value)) {
         PyObject *k = NULL, *v = NULL, *item;
 
         k = PyString_FromStringAndSize(path->key, path->key_len);
         if (k == NULL)
             return NULL;
 
-        v = coil_value_as_pyobject(value);
+        v = coil_value_as_pyobject(si->si_struct->node, value);
         if (v == NULL) {
             Py_DECREF(k);
             return NULL;
@@ -163,17 +174,17 @@ structiter_iternextvalue(structiter_object * si)
 {
     g_return_val_if_fail(si, NULL);
 
-    const GValue *value;
+    GValue *value;
 
     if (si->si_struct == NULL)
         return NULL;
 
     assert(PyCoilStruct_Check(si->si_struct));
 
-    if (coil_struct_iter_next(&si->si_iter, NULL, &value)) {
+    if (coil_struct_iter_next(&si->si_iter, NULL, (const GValue **)&value)) {
         PyObject *v;
 
-        v = coil_value_as_pyobject(value);
+        v = coil_value_as_pyobject(si->si_struct->node, value);
         return v;
     }
 
@@ -568,7 +579,7 @@ update_pydict_from_struct(CoilStruct * node, PyObject * d, gboolean absolute)
 
     CoilStructIter it;
     const CoilPath *path;
-    const GValue *value;
+    GValue *value;
     PyObject *k = NULL, *v = NULL;
     ptrdiff_t key_offset, klen_offset;
     GError *error = NULL;
@@ -586,7 +597,7 @@ update_pydict_from_struct(CoilStruct * node, PyObject * d, gboolean absolute)
     }
 
     coil_struct_iter_init(&it, node);
-    while (coil_struct_iter_next(&it, &path, &value)) {
+    while (coil_struct_iter_next(&it, &path, (const GValue **)&value)) {
         const gchar *str = G_STRUCT_MEMBER(gchar *, path, key_offset);
         guint8 len = G_STRUCT_MEMBER(guint8, path, klen_offset);
 
@@ -607,7 +618,7 @@ update_pydict_from_struct(CoilStruct * node, PyObject * d, gboolean absolute)
                 goto error;
         }
         else {
-            v = coil_value_as_pyobject(value);
+            v = coil_value_as_pyobject(node, value);
             if (v == NULL)
                 goto error;
         }
@@ -953,7 +964,7 @@ struct_get(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
     static char *kwlist[] = { "path", "default", NULL };
     PyObject *py_key, *py_default = NULL;
     CoilPath *path = NULL;
-    const GValue *value;
+    GValue *value;
     GError *error = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:ccoil.Struct.get",
@@ -964,13 +975,13 @@ struct_get(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
     if (path == NULL)
         goto error;
 
-    value = coil_struct_lookup_path(self->node, path, TRUE, &error);
+    value = (GValue *)coil_struct_lookup_path(self->node, path, TRUE, &error);
     if (G_UNLIKELY(error))
         goto error;
 
     if (value) {
         coil_path_unref(path);
-        return coil_value_as_pyobject(value);
+        return coil_value_as_pyobject(self->node, value);
     }
 
     if (py_default) {
@@ -1472,14 +1483,14 @@ static PyObject *
 struct_mp_get(PyCoilStruct * self, PyObject * pypath)
 {
     CoilPath *path = NULL;
-    const GValue *value = NULL;
+    GValue *value = NULL;
     GError *error = NULL;
 
     path = coil_path_from_pyobject(pypath, &error);
     if (path == NULL)
         goto error;
 
-    value = coil_struct_lookup_path(self->node, path, TRUE, &error);
+    value = (GValue *)coil_struct_lookup_path(self->node, path, TRUE, &error);
     if (G_UNLIKELY(error))
         goto error;
 
@@ -1492,7 +1503,7 @@ struct_mp_get(PyCoilStruct * self, PyObject * pypath)
     }
 
     coil_path_unref(path);
-    return coil_value_as_pyobject(value);
+    return coil_value_as_pyobject(self->node, value);
 
  error:
     if (path)
