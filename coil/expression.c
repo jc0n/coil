@@ -240,7 +240,26 @@ exprval_to_strval(const GValue *exprval, GValue *strval)
 }
 
 COIL_API(CoilExpr *)
-coil_expr_new(GString *string, const gchar *first_property_name, ...)
+coil_expr_new_string(const gchar *string, size_t len,
+                     const gchar *first_property_name,
+                     ...)
+{
+  CoilExpr *result;
+  GString *gstring;
+  va_list properties;
+
+  gstring = g_string_new_len(string, len);
+  va_start(properties, first_property_name);
+  result = coil_expr_new_valist(gstring, first_property_name, properties);
+  va_end(properties);
+
+  return result;
+}
+
+COIL_API(CoilExpr *)
+coil_expr_new(GString     *string, /* steals */
+              const gchar *first_property_name,
+              ...)
 {
     CoilExpr *result;
     va_list   properties;

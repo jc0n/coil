@@ -11,6 +11,7 @@
 #include "error.h"
 #include "list.h"
 #include "parser_defs.h"
+#include "expression.h"
 #include "struct.h"
 #include "include.h"
 #include "link.h"
