@@ -784,7 +784,7 @@ error:
 }
 
 static void
-compute_path_hashlen(const gchar *path,
+compute_path_hash_with_len(const gchar *path,
                      guint8       path_len,
                      guint       *hashes,
                      guint8      *lens,
@@ -846,7 +846,7 @@ coil_struct_create_containers_fast(CoilStruct     *self,
   if (path_len == COIL_ROOT_PATH_LEN)
     return coil_struct_get_root(self);
 
-  compute_path_hashlen(path, path_len, hashes, lens, &i);
+  compute_path_hash_with_len(path, path_len, hashes, lens, &i);
 
   g_assert(i > 0);
 
@@ -2310,7 +2310,7 @@ lookup_internal_expand(CoilStruct  *self,
   guint         hashes[COIL_PATH_MAX_PARTS];
   GError       *internal_error = NULL;
 
-  compute_path_hashlen(path, path_len, hashes, lens, &i);
+  compute_path_hash_with_len(path, path_len, hashes, lens, &i);
 
   for (--i; i > 0; i--)
   {
