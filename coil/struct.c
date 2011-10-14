@@ -13,6 +13,7 @@
 #include "struct.h"
 
 #include "link.h"
+#include "list.h"
 #include "include.h"
 
 G_DEFINE_TYPE(CoilStruct, coil_struct, COIL_TYPE_EXPANDABLE);
@@ -765,6 +766,25 @@ struct_insert_internal(CoilStruct     *self,
     g_object_set(G_OBJECT(object),
                  "container", self,
                  NULL);
+  }
+  else if (G_VALUE_HOLDS(value, COIL_TYPE_LIST))
+  {
+    /* update containers for expandable nested in lists */
+    GList *list = g_value_get_boxed(value);
+    GValue *item;
+    CoilExpandable *obj;
+
+    while (list)
+    {
+      g_assert(G_IS_VALUE(list->data));
+      item = (GValue *)list->data;
+      if (G_VALUE_HOLDS(item, COIL_TYPE_EXPANDABLE))
+      {
+        obj = COIL_EXPANDABLE(g_value_get_object(item));
+        g_object_set(G_OBJECT(obj), "container", self, NULL);
+      }
+      list = g_list_next(list);
+    }
   }
 
   coil_struct_foreach_ancestor(self, TRUE, make_prototype_final, NULL);
