@@ -464,28 +464,7 @@ struct_needs_expand(gconstpointer s)
   if (g_queue_is_empty(deps))
     return FALSE;
 
-  if (priv->expand_ptr == NULL)
-    return FALSE;
-
-  return priv->expand_ptr != g_queue_peek_tail_link(deps);
-}
-
-/*
- * XXX: If struct is not expanded this will return false.
- * (May report struct is not empty when it is empty but will not report
- * struct is empty when it isn't)
- *
- * Why? extending empty structs is a stupid and rare case and without it
- * this check is fast.
- *
- * If you need to know for sure, then use the API version coil_struct_is_empty
- */
-static gboolean
-struct_is_definitely_empty(const CoilStruct *self)
-{
-  g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
-
-  return !self->priv->size && struct_needs_expand(self);
+  return priv->expand_ptr != NULL;
 }
 
 COIL_API(gboolean)
@@ -1142,7 +1121,6 @@ struct_delete_internal(CoilStruct   *self,
   g_return_val_if_fail(path && *path && *path == '@', FALSE);
   g_return_val_if_fail(path_len, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
-  g_return_val_if_fail(!struct_is_definitely_empty(self), FALSE);
 
   CoilStructPrivate *const priv = self->priv;
   CoilStruct        *container;
@@ -2039,9 +2017,6 @@ coil_struct_merge_full(CoilStruct  *src,
   const CoilPath  *path;
   const GValue    *value;
 
-  if (struct_is_definitely_empty(src))
-    return TRUE;
-
   if (!coil_struct_expand(src, error))
     return FALSE;
 
@@ -2218,9 +2193,6 @@ coil_struct_expand_items(CoilStruct  *self,
 
   if (!coil_struct_expand(self, error))
     return FALSE;
-
-  if (struct_is_definitely_empty(self))
-    return TRUE;
 
   container = coil_struct_get_container(self);
 
