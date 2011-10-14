@@ -125,7 +125,7 @@ link_copy(gconstpointer obj,
     new_container = COIL_EXPANDABLE(copy)->container;
     old_container = COIL_EXPANDABLE(self)->container;
 
-    if (!coil_struct_has_same_root(old_container, new_container))
+    if (!coil_struct_compare_root(old_container, new_container))
     {
       container_path = coil_struct_get_path(old_container);
       path = coil_path_relativize(copy->target_path, container_path);

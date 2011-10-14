@@ -558,7 +558,7 @@ coil_struct_get_path(const CoilStruct *self)
 }
 
 COIL_API(gboolean)
-coil_struct_has_same_root(const CoilStruct *a,
+coil_struct_compare_root(const CoilStruct *a,
                           const CoilStruct *b)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(a), FALSE);
@@ -1478,7 +1478,7 @@ check_parent_sanity(const CoilStruct *self,
     return FALSE;
   }
 
-  if (G_UNLIKELY(!coil_struct_has_same_root(self, parent)))
+  if (G_UNLIKELY(!coil_struct_compare_root(self, parent)))
   {
     G_BREAKPOINT();
     coil_struct_error(error, self,
@@ -1553,7 +1553,7 @@ coil_struct_add_dependency(CoilStruct     *self,
                  "container", &container,
                  NULL);
 
-    if (!coil_struct_has_same_root(self, container))
+    if (!coil_struct_compare_root(self, container))
     {
       coil_struct_error(error, self,
                         "Adding dependency in '%s' from a different @root.",

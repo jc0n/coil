@@ -127,7 +127,7 @@ const CoilPath *
 coil_struct_get_path(const CoilStruct *self);
 
 gboolean
-coil_struct_has_same_root(const CoilStruct *a,
+coil_struct_compare_root(const CoilStruct *a,
                           const CoilStruct *b);
 
 void

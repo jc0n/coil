@@ -278,7 +278,7 @@ expr_copy(gconstpointer     _self,
   new_container = COIL_EXPANDABLE(copy)->container;
   old_container = COIL_EXPANDABLE(self)->container;
 
-  if (!coil_struct_has_same_root(old_container, new_container)
+  if (!coil_struct_compare_root(old_container, new_container)
     && !expr_translate_path(string, old_container, new_container, error))
       return NULL;
 #endif
