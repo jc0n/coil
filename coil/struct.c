@@ -1512,6 +1512,12 @@ coil_struct_add_dependency(CoilStruct     *self,
   GType              type = G_OBJECT_TYPE(object);
   GError            *internal_error = NULL;
 
+  if (struct_needs_expand(self))
+  {
+    coil_struct_error(error, self,
+        "Cannot add dependencies after struct expansion");
+    return FALSE;
+  }
   if (!struct_check_dependency_type(type))
   {
     g_error("Adding invalid dependency type '%s'.",
