@@ -24,7 +24,6 @@ ccoil_HEADERS = \
 				coilstruct.h
 
 ccoil_la_SOURCES = \
-				   coillist.c \
 				   coilstruct.c \
 				   coilmodule.c
 

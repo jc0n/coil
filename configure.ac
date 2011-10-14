@@ -73,6 +73,7 @@ COIL_ARG_ENABLE(include-caching, whether to cache included files,
 
 if test "$COIL_INCLUDE_CACHING" = "yes"; then
   AC_DEFINE([COIL_INCLUDE_CACHING], [1], [ ])
+  CFLAGS="-O0 -g"
 else
   AC_DEFINE([COIL_INCLUDE_CACHING], [0], [ ])
 fi
