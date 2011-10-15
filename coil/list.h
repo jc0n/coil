@@ -4,28 +4,26 @@
  * Author: John O'Connor
  */
 
-#ifndef _COIL_LIST_H
+#ifndef COIL_LIST_H
 #define COIL_LIST_H
 
 #include "value.h"
 
-#define COIL_TYPE_LIST (coil_list_get_type())
+#define COIL_TYPE_LIST G_TYPE_VALUE_ARRAY
+#define CoilList GValueArray
 
 G_BEGIN_DECLS
 
-GType
-coil_list_get_type(void) G_GNUC_CONST;
-
 void
-coil_list_build_string(const GList      *list,
-                       GString          *const buffer,
+coil_list_build_string(CoilList *list,
+                       GString *const buffer,
                        CoilStringFormat *format,
-                       GError          **error);
+                       GError **error);
 
 gchar *
-coil_list_to_string(const GList      *list,
+coil_list_to_string(CoilList *list,
                     CoilStringFormat *format,
-                    GError          **error);
+                    GError **error);
 
 G_END_DECLS
 

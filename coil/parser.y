@@ -244,33 +244,42 @@ parser_handle_include(CoilParser   *parser,
                       CoilLocation *location,
                       GList        *include_args)
 {
-  g_return_val_if_fail(parser, FALSE);
-  g_return_val_if_fail(parser->error == NULL, FALSE);
+    g_return_val_if_fail(parser, FALSE);
+    g_return_val_if_fail(parser->error == NULL, FALSE);
 
-  if (G_UNLIKELY(include_args == NULL))
-  {
-    parser_error(parser, "No filename specified for include/import.");
-    return FALSE;
-  }
+    CoilInclude *include;
+    CoilStruct *container = PEEK_CONTAINER(parser);
+    GValue *file_value, *import;
+    GValueArray *imports;
+    gsize i, n;
 
-  CoilStruct *container = PEEK_CONTAINER(parser);
-  GValue     *filepath_value = (GValue *)include_args->data;
-  GList      *import_list = g_list_delete_link(include_args, include_args);
+    if (include_args == NULL) {
+        parser_error(parser, "No filename specified for include/import.");
+        return FALSE;
+    }
 
-  /* TODO(jcon): consider passing entire argument list
-                 instead of breaking it up above */
+    file_value = (GValue *)include_args->data;
+    include_args = g_list_delete_link(include_args, include_args);
 
-  CoilInclude *include = coil_include_new("filepath_value", filepath_value,
-                                          "import_list", import_list,
-                                          "container", container,
-                                          "location", location,
-                                          NULL);
+    n = g_list_length(include_args);
+    imports = g_value_array_new(n);
 
-  coil_struct_add_dependency(container, include, &parser->error);
+    for (i = 0; i < n; i++) {
+        import = (GValue *)include_args->data;
+        imports = g_value_array_insert(imports, i, import);
+        include_args = g_list_delete_link(include_args, include_args);
+    }
 
-  g_object_unref(include);
+    include = coil_include_new("file_value", file_value,
+                               "imports", imports,
+                               "container", container,
+                               "location", location,
+                               NULL);
 
-  return G_UNLIKELY(parser->error) ? FALSE : TRUE;
+    coil_struct_add_dependency(container, include, &parser->error);
+    g_object_unref(include);
+
+    return G_UNLIKELY(parser->error) ? FALSE : TRUE;
 }
 
 static CoilPath *
@@ -336,13 +345,14 @@ parser_has_errors(CoilParser *const parser)
 %right '~' '@' '='
 
 %union {
-  CoilPath  *path;
-  GValue    *value;
-  glong      longint;
-  gdouble    doubleval;
-  GList     *path_list;
-  GList     *value_list;
-  GString   *gstring;
+  CoilPath    *path;
+  GValue      *value;
+  glong        longint;
+  gdouble      doubleval;
+  GList       *path_list;
+  GList       *value_list;
+  GValueArray *value_array;
+  GString     *gstring;
 }
 
 %type <path> ABSOLUTE_PATH
@@ -357,7 +367,7 @@ parser_has_errors(CoilParser *const parser)
 %type <path_list> path_list_comma_items
 %type <path_list> path_list_spaced
 
-%type <value_list> value_list
+%type <value_array> value_list
 %type <value_list> value_list_contents
 %type <value_list> value_list_items
 %type <value_list> value_list_items_comma
@@ -389,6 +399,7 @@ parser_has_errors(CoilParser *const parser)
 %destructor { coil_path_list_free($$); } <path_list>
 %destructor { coil_value_free($$); } <value>
 %destructor { coil_value_list_free($$); } <value_list>
+%destructor { g_value_array_free($$); } <value_array>
 
 %start coil
 
@@ -658,8 +669,24 @@ path_list_comma_items
 ;
 
 value_list
-  : '[' ']'                      { $$ = NULL; }
-  | '[' value_list_contents ']'  { $$ = g_list_reverse($2); }
+  : '[' ']'                      { $$ = g_value_array_new(0); }
+  | '[' value_list_contents ']'
+  {
+    /* coil's value list is backed with a g_value_array */
+    gsize i, n;
+    GList *list;
+
+    n = g_list_length($2);
+    $$ = g_value_array_new(n);
+    list = g_list_last($2);
+
+    /* list is reversed so restore order here */
+    for (i = 0; i < n; i++) {
+        GValue *value = (GValue *)list->data;
+        g_value_array_insert($$, i, value);
+        list = g_list_previous(list);
+    }
+  }
 ;
 
 value_list_contents

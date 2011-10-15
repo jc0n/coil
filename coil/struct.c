@@ -2625,15 +2625,15 @@ found:
     else if (COIL_IS_INCLUDE(object))
     {
       CoilInclude *include = COIL_INCLUDE(object);
-      CoilStruct  *root;
+      CoilStruct  *namespace;
 
       /* TODO(jcon): encapsulate this in include dependency protocol */
-      root = coil_include_get_root_node(include, &internal_error);
-
-      if (G_UNLIKELY(internal_error))
+      if (!coil_expand(include, NULL, FALSE, &internal_error))
         goto error;
 
-      coil_struct_dependency_treev(root, branch,
+      g_object_get(include, "namespace", &namespace, NULL);
+
+      coil_struct_dependency_treev(namespace, branch,
                                    ntypes, allowed_types,
                                    &internal_error);
 

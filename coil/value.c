@@ -246,7 +246,7 @@ coil_value_build_string(const GValue     *value,
 
     if (type == COIL_TYPE_LIST)
     {
-      const GList *list = (GList *)g_value_get_boxed(value);
+      CoilList *list = (CoilList *)g_value_get_boxed(value);
       coil_list_build_string(list, buffer, format, error);
       return;
     }
@@ -311,31 +311,25 @@ _compare_value_list(const GValue *v1,
   g_return_val_if_fail(G_VALUE_HOLDS(v1, COIL_TYPE_LIST), -1);
   g_return_val_if_fail(G_VALUE_HOLDS(v2, COIL_TYPE_LIST), -1);
 
-  const GList *lp1, *lp2;
+  GValueArray *x, *y;
+  guint n;
 
   if (v1 == v2)
     return 0;
 
-  lp1 = (GList *)g_value_get_boxed(v1);
-  lp2 = (GList *)g_value_get_boxed(v2);
+  x = (GValueArray *)g_value_get_boxed(v1);
+  y = (GValueArray *)g_value_get_boxed(v2);
 
-  while (lp1 && lp2)
-  {
-    v1 = (GValue *)lp1->data;
-    v2 = (GValue *)lp2->data;
+  if (x->n_values != y->n_values)
+      return 1;
 
-    if (coil_value_compare(v1, v2, error))
-      break;
-
-    lp1 = g_list_next(lp1);
-    lp2 = g_list_next(lp2);
+  n = x->n_values;
+  while (n-- > 0) {
+      v1 = g_value_array_get_nth(x, n);
+      v2 = g_value_array_get_nth(y, n);
+      if (coil_value_compare(v1, v2, error))
+          break;
   }
-
-  if (lp1)
-    return 1;
-
-  if (lp2)
-    return -1;
 
   return 0;
 }

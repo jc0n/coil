@@ -11,118 +11,75 @@
 #include "list.h"
 #include "value.h"
 
-/*
- * coil_list_get_type:
- *
- * Return the type identifier for CoilList
- */
-GType
-coil_list_get_type(void)
-{
-  static GType type_id = 0;
 
-  if (!type_id)
-    type_id = g_boxed_type_register_static(g_intern_static_string("CoilList"),
-                                           (GBoxedCopyFunc)coil_value_list_copy,
-                                           (GBoxedFreeFunc)coil_value_list_free);
-
-  return type_id;
-}
-
-/*
- * coil_list_build_string:
- * @list: out #GList
- * @buffer: pre-allocated #GString buffer
- * @error: #GError reference or NULL.
- *
- * Build a string representation for list in the
- * specified buffer.
- *
- */
 COIL_API(void)
-coil_list_build_string(const GList      *list,
-                       GString          *const buffer,
-                       CoilStringFormat *format,
-                       GError          **error)
+coil_list_build_string(CoilList *list,
+                       GString *const buffer,
+                       CoilStringFormat *_format,
+                       GError **error)
 {
-  g_return_if_fail(buffer);
-  g_return_if_fail(format);
-  g_return_if_fail(error == NULL || *error == NULL);
+    g_return_if_fail(list);
+    g_return_if_fail(buffer);
+    g_return_if_fail(_format);
+    g_return_if_fail(error == NULL || *error == NULL);
 
-  GError       *internal_error = NULL;
-  gchar         delim[128];
-  guint8        dlen = 1;
-  guint         orig_indent_level = format->indent_level;
-//  gboolean      whitespace = !(format->options & COMPACT);
-  const GValue *value;
+    guint i, n, delim_len, opts;
+    gchar delim[128];
+    CoilStringFormat format = *_format;
+    GError *internal_error = NULL;
 
-  if (list == NULL)
-  {
-    g_string_append_len(buffer, COIL_STATIC_STRLEN("[]"));
-    return;
-  }
-
-  memset(delim, 0, sizeof(delim));
-
-  delim[0] = (format->options & COMMAS_IN_LIST) ? ',' : ' ';
-
-  if (format->options & BLANK_LINE_AFTER_ITEM)
-  {
-    format->indent_level += format->block_indent;
-    delim[dlen++] = '\n';
-    memset(delim + dlen, ' ',
-           MIN(format->indent_level, sizeof(delim)));
-    dlen += format->indent_level;
-  }
-
-  g_string_append_c(buffer, '[');
-
-  if (format->options & BLANK_LINE_AFTER_ITEM)
-    g_string_append_len(buffer, delim, dlen);
-
-  do
-  {
-    value = (GValue *)list->data;
-    coil_value_build_string(value, buffer,
-                            format, &internal_error);
-
-    if (G_UNLIKELY(internal_error))
-    {
-      g_propagate_error(error, internal_error);
-      return;
+    n = list->n_values;
+    if (n == 0) {
+        g_string_append_len(buffer, "[]", 2);
+        return;
     }
 
-    g_string_append_len(buffer, delim, dlen);
+    opts = format.options;
+    delim[0] = (opts & COMMAS_IN_LIST) ? ',' : ' ';
+    delim_len = 1;
 
-  } while ((list = g_list_next(list)));
+    if (opts & BLANK_LINE_AFTER_ITEM) {
+        gsize width;
 
-  if (!(format->options & LIST_ON_BLANK_LINE))
-    g_string_truncate(buffer, buffer->len - dlen);
+        delim[1] = '\n';
+        delim_len = 2;
+        format.indent_level += format.block_indent;
+        width = MIN(sizeof(delim) - delim_len, format.indent_level);
+        memset(delim + delim_len, ' ', width);
+        delim_len += width;
+    }
 
-  g_string_append_c(buffer, ']');
+    g_string_append_c(buffer, '[');
 
-  /* restore indent at this scope */
-  format->indent_level = orig_indent_level;
+    if (opts & BLANK_LINE_AFTER_ITEM)
+        g_string_append_len(buffer, delim, delim_len);
+
+    i = 0;
+    do {
+        GValue *value = g_value_array_get_nth(list, i);
+        coil_value_build_string(value, buffer, &format, &internal_error);
+        if (internal_error) {
+            g_propagate_error(error, internal_error);
+            return;
+        }
+        g_string_append_len(buffer, delim, delim_len);
+    } while (++i < n);
+
+    if (!(opts & LIST_ON_BLANK_LINE))
+        g_string_truncate(buffer, buffer->len - delim_len);
+
+    g_string_append_c(buffer, ']');
 }
 
-/*
- * coil_list_to_string:
- * @list: our #GList
- * @error: #GError reference
- *
- * Create a string representation from a list.
- */
 COIL_API(gchar *)
-coil_list_to_string(const GList      *list,
+coil_list_to_string(CoilList *list,
                     CoilStringFormat *format,
-                    GError          **error)
+                    GError **error)
 {
   GString *buffer;
 
-  g_return_val_if_fail(error == NULL || *error == NULL, NULL);
-
-  if (list == NULL)
-    return g_strndup(COIL_STATIC_STRLEN("[]"));
+  if (list->n_values == 0)
+    return g_strndup("[]", 2);
 
   buffer = g_string_sized_new(128);
   coil_list_build_string(list, buffer, format, error);
