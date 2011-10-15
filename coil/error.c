@@ -25,17 +25,18 @@ GQuark coil_error_quark(void)
 static char *
 location_prefix(CoilLocation *location)
 {
-    int line = location->first_line;
-    const char *filepath = location->filepath;
+    if (location != NULL) {
+        int line = location->first_line;
+        const char *filepath = location->filepath;
 
-    if (line > 0 && filepath != NULL)
-        return g_strdup_printf("line %d in file %s", line, filepath);
-    else if (line > 0)
-        return g_strdup_printf("line %d", line);
-    else if (filepath != NULL)
-        return g_strdup_printf("file %s", filepath);
-
-    return g_strndup("", 0);
+        if (line > 0 && filepath != NULL)
+            return g_strdup_printf("line %d in file %s", line, filepath);
+        else if (line > 0)
+            return g_strdup_printf("line %d", line);
+        else if (filepath != NULL)
+            return g_strdup_printf("file %s", filepath);
+    }
+    return NULL;
 }
 
 GError *
@@ -49,14 +50,14 @@ coil_error_new_valist(int code, CoilLocation *location,
     char *pfx, *real_format;
 
     pfx = location_prefix(location);
-    real_format = g_strconcat(pfx, format, NULL);
-    g_free(pfx);
-
-    err = g_error_new(COIL_ERROR, code, real_format, args);
-
-    g_free(real_format);
-
-    return err;
+    if (pfx != NULL) {
+        real_format = g_strconcat(pfx, format, NULL);
+        g_free(pfx);
+        err = g_error_new_valist(COIL_ERROR, code, real_format, args);
+        g_free(real_format);
+        return err;
+    }
+    return g_error_new_valist(COIL_ERROR, code, format, args);
 }
 
 GError *
@@ -107,14 +108,17 @@ coil_set_error_literal(GError **error, int code, CoilLocation *location,
 
 void
 coil_expandable_error(GError **error, int code, gconstpointer obj,
-                      const char *format,
-                      ...)
+                      const char *format, ...)
 {
+    g_return_if_fail(COIL_IS_EXPANDABLE(obj));
+
     va_list args;
     CoilLocation *loc;
-    CoilExpandable *ex = COIL_EXPANDABLE(obj);
+    CoilExpandable *ex;
 
+    ex = COIL_EXPANDABLE(obj);
     loc = &ex->location;
+
     va_start(args, format);
     coil_set_error_valist(error, code, loc, format, args);
     va_end(args);

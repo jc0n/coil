@@ -58,9 +58,8 @@ append_path_substitution(CoilExpr         *self,
 
   if (value == NULL)
   {
-    coil_expandable_error(error, COIL_ERROR_PATH, self,
-        "expression path '%.*s' not found.",
-        len, path);
+    coil_expandable_error(error, COIL_ERROR_KEY_MISSING, self,
+        "expression path '%.*s' not found.", len, path);
     return;
   }
 
