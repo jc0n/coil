@@ -265,10 +265,15 @@ coil_value_as_pyobject(CoilStruct *node, GValue *value)
                 Py_RETURN_NONE;
 
             if (type == COIL_TYPE_EXPR) {
+                char *str;
                 PyObject *res;
-                CoilExpr *expr = g_value_get_object(value);
                 GError *error = NULL;
-                char *str = coil_expr_to_string(expr, NULL, &error);
+                CoilStringFormat fmt;
+
+                fmt = default_string_format;
+                fmt.options |= DONT_QUOTE_STRINGS;
+
+                str = coil_value_to_string(value, &fmt, &error);
                 if (str == NULL || error != NULL) {
                     ccoil_error(&error);
                     return NULL;
