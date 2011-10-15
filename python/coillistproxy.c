@@ -49,11 +49,6 @@ listproxy_dealloc(ListProxyObject *self)
     g_object_unref(self->node);
 }
 
-static void
-listproxy_free(ListProxyObject *self)
-{
-}
-
 #define CHECK_INITIALIZED(self) \
     if (self->arr == NULL) { \
         PyErr_SetString(PyExc_RuntimeError, "coil list is not initialized"); \
@@ -466,5 +461,4 @@ PyTypeObject ListProxyObject_Type =
   (initproc)listproxy_init,                     /* tp_init */
   PyType_GenericAlloc,                          /* tp_alloc */
   PyType_GenericNew,                            /* tp_new */
-  (freefunc)listproxy_free,                     /* tp_free */
 };
