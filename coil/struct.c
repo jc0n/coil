@@ -9,6 +9,7 @@
 #include "struct_table.h"
 #include "struct-private.h"
 #include "link.h"
+#include "list.h"
 #include "include.h"
 
 G_DEFINE_TYPE(CoilStruct, coil_struct, COIL_TYPE_OBJECT);
@@ -601,7 +602,24 @@ insert_internal(CoilObject *self, CoilPath *path,
     if (G_VALUE_HOLDS(value, COIL_TYPE_OBJECT)) {
         CoilObject *valueobj = COIL_OBJECT(g_value_get_object(value));
         coil_object_set_container(valueobj, self);
+        /* XXX: maybe set path here */
     }
+    else if (G_VALUE_HOLDS(value, COIL_TYPE_LIST)) {
+        guint i;
+        GValue *item;
+        GValueArray *arr;
+        /* update containers for expandable nested in lists */
+        arr = (GValueArray *)g_value_get_boxed(value);
+        for (i = 0; i < arr->n_values; i++) {
+            item = g_value_array_get_nth(arr, i);
+            if (G_VALUE_HOLDS(item, COIL_TYPE_OBJECT)) {
+                CoilObject *o = (CoilObject *)g_value_get_object(item);
+                coil_object_set_container(o, self);
+                /* XXX: maybe set path here */
+            }
+        }
+    }
+
     coil_struct_foreach_ancestor(self, TRUE, finalize_prototype, NULL);
     return TRUE;
 

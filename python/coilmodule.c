@@ -67,31 +67,32 @@ pylist_from_value_list(GList * list)
     return pylist;
 }
 
-static GList *
-value_list_from_pysequence(PyObject * obj)
+static CoilList *
+coil_list_from_pysequence(PyObject * obj)
 {
-    GList *list = NULL;
+    GValue *value;
+    GValueArray *arr;
     PyObject *fast, *item;
-    Py_ssize_t n;
+    Py_ssize_t i, n;
 
     fast = PySequence_Fast(obj, "Expecting sequence type.");
     if (fast == NULL)
         return NULL;
 
     n = PySequence_Fast_GET_SIZE(fast);
-    while (n-- > 0) {
-        GValue *value;
-        item = PySequence_Fast_GET_ITEM(fast, n);
+    arr = g_value_array_new(n);
+    for (i = 0; i < n; i++) {
+        item = PySequence_Fast_GET_ITEM(fast, i);
         value = coil_value_from_pyobject(item);
         if (value == NULL) {
-            coil_value_list_free(list);
+            g_value_array_free(arr);
             return NULL;
         }
-        list = g_list_prepend(list, value);
+        g_value_array_insert(arr, i, value);
     }
 
     Py_DECREF(fast);
-    return list;
+    return arr;
 }
 
 CoilPath *
@@ -184,7 +185,7 @@ coil_value_from_pyobject(PyObject *o)
     }
     else if (PyList_Check(o) || PyTuple_Check(o)) {
         coil_value_init(value, COIL_TYPE_LIST, take_boxed,
-                        value_list_from_pysequence(o));
+                        coil_list_from_pysequence(o));
     }
     else if (PyDict_Check(o)) {
         CoilStruct *node = coil_struct_new(NULL, NULL);
