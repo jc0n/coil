@@ -769,21 +769,19 @@ struct_insert_internal(CoilStruct     *self,
   }
   else if (G_VALUE_HOLDS(value, COIL_TYPE_LIST))
   {
-    /* update containers for expandable nested in lists */
-    GList *list = g_value_get_boxed(value);
+    guint i, n;
     GValue *item;
-    CoilExpandable *obj;
+    GValueArray *arr;
+    /* update containers for expandable nested in lists */
+    arr = (GValueArray *)g_value_get_boxed(value);
+    n = arr->n_values;
 
-    while (list)
-    {
-      g_assert(G_IS_VALUE(list->data));
-      item = (GValue *)list->data;
-      if (G_VALUE_HOLDS(item, COIL_TYPE_EXPANDABLE))
-      {
-        obj = COIL_EXPANDABLE(g_value_get_object(item));
-        g_object_set(G_OBJECT(obj), "container", self, NULL);
+    for (i = 0; i < n; i++) {
+      item = g_value_array_get_nth(arr, i);
+      if (G_VALUE_HOLDS(item, COIL_TYPE_EXPANDABLE)) {
+        g_object_set(g_value_get_object(item),
+            "container", self, NULL);
       }
-      list = g_list_next(list);
     }
   }
 
