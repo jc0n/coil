@@ -6,7 +6,8 @@ AM_CPPFLAGS = $(PYTHON_INCLUDES) \
 			  $(GLIB_CFLAGS) \
 			  $(PYGOBJECT_CFLAGS) \
 			  -I$(top_srcdir)/coil \
-			  -fno-strict-aliasing
+			  -fno-strict-aliasing \
+			  -Wall -Werror
 
 pkgpythondir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
 pkgpyexecdir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
