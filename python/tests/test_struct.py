@@ -585,3 +585,5 @@ a: {
   def testNestedList(self):
     root = Struct({'x': ['a', ['b', 'c']]})
     self.assertEquals(str(root), "x: ['a' ['b' 'c']]")
+    s = "x: [1 2 3 'hello' True]"
+    self.assertEquals(str(Struct(s)), s)
