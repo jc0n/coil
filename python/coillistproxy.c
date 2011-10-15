@@ -10,7 +10,7 @@ struct _ListProxyObject {
     PyObject_HEAD
 
     CoilStruct *node;
-    GValue *value;
+    GValueArray *arr;
 };
 
 PyDoc_STRVAR(listproxy_doc,
@@ -18,40 +18,34 @@ PyDoc_STRVAR(listproxy_doc,
 
 
 PyObject *
-ccoil_listproxy_new(CoilStruct *node, GValue *value)
+ccoil_listproxy_new(CoilStruct *node, GValueArray *arr)
 {
     g_return_val_if_fail(node != NULL, NULL);
-    g_return_val_if_fail(value != NULL, NULL);
+    g_return_val_if_fail(arr != NULL, NULL);
 
-    ListProxyObject *proxy;
+    ListProxyObject *self;
 
-    if (!G_VALUE_HOLDS(value, COIL_TYPE_LIST)) {
-        PyErr_Format(PyExc_TypeError,
-                     "list proxy requires a coil list value, not %s value",
-                     G_VALUE_TYPE_NAME(value));
-        return NULL;
-    }
-
-    proxy = PyObject_New(ListProxyObject, &ListProxyObject_Type);
-    if (proxy == NULL)
+    self = PyObject_New(ListProxyObject, &ListProxyObject_Type);
+    if (self == NULL)
         return NULL;
 
-    proxy->node = g_object_ref(G_OBJECT(node));
-    proxy->value = value;
+    self->node = g_object_ref(G_OBJECT(node));
+    self->arr = arr;
 
-    return (PyObject *)proxy;
+    return (PyObject *)self;
 }
 
 int
 listproxy_register_types(PyObject *m, PyObject *d)
 {
     PyType_Register(d, ListProxyObject_Type, "_ListProxy", 0);
+    return 0;
 }
 
 static void
 listproxy_dealloc(ListProxyObject *self)
 {
-    self->value = NULL;
+    self->arr = NULL;
     g_object_unref(self->node);
 }
 
@@ -60,118 +54,233 @@ listproxy_free(ListProxyObject *self)
 {
 }
 
-#define CHECK_INITIALIZED(list) \
-    if (list == NULL) { \
+#define CHECK_INITIALIZED(self) \
+    if (self->arr == NULL) { \
         PyErr_SetString(PyExc_RuntimeError, "coil list is not initialized"); \
         return NULL; \
     }
 
+#define CHECK_VALUE(value) \
+    if (PyCoilStruct_Check(v)) {                                             \
+        PyErr_Format(PyExc_TypeError,                                        \
+                     "coil list cannot contain type '%s'",                   \
+                     Py_TYPE_NAME(v));                                       \
+        return NULL;                                                         \
+    }                                                                         \
+
 static PyObject *
 list_insert(ListProxyObject *self, PyObject *args)
 {
-    Py_ssize_t i;
+    Py_ssize_t i, n;
     PyObject *v;
     GValue *value;
-    GList *list;
 
-    list = g_value_get_boxed(self->value);
-
-    CHECK_INITIALIZED(list);
+    CHECK_INITIALIZED(self);
 
     if (!PyArg_ParseTuple(args, "nO:insert", &i, &v))
         return NULL;
 
-    /* check what the value is */
-    if (PyCoilStruct_Check(v)) {
-        PyErr_Format(PyExc_TypeError,
-                     "coil list cannot contain type '%s'",
-                     Py_TYPE_NAME(v));
-        return NULL;
-    }
+    CHECK_VALUE(v);
 
     /* convert to coil type */
     value = coil_value_from_pyobject(v);
     if (value == NULL)
         return NULL;
 
-    list = g_list_insert(list, value, i);
-    g_value_take_boxed(self->value, list);
+    n = self->arr->n_values;
+    if (i < 0)
+        i = MAX(n - i, 0);
+    else if (i > n)
+        i = n;
 
+    g_value_array_insert(self->arr, i, value);
+
+    Py_RETURN_NONE;
+}
+#if 0
+  slot = g_value_array_get_nth(self->arr, i);
+    g_value_unset(slot);
+
+    g_value_init(slot, G_VALUE_TYPE(value));
+    g_value_copy(value, slot);
+    g_value_unset(value);
+#endif
+
+
+static PyObject *
+list_append(ListProxyObject *self, PyObject *v)
+{
+    GValue *value;
+
+    CHECK_INITIALIZED(self);
+    CHECK_VALUE(v);
+
+    value = coil_value_from_pyobject(v);
+    if (value == NULL)
+        return NULL;
+
+    g_value_array_append(self->arr, value);
     Py_RETURN_NONE;
 }
 
 static PyObject *
-list_append(PyObject *self, PyObject *args)
+list_count(ListProxyObject *self, PyObject *args)
 {
-
+    /* TODO */
+    Py_RETURN_NONE;
 }
 
 static PyObject *
-list_count(PyObject *self, PyObject *args)
+list_extend(ListProxyObject *self, PyObject *args)
 {
-
+    /* TODO */
+    Py_RETURN_NONE;
 }
 
 static PyObject *
-list_extend(PyObject *self, PyObject *args)
+list_index(ListProxyObject *self, PyObject *args)
 {
-
+    /* TODO */
+    Py_RETURN_NONE;
 }
 
 static PyObject *
-list_index(PyObject *self, PyObject *args)
+list_pop(ListProxyObject *self, PyObject *args)
 {
-
+    /* TODO */
+    Py_RETURN_NONE;
 }
 
 static PyObject *
-list_pop(PyObject *self, PyObject *args)
+list_remove(ListProxyObject *self, PyObject *args)
 {
+    /* TODO */
+    Py_RETURN_NONE;
 }
 
 static PyObject *
-list_remove(PyObject *self, PyObject *args)
+list_reverse(ListProxyObject *self, PyObject *args)
 {
-
+    /* TODO */
+    Py_RETURN_NONE;
 }
 
 static PyObject *
-list_reverse(PyObject *self, PyObject *args)
+list_sort(ListProxyObject *self, PyObject *args)
 {
-
-}
-
-static PyObject *
-list_sort(PyObject *self, PyObject *args)
-{
-
+    /* TODO */
+    Py_RETURN_NONE;
 }
 
 static int
 listproxy_init(ListProxyObject *self, PyObject *args, PyObject *kwargs)
 {
-    self->value = NULL;
+    self->arr = NULL;
     self->node = NULL;
+    return 0;
+}
+
+static Py_ssize_t
+list_len(ListProxyObject *self)
+{
+    if (self->arr == NULL)
+        return 0;
+
+    return self->arr->n_values;
+}
+
+static int
+list_contains(ListProxyObject *self, PyObject *item)
+{
+    /* TODO(jcon) */
+    return 0;
+}
+
+static PyObject *
+list_item(ListProxyObject *self, Py_ssize_t i)
+{
+    GValue *value;
+
+    if (i < 0 || i >= Py_SIZE(self)) {
+        PyErr_SetString(PyExc_IndexError, "list index out of range");
+        return NULL;
+    }
+
+    value = g_value_array_get_nth(self->arr, i);
+    return coil_value_as_pyobject(self->node, value);
+}
+
+static PyObject *
+list_concat(ListProxyObject *self, PyObject *part)
+{
+    /* TODO */
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+list_repeat(ListProxyObject *self, Py_ssize_t n)
+{
+    /* TODO */
+    Py_RETURN_NONE;
+}
+
+#if 0
+static int
+list_ass_slice(ListProxyObject *self,
+               Py_ssize_t low, Py_ssize_t high,
+               PyObject *v)
+{
+    /* TODO */
+    return 0;
+}
+#endif
+
+static PyObject *
+list_inplace_repeat(ListProxyObject *self, Py_ssize_t n)
+{
+    /* TODO */
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+list_inplace_concat(ListProxyObject *self, PyObject *other)
+{
+    /* TODO */
+    Py_RETURN_NONE;
+}
+
+static int
+list_ass_item(ListProxyObject *self, Py_ssize_t i, PyObject *v)
+{
+    /* TODO */
     return 0;
 }
 
 PySequenceMethods listproxy_as_sequence =
 {
-	(lenfunc)0,			          /* sq_length */
-	(binaryfunc)0,            	  /* sq_concat */
-	(ssizeargfunc)0,          	  /* sq_repeat */
-	(ssizeargfunc)0,			  /* sq_item */
-    0,                              /* sq_slice */
-	(ssizeobjargproc)0,		      /* sq_ass_item */
-    0,                              /* sq_ass_slice */
-	(objobjproc)0,                /* sq_contains */
-	(binaryfunc)0,			      /* sq_inplace_concat */
-	(ssizeargfunc)0,			  /* sq_inplace_repeat */
+	(lenfunc)list_len,                /* sq_length */
+	(binaryfunc)list_concat,   	      /* sq_concat */
+	(ssizeargfunc)list_repeat,        /* sq_repeat */
+	(ssizeargfunc)list_item,          /* sq_item */
+    0,                                /* sq_slice */
+	(ssizeobjargproc)list_ass_item,	  /* sq_ass_item */
+    0,                                /* sq_ass_slice */
+	(objobjproc)list_contains,        /* sq_contains */
+	(binaryfunc)list_inplace_concat,  /* sq_inplace_concat */
+	(ssizeargfunc)list_inplace_repeat,/* sq_inplace_repeat */
 };
 
 static PyMethodDef listproxy_methods[] =
 {
+    {"append", (PyCFunction)list_append, METH_O, NULL},
+    {"count", (PyCFunction)list_count, METH_O, NULL},
+    {"extend", (PyCFunction)list_extend, METH_O, NULL},
+    {"index", (PyCFunction)list_index, METH_VARARGS, NULL},
     {"insert", (PyCFunction)list_insert, METH_VARARGS, NULL},
+    {"pop", (PyCFunction)list_pop, METH_VARARGS, NULL},
+    {"remove", (PyCFunction)list_remove, METH_O, NULL},
+    {"reverse", (PyCFunction)list_reverse, METH_NOARGS, NULL},
+    {"sort", (PyCFunction)list_sort, METH_VARARGS | METH_KEYWORDS, NULL},
     {NULL, NULL}
 };
 

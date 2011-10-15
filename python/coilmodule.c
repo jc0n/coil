@@ -287,7 +287,8 @@ coil_value_as_pyobject(CoilStruct *node, GValue *value)
             if (type == COIL_TYPE_LIST) {
                 assert(node != NULL);
                 assert(value != NULL);
-                return ccoil_listproxy_new(node, value);
+                GValueArray *arr = (GValueArray *)g_value_get_boxed(value);
+                return ccoil_listproxy_new(node, arr);
             }
             break;
     }
