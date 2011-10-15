@@ -498,7 +498,7 @@ class ExpansionTestCase(TestCase):
   def testExpandError(self):
     root = Struct()
     root["bar"] = "omgwtf${foo}"
-    self.assertRaises(KeyError, root.expand)
+    self.assertRaises(ccoil.errors.KeyMissingError, root.expand)
     self.assertEquals(root.get('bar'), "omgwtf${foo}")
 #
 #  def testExpandItemError(self):

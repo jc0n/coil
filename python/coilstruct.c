@@ -848,60 +848,41 @@ struct_to_dict(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
     return d;
 }
 
-/* Default behavior is to not expand
- * unless absolutely necessary
- * this is more of a compatability hack
- * the user should never have to explicitly expand a struct
- */
 static PyObject *
-struct_expand(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
+struct_expand(PyCoilStruct *self, PyObject *args, PyObject *kwargs)
 {
-    static char *kwlist[] = { "defaults", "ignore_missing",
-        "recursive", "force", NULL
-    };
-    CoilStruct *node = self->node;
-    PyObject *py_defaults = NULL;
-    PyObject *py_force = NULL;
-    PyObject *py_ignore = NULL;
-    PyObject *py_recursive = NULL;
-    gboolean recursive;
+    PyObject *defaults = NULL;
+    PyObject *force = Py_True;
+    PyObject *ignore = Py_False;
+    PyObject *recursive = Py_True;
     GError *error = NULL;
+    static char *kwlist[] = {"defaults", "ignore_missing",
+        "recursive", "force", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "|OOOO:ccoil.Struct.expand",
-                                     kwlist,
-                                     &py_defaults, &py_ignore,
-                                     &py_recursive, &py_force))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO:ccoil.Struct.expand",
+                kwlist, &defaults, &ignore, &recursive, &force))
         return NULL;
 
-    if (py_defaults) {
-        if (!PyMapping_Check(py_defaults) ||
-            PySequence_Check(py_defaults) || PyCoilStruct_Check(py_defaults)) {
+    if (defaults != NULL) {
+        if (!PyMapping_Check(defaults) &&
+            !PySequence_Check(defaults) &&
+            !PyCoilStruct_Check(defaults)) {
             PyErr_SetString(PyExc_ValueError,
                             "defaults argument must be a dict-like object, "
                             "a sequence of items, or a coil struct.");
-
-            goto error;
+            return NULL;
         }
-
-        if (!struct_update_from_pyitems(node, py_defaults))
-            goto error;
+        if (!struct_update_from_pyitems(self->node, defaults))
+            return NULL;
     }
-
-    if (!py_force || !PyObject_IsTrue(py_force))
-        Py_RETURN_NONE;
-
-    recursive = py_recursive && PyObject_IsTrue(py_recursive);
-    if (!coil_struct_expand_items(node, recursive, &error))
-        goto error;
-
+    if (PyObject_IsTrue(force)) {
+        if (!coil_struct_expand_items(self->node,
+                    PyObject_IsTrue(recursive), &error)) {
+            ccoil_error(&error);
+            return NULL;
+        }
+    }
     Py_RETURN_NONE;
-
- error:
-    if (error)
-        ccoil_error(&error);
-
-    return NULL;
 }
 
 #if 0
