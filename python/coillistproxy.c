@@ -97,15 +97,6 @@ list_insert(ListProxyObject *self, PyObject *args)
 
     Py_RETURN_NONE;
 }
-#if 0
-  slot = g_value_array_get_nth(self->arr, i);
-    g_value_unset(slot);
-
-    g_value_init(slot, G_VALUE_TYPE(value));
-    g_value_copy(value, slot);
-    g_value_unset(value);
-#endif
-
 
 static PyObject *
 list_append(ListProxyObject *self, PyObject *v)
@@ -120,6 +111,57 @@ list_append(ListProxyObject *self, PyObject *v)
         return NULL;
 
     g_value_array_append(self->arr, value);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+list_copy(ListProxyObject *self, PyObject *unused)
+{
+    PyObject *res;
+    guint i, n;
+
+    CHECK_INITIALIZED(self);
+
+    n = self->arr->n_values;
+    res = PyList_New(n);
+    if (res == NULL)
+        return NULL;
+
+    for (i = 0; i < n; i++) {
+        PyObject *v;
+        GValue *arrv;
+
+        arrv = g_value_array_get_nth(self->arr, i);
+        v = coil_value_as_pyobject(self->node, arrv);
+        if (v == NULL) {
+            Py_DECREF(res);
+            return NULL;
+        }
+        PyList_SET_ITEM(res, i, v);
+    }
+    return res;
+}
+
+static PyObject *
+list_clear(ListProxyObject *self, PyObject *unused)
+{
+    GValue *v;
+    GValueArray *arr;
+    guint i, n;
+
+    CHECK_INITIALIZED(self);
+
+    /* XXX: Glib lacks g_value_array_clear  or the like
+     * Using g_value_array_remove in a loop appears to be O(n*n)
+     */
+    arr = self->arr;
+    n = arr->n_values;
+    for (i = 0; i < n; i++) {
+        v = g_value_array_get_nth(arr, i);
+        g_value_unset(v);
+    }
+    memset(arr->values, 0, arr->n_prealloced * sizeof(arr->values[0]));
+    arr->n_values = 0;
     Py_RETURN_NONE;
 }
 
@@ -201,7 +243,9 @@ list_item(ListProxyObject *self, Py_ssize_t i)
 {
     GValue *value;
 
-    if (i < 0 || i >= Py_SIZE(self)) {
+    CHECK_INITIALIZED(self);
+
+    if (i < 0 || i >= self->arr->n_values) {
         PyErr_SetString(PyExc_IndexError, "list index out of range");
         return NULL;
     }
@@ -211,11 +255,95 @@ list_item(ListProxyObject *self, Py_ssize_t i)
 }
 
 static PyObject *
-list_concat(ListProxyObject *self, PyObject *part)
+list_concat(ListProxyObject *self, PyObject *other)
 {
     /* TODO */
     Py_RETURN_NONE;
 }
+
+static PyObject *
+list_richcompare(PyObject *x, PyObject *y, int op)
+{
+    ListProxyObject *self;
+    PyObject *fast, *res, *vx, *vy;
+    guint i, n, m;
+    gint cmp;
+
+    self = (ListProxyObject *)x;
+    CHECK_INITIALIZED(self);
+
+    if (!ListProxyObject_Check(x) || !PySequence_Check(y)) {
+        PyErr_SetObject(PyExc_NotImplementedError, NULL);
+        return NULL;
+    }
+
+    fast = PySequence_Fast(y, "expecting sequence");
+    if (fast == NULL)
+        return NULL;
+
+    n = self->arr->n_values;
+    m = Py_SIZE(fast);
+
+    if (n != m && (op == Py_EQ || op == Py_NE)) {
+        res = (op == Py_EQ) ? Py_False : Py_True;
+        Py_INCREF(res);
+        Py_DECREF(fast);
+        return res;
+    }
+
+    for (i = 0; i < n && i < m; i++) {
+        GValue *arrv;
+        int k;
+
+        arrv = g_value_array_get_nth(self->arr, i);
+        vx = coil_value_as_pyobject(self->node, arrv);
+        vy = PySequence_Fast_GET_ITEM(fast, i);
+
+        k = PyObject_RichCompareBool(vx, vy, Py_EQ);
+        if (k < 0) {
+            Py_DECREF(vx);
+            Py_DECREF(fast);
+            return NULL;
+        }
+        if (!k)
+            break;
+    }
+
+    if (i >= n || i >= m) {
+        switch (op) {
+            case Py_LT: cmp = n < m; break;
+            case Py_LE: cmp = n <= m; break;
+            case Py_EQ: cmp = n == m; break;
+            case Py_NE: cmp = n != m; break;
+            case Py_GT: cmp = n > m; break;
+            case Py_GE: cmp = n >= m; break;
+            default: {
+                assert(0);
+                Py_DECREF(vx);
+                Py_DECREF(fast);
+                return NULL;
+            }
+        }
+        res = (cmp) ? Py_True : Py_False;
+        Py_INCREF(res);
+        Py_DECREF(vx);
+        Py_DECREF(fast);
+        return res;
+    }
+
+    if (op == Py_EQ || op == Py_NE) {
+        Py_DECREF(vx);
+        Py_DECREF(fast);
+        res = (op == Py_EQ) ? Py_True : Py_False;
+        Py_INCREF(res);
+        return res;
+    }
+    res = PyObject_RichCompare(vx, vy, op);
+    Py_DECREF(vx);
+    Py_DECREF(fast);
+    return res;
+}
+
 
 static PyObject *
 list_repeat(ListProxyObject *self, Py_ssize_t n)
@@ -274,6 +402,8 @@ static PyMethodDef listproxy_methods[] =
 {
     {"append", (PyCFunction)list_append, METH_O, NULL},
     {"count", (PyCFunction)list_count, METH_O, NULL},
+    {"copy", (PyCFunction)list_copy, METH_NOARGS, NULL},
+    {"clear", (PyCFunction)list_clear, METH_NOARGS, NULL},
     {"extend", (PyCFunction)list_extend, METH_O, NULL},
     {"index", (PyCFunction)list_index, METH_VARARGS, NULL},
     {"insert", (PyCFunction)list_insert, METH_VARARGS, NULL},
@@ -306,7 +436,7 @@ PyTypeObject ListProxyObject_Type =
   0,                                            /* tp_as_mapping */
 
   /* standard operations */
-  (hashfunc)0,                                  /* tp_hash */
+  (hashfunc)PyObject_HashNotImplemented,        /* tp_hash */
   (ternaryfunc)0,                               /* tp_call */
   (reprfunc)0,                                  /* tp_str */
   (getattrofunc)0,                              /* tp_getattro */
@@ -321,7 +451,7 @@ PyTypeObject ListProxyObject_Type =
   listproxy_doc,                                     /* tp_doc */
   (traverseproc)0,                              /* tp_traverse */
   (inquiry)0,                                   /* tp_clear */
-  (richcmpfunc)0,                               /* tp_richcompare */
+  (richcmpfunc)list_richcompare,                /* tp_richcompare */
   0,                                            /* tp_weaklistoffset */
   (getiterfunc)0,                               /* tp_iter */
   (iternextfunc)0,                              /* tp_iternext */

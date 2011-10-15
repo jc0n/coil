@@ -180,7 +180,7 @@ coil_value_from_pyobject(PyObject *o)
                     coil_expr_new_string(str, len, NULL));
         }
     }
-    else if (PyList_Check(o) || PyTuple_Check(o)) {
+    else if (PySequence_Check(o)) {
         coil_value_init(value, COIL_TYPE_LIST, take_boxed,
                         coil_list_from_pysequence(o));
     }
