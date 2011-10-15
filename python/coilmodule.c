@@ -321,6 +321,10 @@ ccoil_error(GError ** error)
         e = KeyValueError;
         break;
 
+    case COIL_ERROR_KEY_MISSING:
+        e = KeyMissingError;
+        break;
+
     case COIL_ERROR_LINK:
         e = LinkError;
         break;
