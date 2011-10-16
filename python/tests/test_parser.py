@@ -156,11 +156,6 @@ sub2: {
     self.assertEqual(root.get('sub'), root.get('sub2'))
 
 
-#  def testPackage(self):
-#    root = ccoil.parse('@package: "coil.test:simple.coil"')
-#    self.assertEquals(root.get('x'), 'x value')
-#    self.assertEquals(root.get('y.z'), 'z value')
-
   def testComments(self):
     root = ccoil.parse('y: [12 #hello\n]')
     self.assertEquals(root['y'], [12])
@@ -177,8 +172,6 @@ sub2: {
         'x: 12c',
         'x: 12.c3',
         'x: @root',
-        'x: { @package: "coil.test:nosuchfile" }',
-        'x: { @package: "coil.test:test_parser.py"}',
         'z: [{x: 2}]',
         r'z: "lalalal \"',
         'a: [1 2 3]]',
@@ -388,13 +381,3 @@ class ReparseTestCase(TestCase):
       new = ccoil.parse([str(orig)]).root()
       self.assertEquals(orig, new)
 
-# TODO(jcon): move to struct expand tests
-#        'x: ..a',
-#        'a: { @extends: @root.b }',
-#        'a: { @extends: ..b }',
-#        'a: { @extends: x }',
-#        'a: { @extends: . }',
-#        'a: 1 b: { @extends: ..a }',
-#        'a: { @extends: ..a }',
-#        'a: { b: {} @extends: b }',
-#        'a: { b: { @extends: ...a } }',

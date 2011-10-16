@@ -456,62 +456,6 @@ class ExpansionTestCase(TestCase):
     root.expand({'foo':"123",'baz':"456"})
     self.assertEquals(root.get('bar'), "omgwtfbbq456")
 
-#  def testExpandItem(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}"
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}")
-#    self.assertEquals(root.expanditem('bar'), "omgwtfbbq")
-#
-#  def testExpandMixed(self):
-#    root = Struct()
-#    root["foo"] = "${bar}"
-#    self.assertEquals(root.expanditem("foo", {'bar': "a"}), "a")
-#    root["bar"] = "b"
-#    self.assertEquals(root.expanditem("foo", {'bar': "a"}), "b")
-#
-
-#  def testExpandItemError(self):
-#    root = Struct()
-#    root["bar"] = "omgwtf${foo}"
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}")
-#    self.assertRaises(KeyError, root.expanditem, 'bar')
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}")
-#
-#  def testExpandItemDefault(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}${baz}")
-#    self.assertEquals(root.expanditem('bar',
-#    defaults={'foo':"123",'baz':"456"}), "omgwtfbbq456")
-#
-#  def testExpandIgnore(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    root.expand(ignore_missing=True)
-#    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
-#    root.expand(ignore_missing=('baz',))
-#    self.assertEquals(root.get('bar'), "omgwtfbbq${baz}")
-#
-#  def testUnexpanded(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    root.expand(ignore_missing=True)
-#    self.assertEquals(root.unexpanded(), set(["baz"]))
-#    self.assertEquals(root.unexpanded(True), set(["@root.baz"]))
-#
-#  def testExpandItemIgnore(self):
-#    root = Struct()
-#    root["foo"] = "bbq"
-#    root["bar"] = "omgwtf${foo}${baz}"
-#    self.assertEquals(root.get('bar'), "omgwtf${foo}${baz}")
-#    self.assertEquals(root.expanditem('bar', ignore_missing=('baz',)),
-#                "omgwtfbbq${baz}")
-#
-
   def testExpressionExpandError(self):
     root = Struct()
     root["bar"] = "omgwtf${foo}"
@@ -531,6 +475,7 @@ class ExpansionTestCase(TestCase):
     b["bar"] = "b"
     self.assertEquals(a.get("foo"), [ "omgwtfa" ])
     self.assertEquals(b.get("foo"), [ "omgwtfb" ])
+
 
 class StringTestCase(TestCase):
 
