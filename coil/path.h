@@ -51,7 +51,8 @@ extern CoilPath _coil_root_path;
         ((p) == CoilRootPath) \
 
 #define COIL_PATH_IS_BACKREF(p) \
-        ((p)->flags & COIL_PATH_IS_BACKREF)
+        ((p)->flags & COIL_PATH_IS_BACKREF || \
+         (p->str[0] == '.' && p->str[1] == '.'))
 
 #define COIL_TYPE_PATH (coil_path_get_type())
 
