@@ -38,6 +38,7 @@ AM_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_CONFIG_FILES([
+    libcoil-0.1.pc
     Makefile
     coil/Makefile
     tests/Makefile
