@@ -148,19 +148,26 @@ void
 coil_link_error(GError **error, const CoilLink *obj,
                 const char *format, ...)
 {
-    char *real_format, *path;
-    CoilLocation *loc;
+    char *real_format;
+    const CoilPath *path;
+    CoilLocation *lo;
     va_list args;
 
-    path = coil_link_get_path(obj)->path;
-    loc = &COIL_EXPANDABLE(obj)->location;
-    real_format = g_strdup_printf("<%s>: %s", path, format);
+    path = coil_link_get_path(obj);
+    lo = &COIL_EXPANDABLE(obj)->location;
 
     va_start(args, format);
-    coil_set_error_valist(error, COIL_ERROR_LINK, loc, real_format, args);
-    va_end(args);
 
-    g_free(real_format);
+    if (path) {
+        real_format = g_strdup_printf("Link<%s>: %s", path->path, format);
+        coil_set_error_valist(error, COIL_ERROR_LINK, lo, real_format, args);
+        g_free(real_format);
+    }
+    else {
+        coil_set_error_valist(error, COIL_ERROR_LINK, lo, format, args);
+    }
+
+    va_end(args);
 }
 
 
