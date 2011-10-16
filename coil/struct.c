@@ -1500,12 +1500,17 @@ coil_struct_add_dependency(CoilStruct     *self,
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
   g_return_val_if_fail(COIL_IS_EXPANDABLE(object), FALSE);
-  g_return_val_if_fail(self != object, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
   GType              type = G_OBJECT_TYPE(object);
   GError            *internal_error = NULL;
+
+  if (self == object) {
+      coil_struct_error(error, self,
+              "cannot add circular dependencies");
+      return FALSE;
+  }
 
   if (struct_needs_expand(self))
   {
