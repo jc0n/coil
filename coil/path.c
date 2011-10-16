@@ -322,23 +322,6 @@ coil_path_unref(CoilPath *p)
     coil_path_free(p);
 }
 
-#if COIL_DEBUG
-void
-coil_path_debug(CoilPath *p)
-{
-  g_debug("path @ %p = {\npath=%s\npath_len=%d\nkey=%s\nkey_len=%d\n"
-          "key_overlap=%d\nis_root=%d\nis_abs=%d\nis_backref=%d\n"
-          "static_path=%d\nstatic_key=%d}\n",
-          p, p->path, p->path_len, p->key, p->key_len,
-          p->key >= p->path && p->key <= p->path + p->path_len,
-          (p->flags & COIL_PATH_IS_ROOT) > 0,
-          (p->flags & COIL_PATH_IS_ABSOLUTE) > 0,
-          (p->flags & COIL_PATH_IS_BACKREF) > 0,
-          (p->flags & COIL_STATIC_PATH) > 0,
-          (p->flags & COIL_STATIC_KEY) > 0);
-}
-#endif
-
 COIL_API(CoilPath *)
 coil_path_concat(const CoilPath  *container,
                  const CoilPath  *key,

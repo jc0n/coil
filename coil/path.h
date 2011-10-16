@@ -102,11 +102,6 @@ extern CoilPath _coil_root_path;
 
 G_BEGIN_DECLS
 
-#if COIL_DEBUG
-void
-coil_path_debug(CoilPath *p);
-#endif
-
 void
 path_length_error(const gchar *path,
                   guint        path_len,
