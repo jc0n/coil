@@ -270,6 +270,8 @@ parser_handle_include(CoilParser   *parser,
         include_args = g_list_delete_link(include_args, include_args);
     }
 
+    g_assert(container != NULL);
+
     include = coil_include_new("file_value", file_value,
                                "imports", imports,
                                "container", container,

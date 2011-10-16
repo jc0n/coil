@@ -181,31 +181,94 @@ cache_load(gpointer _notify, const gchar *filepath, GError **error)
 
 #endif
 
-    static gboolean
+static gboolean
 include_is_expanded(gconstpointer object)
 {
     CoilInclude *self = COIL_INCLUDE(object);
     return self->priv->is_expanded;
 }
 
+/* search for the filename in multiple paths */
+static gchar *
+find_include_path(CoilInclude *self, const gchar *filename, GError **error)
+{
+    gchar *dirpath, *inpath;
+    const gchar *origpath = COIL_EXPANDABLE(self)->location.filepath;
+    guint tflags = G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR;
+
+    if (g_path_is_absolute(filename)) {
+        if (origpath != NULL && strcmp(filename, origpath) == 0) {
+            coil_include_error(error, self, "a file should not import itself");
+            return NULL;
+        }
+        return g_strdup(filename);
+    }
+
+    if (origpath != NULL) {
+        dirpath = g_dirname(origpath);
+        inpath = g_build_filename(dirpath, filename, NULL);
+
+        g_free(dirpath);
+        if (g_file_test(inpath, tflags))
+            return inpath;
+        g_free(inpath);
+    }
+
+    dirpath = g_get_current_dir();
+    inpath = g_build_filename(dirpath, filename, NULL);
+    g_free(dirpath);
+
+    if (g_file_test(inpath, tflags))
+        return inpath;
+    g_free(inpath);
+
+    dirpath = (gchar *)g_get_home_dir();
+    inpath = g_build_filename(dirpath, filename, NULL);
+
+    if (g_file_test(inpath, tflags))
+        return inpath;
+    g_free(inpath);
+
+    coil_include_error(error, self,
+            "include file path '%s' not found.", filename);
+    return NULL;
+}
+
 static const gchar *
 expand_file_value(CoilInclude *self, GError **error)
 {
+    CoilExpandable *ex = COIL_EXPANDABLE(self);
     CoilIncludePrivate *const priv = self->priv;
-    const gchar *this_filepath, *filepath = NULL;
+    gchar *filepath = NULL;
     GValue *file_value = priv->file_value;
 
-    this_filepath = COIL_EXPANDABLE(self)->location.filepath;
+    if (file_value == NULL) {
+        coil_expandable_error(error, COIL_ERROR_INTERNAL, self,
+                "No value set for filepath");
+        return NULL;
+    }
 
     if (G_VALUE_HOLDS(file_value, COIL_TYPE_EXPANDABLE)) {
+        GObject *ob;
         const GValue *return_value = NULL;
 
-        if (!coil_expand_value(file_value, &return_value, TRUE, error))
-            return NULL;
+        ob = g_value_dup_object(file_value);
+        g_object_set(ob, "container", ex->container, NULL);
 
+        if (!coil_expand(ob, &return_value, TRUE, error)) {
+            g_object_unref(ob);
+            return NULL;
+        }
+        if (return_value == NULL) {
+            coil_expandable_error(error, COIL_ERROR_INTERNAL, self,
+                    "No value returned expanding include file path value");
+            g_object_unref(ob);
+            return NULL;
+        }
         g_value_unset(file_value);
         g_value_init(file_value, G_VALUE_TYPE(return_value));
         g_value_copy(return_value, file_value);
+        g_object_unref(ob);
     }
 
     if (G_VALUE_HOLDS(file_value, G_TYPE_GSTRING)) {
@@ -213,7 +276,7 @@ expand_file_value(CoilInclude *self, GError **error)
         filepath = buf->str;
     }
     else if (G_VALUE_HOLDS(file_value, G_TYPE_STRING)) {
-        filepath = g_value_get_string(file_value);
+        filepath = (gchar *)g_value_get_string(file_value);
     }
     else {
         coil_include_error(error, self,
@@ -222,24 +285,14 @@ expand_file_value(CoilInclude *self, GError **error)
         return NULL;
     }
 
-    if (this_filepath == NULL)
-        return filepath;
+    filepath = find_include_path(self, filepath, error);
+    if (filepath == NULL)
+        return NULL;
 
-    if (strcmp(filepath, this_filepath) == 0) {
-        coil_include_error(error, self, "a file should not import itself");
-        return FALSE;
-    }
 
-    if (!g_path_is_absolute(filepath)) {
-        gchar *dirname = g_path_get_dirname(this_filepath);
-        filepath = g_build_filename(dirname, filepath, NULL);
-
-        g_free(dirname);
-
-        g_value_unset(file_value);
-        g_value_init(file_value, G_TYPE_STRING);
-        g_value_take_string(file_value, (gchar *)filepath);
-    }
+    g_value_unset(file_value);
+    g_value_init(file_value, G_TYPE_STRING);
+    g_value_take_string(file_value, (gchar *)filepath);
 
     return filepath;
 }
@@ -254,7 +307,6 @@ load_namespace(CoilInclude *self, GError **error)
     CoilExpandable *const super = COIL_EXPANDABLE(self);
     CoilStruct *root, *namespace;
     const gchar *filepath;
-    guint test_flags;
     GError *internal_error = NULL;
 
     if (priv->is_expanded) {
@@ -273,13 +325,6 @@ load_namespace(CoilInclude *self, GError **error)
     if (filepath == NULL)
         return -1;
 
-    /* XXX: this is questionably useful to do here */
-    test_flags = G_FILE_TEST_IS_REGULAR | G_FILE_TEST_EXISTS;
-    if (!g_file_test(filepath, test_flags)) {
-        coil_include_error(error, self,
-                "include path '%s' does not exist.", filepath);
-        return -1;
-    }
 
     root = coil_struct_get_root(super->container);
     namespace = CACHE_LOAD(root, filepath, &internal_error);
@@ -380,9 +425,20 @@ process_import(CoilInclude *self, GValue *import, GError **error)
     if (namespace == NULL)
         goto err;
 
+
+    /* make sure the import's container is set */
+    container = COIL_EXPANDABLE(self)->container;
+    g_assert(container);
+
+    if (G_VALUE_HOLDS(import, COIL_TYPE_EXPANDABLE)) {
+        GObject *ob = g_value_get_object(import);
+        g_object_set(ob, "container", container, NULL);
+    }
+
     path = get_path_from_import(import, error);
     if (path == NULL)
         goto err;
+
 
     /* lookup the path in the namespace */
     value = coil_struct_lookup_path(namespace, path, FALSE, &internal_error);
@@ -401,7 +457,6 @@ process_import(CoilInclude *self, GValue *import, GError **error)
     }
 
     source = COIL_STRUCT(g_value_dup_object(value));
-    container = COIL_EXPANDABLE(self)->container;
 
     res = MERGE_NAMESPACE(source, container, error);
     g_object_unref(source);
