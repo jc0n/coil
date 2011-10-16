@@ -104,16 +104,15 @@ copy_compressed_string(const gchar *str,
   } G_STMT_END
 
 /* TODO(jcon): add line numbers */
-#define HANDLE_PATH_TOKEN() \
-  G_STMT_START { \
-    if (yyleng > COIL_PATH_LEN) \
-    { \
-      path_length_error(yytext, yyleng, &yyextra->error); \
-      return ERROR; \
-    } \
-    gchar *path = g_strndup(yytext, yyleng); \
-    yylval->path = coil_path_take_strings(path, yyleng, NULL, 0, 0); \
-  } G_STMT_END
+#define HANDLE_PATH_TOKEN()                                                  \
+  G_STMT_START {                                                             \
+    if (yyleng > COIL_PATH_LEN)                                              \
+    {                                                                        \
+      path_length_error(yytext, yyleng, &yyextra->error);                    \
+      return ERROR;                                                          \
+    }                                                                        \
+    yylval->path = coil_path_new_len(yytext, yyleng, NULL);                  \
+  } G_STMT_END                                                               \
 %}
 
 /* basic tokens */
