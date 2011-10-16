@@ -26,7 +26,8 @@
     (&ListProxyObject_Type == (PyTypeObject *)((PyObject *)obj)->ob_type)
 
 #define PyCoilStruct_Check(obj) \
-    (&PyCoilStruct_Type == (PyTypeObject *)((PyObject *)obj)->ob_type)
+    (&PyCoilStruct_Type == (PyTypeObject *)((PyObject *)obj)->ob_type || \
+     PyObject_IsInstance(obj, (PyObject *)&PyCoilStruct_Type))
 
 #define PyCoilStructIter_Check(o) \
     (&PyCoilStructIter_Type == (PyTypeObject *)((PyObject *)o)->ob_type)
