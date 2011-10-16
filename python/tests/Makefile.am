@@ -7,7 +7,7 @@ EXTRA_DIST = $(tests) \
 						 example2.coil \
 						 example3.coil
 
-tests = test_struct.py test_parser.py
+tests = test_struct.py test_parser.py test_listproxy.py
 
 test: check
 # sed -e 's/\(ok\)\$/\[\033[0;32m\]\1\[\033[0;47m\]/g'
