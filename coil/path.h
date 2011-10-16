@@ -62,7 +62,8 @@ extern CoilPath _coil_root_path;
          || (p)->flags & COIL_PATH_IS_ROOT)
 
 #define COIL_PATH_IS_BACKREF(p) \
-        ((p)->flags & COIL_PATH_IS_BACKREF)
+        ((p)->flags & COIL_PATH_IS_BACKREF || \
+         (p->path[0] == '.' && p->path[1] == '.'))
 
 #define COIL_PATH_CONTAINER_LEN(p) \
   (((p)->path_len - (p->key_len)) - 1)
