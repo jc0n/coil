@@ -141,15 +141,20 @@ class TestParser(TestCase):
 
   def testFileExpansion(self):
     buf = '''
-path: '%s'
+path: %s
 sub: {
     @file: '${@root.path}'
 }
-''' % repr(self.SIMPLE_FILE)
-
-    root = ccoil.parse(buf)
+sub2: {
+    @file: '${..path}'
+}
+'''
+    root = ccoil.parse(buf % repr(self.SIMPLE_FILE))
+    self.assertEqual(root.get('path'), self.SIMPLE_FILE)
     self.assertEqual(root.get('sub.x'), 'x value')
     self.assertEqual(root.get('sub.y.z'), 'z value')
+    self.assertEqual(root.get('sub'), root.get('sub2'))
+
 
 #  def testPackage(self):
 #    root = ccoil.parse('@package: "coil.test:simple.coil"')
