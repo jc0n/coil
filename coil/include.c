@@ -188,25 +188,83 @@ include_is_expanded(CoilObject *object)
     return self->priv->is_expanded;
 }
 
-static const gchar *
-expand_file_value(CoilObject *o, GError **error)
+/* search for the filename in multiple paths */
+static gchar *
+find_include_path(CoilObject *self, const gchar *filename, GError **error)
 {
-    CoilInclude *self = COIL_INCLUDE(o);
-    CoilIncludePrivate *const priv = self->priv;
-    const gchar *this_filepath, *filepath = NULL;
-    GValue *file_value = priv->file_value;
+    gchar *dirpath, *path, *origpath;
+    guint flags = G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR;
 
-    this_filepath = o->location.filepath;
+    origpath = self->location.filepath;
+    if (g_path_is_absolute(filename)) {
+        if (origpath != NULL && strcmp(filename, origpath) == 0) {
+            coil_include_error(error, self, "a file should not import itself");
+            return NULL;
+        }
+        return g_strdup(filename);
+    }
+    if (origpath != NULL) {
+        dirpath = g_dirname(origpath);
+        path = g_build_filename(dirpath, filename, NULL);
+        g_free(dirpath);
+        if (g_file_test(path, flags)) {
+            return path;
+        }
+        g_free(path);
+    }
+
+    dirpath = g_get_current_dir();
+    path = g_build_filename(dirpath, filename, NULL);
+    g_free(dirpath);
+    if (g_file_test(path, flags)) {
+        return path;
+    }
+    g_free(path);
+
+    dirpath = (gchar *)g_get_home_dir();
+    path = g_build_filename(dirpath, filename, NULL);
+    if (g_file_test(path, flags)) {
+        return path;
+    }
+    g_free(path);
+
+    coil_include_error(error, self,
+            "include file path '%s' not found.", filename);
+    return NULL;
+}
+
+static const gchar *
+expand_file_value(CoilObject *self, GError **error)
+{
+    CoilIncludePrivate *priv = COIL_INCLUDE(self)->priv;
+    GValue *file_value = priv->file_value;
+    gchar *filepath = NULL;
+
+    if (file_value == NULL) {
+        coil_object_error(error, COIL_ERROR_INTERNAL, self,
+                "No value set for filepath");
+        return NULL;
+    }
 
     if (G_VALUE_HOLDS(file_value, COIL_TYPE_OBJECT)) {
+        CoilObject *ob = COIL_OBJECT(g_value_dup_object(file_value));
         const GValue *return_value = NULL;
 
-        if (!coil_expand_value(file_value, &return_value, TRUE, error))
+        coil_object_set(ob, "container", self->container, NULL);
+        if (!coil_object_expand(ob, &return_value, TRUE, error)) {
+            coil_object_unref(ob);
             return NULL;
-
+        }
+        if (return_value == NULL) {
+            coil_object_error(error, COIL_ERROR_INTERNAL, self,
+                    "No value returned expanding include file path value");
+            coil_object_unref(ob);
+            return NULL;
+        }
         g_value_unset(file_value);
         g_value_init(file_value, G_VALUE_TYPE(return_value));
         g_value_copy(return_value, file_value);
+        coil_object_unref(ob);
     }
 
     if (G_VALUE_HOLDS(file_value, G_TYPE_GSTRING)) {
@@ -214,33 +272,22 @@ expand_file_value(CoilObject *o, GError **error)
         filepath = buf->str;
     }
     else if (G_VALUE_HOLDS(file_value, G_TYPE_STRING)) {
-        filepath = g_value_get_string(file_value);
+        filepath = (gchar *)g_value_get_string(file_value);
     }
     else {
-        coil_include_error(error, o,
+        coil_include_error(error, self,
                 "include path must expand to string type. "
                 "Found type '%s'.", G_VALUE_TYPE_NAME(priv->file_value));
         return NULL;
     }
 
-    if (this_filepath == NULL)
-        return filepath;
+    filepath = find_include_path(self, filepath, error);
+    if (filepath == NULL)
+        return NULL;
 
-    if (strcmp(filepath, this_filepath) == 0) {
-        coil_include_error(error, o, "a file should not import itself");
-        return FALSE;
-    }
-
-    if (!g_path_is_absolute(filepath)) {
-        gchar *dirname = g_path_get_dirname(this_filepath);
-        filepath = g_build_filename(dirname, filepath, NULL);
-
-        g_free(dirname);
-
-        g_value_unset(file_value);
-        g_value_init(file_value, G_TYPE_STRING);
-        g_value_take_string(file_value, (gchar *)filepath);
-    }
+    g_value_unset(file_value);
+    g_value_init(file_value, G_TYPE_STRING);
+    g_value_take_string(file_value, (gchar *)filepath);
 
     return filepath;
 }
@@ -256,7 +303,6 @@ load_namespace(CoilObject *o, GError **error)
     CoilObject *const obj = COIL_OBJECT(self);
     CoilObject *namespace;
     const gchar *filepath;
-    guint test_flags;
     GError *internal_error = NULL;
 
     if (priv->is_expanded) {
@@ -274,14 +320,6 @@ load_namespace(CoilObject *o, GError **error)
     filepath = expand_file_value(o, error);
     if (filepath == NULL)
         return -1;
-
-    /* XXX: this is questionably useful to do here */
-    test_flags = G_FILE_TEST_IS_REGULAR | G_FILE_TEST_EXISTS;
-    if (!g_file_test(filepath, test_flags)) {
-        coil_include_error(error, o,
-                "include path '%s' does not exist.", filepath);
-        return -1;
-    }
 
     namespace = CACHE_LOAD(obj->root, filepath, &internal_error);
     if (namespace == NULL)
@@ -364,9 +402,9 @@ get_path_from_import(GValue *import, GError **error)
 }
 
 static int
-process_import(CoilObject *o, GValue *import, GError **error)
+process_import(CoilObject *self, GValue *import, GError **error)
 {
-    g_return_val_if_fail(COIL_IS_INCLUDE(o), -1);
+    g_return_val_if_fail(COIL_IS_INCLUDE(self), -1);
     g_return_val_if_fail(G_IS_VALUE(import), -1);
     g_return_val_if_fail(error == NULL || *error == NULL, -1);
 
@@ -376,33 +414,38 @@ process_import(CoilObject *o, GValue *import, GError **error)
     const GValue *value;
     gboolean res;
 
-    namespace = get_namespace(o, error);
-    if (namespace == NULL)
+    namespace = get_namespace(self, error);
+    if (namespace == NULL) {
         goto err;
-
+    }
+    g_assert(self->container);
+    if (G_VALUE_HOLDS(import, COIL_TYPE_OBJECT)) {
+        CoilObject *ob = COIL_OBJECT(g_value_get_object(import));
+        coil_object_set(ob, "container", self->container, NULL);
+    }
     path = get_path_from_import(import, error);
-    if (path == NULL)
+    if (path == NULL) {
         goto err;
-
+    }
     /* lookup the path in the namespace */
     value = coil_struct_lookupx(namespace, path, FALSE, &internal_error);
     if (value == NULL) {
         if (internal_error == NULL) {
-            coil_include_error(error, o,
+            coil_include_error(error, self,
                     "import path '%s' does not exist.", path->str);
         }
         goto err;
     }
     /* TODO(jcon): support importing non struct paths */
     if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
-        coil_include_error(error, o,
+        coil_include_error(error, self,
                 "import path '%s' type must be struct.", path->str);
         goto err;
     }
 
-    source = g_value_dup_object(value);
-    res = MERGE_NAMESPACE(source, o->container, error);
-    g_object_unref(source);
+    source = COIL_OBJECT(g_value_dup_object(value));
+    res = MERGE_NAMESPACE(source, self->container, error);
+    coil_object_unref(source);
     coil_path_unref(path);
     return (res) ? 0 : -1;
 
