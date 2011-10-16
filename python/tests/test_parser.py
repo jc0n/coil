@@ -133,26 +133,23 @@ class TestParser(TestCase):
     root = ccoil.parse('sub: { @file: [%s "y"] }' % repr(self.SIMPLE_FILE))
     self.assertEquals(root.get('sub.z'), 'z value')
 
-#    self.assertRaises(ccoil.StructError, ccoil.parse,
-#        'sub: { @file: [%s "a"] }' % repr(path))
-#
-#    self.assertRaises(ccoil.StructError, ccoil.parse,
-#        'sub: { @file: [%s "x"] }' % repr(path))
-
   def testFileDelete(self):
     root = ccoil.parse('sub: { @file: %s ~y.z }' % repr(self.SIMPLE_FILE))
     self.assertEquals(root.get('sub.x'), 'x value')
     self.assert_(root.get('sub.y', None) is not None)
     self.assertRaises(KeyError, lambda: root.get('sub.y.z'))
 
-#  def testFileExpansion(self):
-#    buf = '''
-#    path: %s
-#    sub: { @file: '${@root.path}' }"
-#    ''' % repr(self.SIMPLE_FILE)
-#    root = ccoil.parse(buf)
-#    self.assertEqual(root.get('sub.x'), 'x value')
-#    self.assertEqual(root.get('sub.y.z'), 'z value')
+  def testFileExpansion(self):
+    buf = '''
+path: '%s'
+sub: {
+    @file: '${@root.path}'
+}
+''' % repr(self.SIMPLE_FILE)
+
+    root = ccoil.parse(buf)
+    self.assertEqual(root.get('sub.x'), 'x value')
+    self.assertEqual(root.get('sub.y.z'), 'z value')
 
 #  def testPackage(self):
 #    root = ccoil.parse('@package: "coil.test:simple.coil"')
