@@ -30,11 +30,11 @@ location_prefix(CoilLocation *location)
         const char *filepath = location->filepath;
 
         if (line > 0 && filepath != NULL)
-            return g_strdup_printf("line %d in file %s", line, filepath);
+            return g_strdup_printf("line %d in file %s ", line, filepath);
         else if (line > 0)
-            return g_strdup_printf("line %d", line);
+            return g_strdup_printf("line %d ", line);
         else if (filepath != NULL)
-            return g_strdup_printf("file %s", filepath);
+            return g_strdup_printf("file %s ", filepath);
     }
     return NULL;
 }
