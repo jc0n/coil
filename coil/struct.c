@@ -2349,7 +2349,7 @@ lookup_internal_expand(CoilStruct  *self,
                   COIL_ERROR_VALUE,
                   "<%s> the item at '%.*s' is type %s, expected %s",
                   coil_struct_get_path(self)->path,
-                  path_len, path,
+                  lens[i], path,
                   G_VALUE_TYPE_NAME(container_value),
                   g_type_name(COIL_TYPE_STRUCT));
 
