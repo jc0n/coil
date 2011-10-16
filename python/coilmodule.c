@@ -33,40 +33,6 @@ static struct PyModuleDef ccoil_module = {
 };
 #endif
 
-
-#if 0
-PyObject *
-pylist_from_value_list(GList * list)
-{
-    g_return_val_if_fail(list, NULL);
-
-    Py_ssize_t i, size;
-    PyObject *pylist, *pyitem;
-
-    if (list == NULL)
-        return PyList_New(0);
-
-    size = g_list_length(list);
-    pylist = PyList_New(size);
-    if (pylist == NULL)
-        return NULL;
-
-    for (i = 0; i < size; i++) {
-        g_assert(G_IS_VALUE(list->data));
-        pyitem = coil_value_as_pyobject((GValue *) list->data);
-        if (pyitem == NULL) {
-            Py_DECREF(pylist);
-            return NULL;
-        }
-
-        PyList_SET_ITEM(pylist, i, pyitem);
-        list = g_list_next(list);
-    }
-
-    return pylist;
-}
-#endif
-
 static CoilList *
 coil_list_from_pysequence(PyObject * obj)
 {
@@ -314,41 +280,41 @@ ccoil_error(GError ** error)
     PyObject *msg = NULL;
 
     switch ((*error)->code) {
-    case COIL_ERROR_INTERNAL:
-        e = ccoilError;
-        break;
+        case COIL_ERROR_INTERNAL:
+            e = ccoilError;
+            break;
 
-    case COIL_ERROR_INCLUDE:
-        e = IncludeError;
-        break;
+        case COIL_ERROR_INCLUDE:
+            e = IncludeError;
+            break;
 
-    case COIL_ERROR_KEY:
-    case COIL_ERROR_PATH:
-        e = KeyValueError;
-        break;
+        case COIL_ERROR_KEY:
+        case COIL_ERROR_PATH:
+            e = KeyValueError;
+            break;
 
-    case COIL_ERROR_KEY_MISSING:
-        e = KeyMissingError;
-        break;
+        case COIL_ERROR_KEY_MISSING:
+            e = KeyMissingError;
+            break;
 
-    case COIL_ERROR_LINK:
-        e = LinkError;
-        break;
+        case COIL_ERROR_LINK:
+            e = LinkError;
+            break;
 
-    case COIL_ERROR_PARSE:
-        e = ParseError;
-        break;
+        case COIL_ERROR_PARSE:
+            e = ParseError;
+            break;
 
-    case COIL_ERROR_STRUCT:
-        e = StructError;
-        break;
+        case COIL_ERROR_STRUCT:
+            e = StructError;
+            break;
 
-    case COIL_ERROR_VALUE:
-        e = PyExc_ValueError;
-        break;
+        case COIL_ERROR_VALUE:
+            e = PyExc_ValueError;
+            break;
 
-    default:
-        g_error("Unknown coil error code %d", (*error)->code);
+        default:
+            g_error("Unknown coil error code %d", (*error)->code);
     }
 
     msg = PyString_FromString((*error)->message);
