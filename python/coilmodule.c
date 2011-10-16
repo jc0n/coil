@@ -313,41 +313,41 @@ ccoil_error(GError ** error)
     PyObject *msg = NULL;
 
     switch ((*error)->code) {
-    case COIL_ERROR_INTERNAL:
-        e = ccoilError;
-        break;
+        case COIL_ERROR_INTERNAL:
+            e = ccoilError;
+            break;
 
-    case COIL_ERROR_INCLUDE:
-        e = IncludeError;
-        break;
+        case COIL_ERROR_INCLUDE:
+            e = IncludeError;
+            break;
 
-    case COIL_ERROR_KEY:
-    case COIL_ERROR_PATH:
-        e = KeyValueError;
-        break;
+        case COIL_ERROR_KEY:
+        case COIL_ERROR_PATH:
+            e = KeyValueError;
+            break;
 
-    case COIL_ERROR_KEY_MISSING:
-        e = KeyMissingError;
-        break;
+        case COIL_ERROR_KEY_MISSING:
+            e = KeyMissingError;
+            break;
 
-    case COIL_ERROR_LINK:
-        e = LinkError;
-        break;
+        case COIL_ERROR_LINK:
+            e = LinkError;
+            break;
 
-    case COIL_ERROR_PARSE:
-        e = ParseError;
-        break;
+        case COIL_ERROR_PARSE:
+            e = ParseError;
+            break;
 
-    case COIL_ERROR_STRUCT:
-        e = StructError;
-        break;
+        case COIL_ERROR_STRUCT:
+            e = StructError;
+            break;
 
-    case COIL_ERROR_VALUE:
-        e = PyExc_ValueError;
-        break;
+        case COIL_ERROR_VALUE:
+            e = PyExc_ValueError;
+            break;
 
-    default:
-        g_error("Unknown coil error code %d", (*error)->code);
+        default:
+            g_error("Unknown coil error code %d", (*error)->code);
     }
 
     msg = PyString_FromString((*error)->message);

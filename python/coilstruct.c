@@ -1660,92 +1660,34 @@ struct_init(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
     return -1;
 }
 
-PyDoc_STRVAR(contains__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(empty__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(get_container__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(copy__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(to_dict__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(expand__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(extend__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(extend_path__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(get__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(is_ancestor__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(is_descendent__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(is_root__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(items__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(iteritems__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(iterkeys__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(iterpaths__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(itervalues__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(keys__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(merge__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(path__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(paths__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(root__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(set__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(string__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(validate_key__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(validate_path__doc__, "TODO(jcon): Document this");
-
-PyDoc_STRVAR(values__doc__, "TODO(jcon): Document this");
-
-#define Py_METHOD(name, func, flags) \
-  { name, (PyCFunction)struct_##func, flags, func##__doc__ },
-
 static PyMethodDef struct_methods[] = {
-    Py_METHOD("__contains__", contains, METH_O | METH_COEXIST)
-        Py_METHOD("clear", empty, METH_NOARGS)
-        Py_METHOD("container", get_container, METH_NOARGS)
-        Py_METHOD("copy", copy, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("dict", to_dict, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("expand", expand, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("extend", extend, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("extend_path", extend_path, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("get", get, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("has_key", contains, METH_O)
-        Py_METHOD("is_ancestor", is_ancestor, METH_O)
-        Py_METHOD("is_descendent", is_descendent, METH_O)
-        Py_METHOD("is_root", is_root, METH_NOARGS)
-        Py_METHOD("items", items, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("iteritems", iteritems, METH_NOARGS)
-        Py_METHOD("iterkeys", iterkeys, METH_NOARGS)
-        Py_METHOD("iterpaths", iterpaths, METH_NOARGS)
-        Py_METHOD("itervalues", itervalues, METH_NOARGS)
-        Py_METHOD("keys", keys, METH_NOARGS)
-        Py_METHOD("merge", merge, METH_VARARGS)
-        Py_METHOD("path", path, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("paths", paths, METH_NOARGS)
-        Py_METHOD("root", root, METH_NOARGS)
-        Py_METHOD("set", set, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("string", string, METH_VARARGS | METH_KEYWORDS)
-        Py_METHOD("validate_key", validate_key, METH_VARARGS | METH_CLASS)
-        Py_METHOD("validate_path", validate_path, METH_VARARGS | METH_CLASS)
-        Py_METHOD("values", values, METH_NOARGS)
+    {"clear",(PyCFunction)struct_empty, METH_NOARGS, NULL},
+    {"container",(PyCFunction)struct_get_container, METH_NOARGS, NULL},
+    {"copy",(PyCFunction)struct_copy, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"dict",(PyCFunction)struct_to_dict, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"expand",(PyCFunction)struct_expand, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"extend",(PyCFunction)struct_extend, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"extend_path",(PyCFunction)struct_extend_path, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"get",(PyCFunction)struct_get, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"has_key",(PyCFunction)struct_contains, METH_O, NULL},
+    {"is_ancestor",(PyCFunction)struct_is_ancestor, METH_O, NULL},
+    {"is_descendent",(PyCFunction)struct_is_descendent, METH_O, NULL},
+    {"is_root",(PyCFunction)struct_is_root, METH_NOARGS, NULL},
+    {"items",(PyCFunction)struct_items, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"iteritems",(PyCFunction)struct_iteritems, METH_NOARGS, NULL},
+    {"iterkeys",(PyCFunction)struct_iterkeys, METH_NOARGS, NULL},
+    {"iterpaths",(PyCFunction)struct_iterpaths, METH_NOARGS, NULL},
+    {"itervalues",(PyCFunction)struct_itervalues, METH_NOARGS, NULL},
+    {"keys",(PyCFunction)struct_keys, METH_NOARGS, NULL},
+    {"merge",(PyCFunction)struct_merge, METH_VARARGS, NULL},
+    {"path",(PyCFunction)struct_path, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"paths",(PyCFunction)struct_paths, METH_NOARGS, NULL},
+    {"root",(PyCFunction)struct_root, METH_NOARGS, NULL},
+    {"set",(PyCFunction)struct_set, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"string",(PyCFunction)struct_string, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"validate_key",(PyCFunction)struct_validate_key, METH_VARARGS | METH_CLASS, NULL},
+    {"validate_path",(PyCFunction)struct_validate_path, METH_VARARGS | METH_CLASS, NULL},
+    {"values",(PyCFunction)struct_values, METH_NOARGS, NULL},
     {NULL, NULL, 0, NULL},
 };
 
