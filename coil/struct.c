@@ -760,12 +760,8 @@ struct_insert_internal(CoilStruct     *self,
 
   if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
   {
-    CoilExpandable *object;
-
-    object = COIL_EXPANDABLE(g_value_get_object(value));
-    g_object_set(G_OBJECT(object),
-                 "container", self,
-                 NULL);
+    GObject *ob = g_value_get_object(value);
+    g_object_set(ob, "container", self, NULL);
   }
   else if (G_VALUE_HOLDS(value, COIL_TYPE_LIST))
   {
