@@ -178,6 +178,27 @@ sub2: {
         ):
       self.assertRaises(ccoil.errors.CoilError, ccoil.parse, coil)
 
+  def testInvalidExtends(self):
+      for coil in (
+            # circular
+              'x: x{}',
+              'x: { @extends: ..x }',
+              'y.x: { @extends: @root.y }',
+            # nonexistent path
+              'x: y{}',
+              'x: ..a{}',
+              'x: { @extends: @root.nonexistent }',
+            # bad type
+              'x: 1 y: x{}',
+              'x: 123 {}',
+              'x: { @extends: 123 }',
+            # nonsense
+              'x: { @extends: x }',
+              'x: { y:{} @extends: y }',
+              'x: { y: { @extends: ...x } }'
+              ):
+        self.assertRaises(ccoil.errors.CoilError, ccoil.parse, coil)
+
   def testOrder(self):
     self.assertEqual(ccoil.parse('x: =y y: "foo"')['x'], 'foo')
     self.assertEqual(ccoil.parse('y: "foo" x: y')['x'], 'foo')
