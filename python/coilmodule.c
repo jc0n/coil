@@ -128,7 +128,6 @@ GValue *
 coil_value_from_pyobject(PyObject *o)
 {
     GValue *value = NULL;
-    PyTypeObject *type = (PyTypeObject *) o->ob_type;
 
     if (o == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "NULL python object.");
@@ -144,19 +143,19 @@ coil_value_from_pyobject(PyObject *o)
         coil_value_init(value, G_TYPE_BOOLEAN, set_boolean, FALSE);
     }
 #if PYTHON_MAJOR_VERSION <= 2
-    else if (type == &PyInt_Type) {
+    else if (PyInt_CheckExact(o)) {
         coil_value_init(value, G_TYPE_INT, set_int, (gint) PyInt_AsLong(o));
     }
 #endif
-    else if (type == &PyLong_Type) {
+    else if (PyLong_CheckExact(o)) {
         coil_value_init(value, G_TYPE_LONG, set_long,
                         (glong) PyLong_AsLong(o));
     }
-    else if (type == &PyFloat_Type) {
+    else if (PyFloat_Check(o)) {
         coil_value_init(value, G_TYPE_FLOAT, set_float,
                         (gfloat) PyFloat_AsDouble(o));
     }
-    else if (type == &PyCoilStruct_Type) {
+    else if (PyCoilStruct_Check(o)) {
         coil_value_init(value, COIL_TYPE_STRUCT, set_object,
                         ccoil_struct_get_real(o));
     }
