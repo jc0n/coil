@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import operator
+import pickle
 
 from unittest import TestCase
 from common import ccoil
@@ -581,3 +582,48 @@ a: {
     self.assertEquals(str(root), "x: ['a' ['b' 'c']]")
     s = "x: [1 2 3 'hello' True]"
     self.assertEquals(str(Struct(s)), s)
+
+
+
+class PickleTestCase(TestCase):
+
+    def tearDown(self):
+        if hasattr(self, 'node'):
+            buf = pickle.dumps(self.node)
+            self.assertEquals(self.node, pickle.loads(buf))
+
+    def testBasic(self):
+        self.node = Struct('''
+a: True b: False c: None
+x: 1 y: -100 z: 42.0
+''')
+
+    def testList(self):
+        self.node = Struct('''
+x: [1 2 3 True False None 'Hello']
+''')
+
+    def testNestedList(self):
+        self.node = Struct('''
+x: [[1 2] [True False] ['Hello' 'World']]
+''')
+
+    def testNestedStruct(self):
+        self.node = Struct('''
+x.y.z: 123
+a.b.c: 'Hello'
+''')
+
+    def testExpressions(self):
+        self.node = Struct('''
+x: 'Hello'
+y: 'World'
+z: "${x} ${y}"
+''')
+
+    def testLinks(self):
+        self.node = Struct('''
+x: 'Hello'
+sub.z: =..x
+''')
+

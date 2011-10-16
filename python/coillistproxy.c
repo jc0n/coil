@@ -430,6 +430,42 @@ list_ass_item(ListProxyObject *self, Py_ssize_t i, PyObject *v)
     return 0;
 }
 
+PyObject *
+list_reconstructor(ListProxyObject *self, PyObject *args)
+{
+    PyObject *list;
+
+    if (!PyArg_ParseTuple(args, "O:ccoil._list_reconstructor", &list))
+        return NULL;
+
+    return list;
+}
+
+static PyObject *
+list_reduce(ListProxyObject *self, PyObject *unused)
+{
+    PyObject *res, *list;
+    static PyObject *reconstructor = NULL;
+
+    list = PySequence_List((PyObject *)self);
+    if (list == NULL)
+        return NULL;
+
+    if (reconstructor == NULL) {
+        PyObject *module = PyImport_ImportModule("ccoil");
+        if (module == NULL)
+            return NULL;
+        reconstructor = PyObject_GetAttrString(module, "_list_reconstructor");
+        Py_DECREF(module);
+        if (reconstructor == NULL)
+            return NULL;
+    }
+
+    res = Py_BuildValue("O(O)", reconstructor, list);
+    Py_DECREF(list);
+    return res;
+}
+
 PySequenceMethods listproxy_as_sequence =
 {
 	(lenfunc)list_len,                /* sq_length */
@@ -446,6 +482,7 @@ PySequenceMethods listproxy_as_sequence =
 
 static PyMethodDef listproxy_methods[] =
 {
+    {"__reduce__", (PyCFunction)list_reduce, METH_NOARGS, NULL},
     {"append", (PyCFunction)list_append, METH_O, NULL},
     {"count", (PyCFunction)list_count, METH_O, NULL},
     {"copy", (PyCFunction)list_copy, METH_NOARGS, NULL},

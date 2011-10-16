@@ -1572,6 +1572,55 @@ struct_mp_size(PyCoilStruct * self)
     return size;
 }
 
+static PyObject *
+struct_reduce(PyCoilStruct *self, PyObject *unused)
+{
+    PyObject *res, *dict;
+    static PyObject *reconstructor = NULL;
+
+    dict = PyDict_New();
+    if (dict == NULL)
+        return NULL;
+
+    dict = update_pydict_from_struct(self->node, dict, 0);
+    if (dict == NULL)
+        return NULL;
+
+    if (reconstructor == NULL) {
+        PyObject *module;
+        module = PyImport_ImportModule("ccoil");
+        if (module == NULL)
+            return NULL;
+        reconstructor = PyObject_GetAttrString(module, "_struct_reconstructor");
+        Py_DECREF(module);
+        if (reconstructor == NULL)
+            return NULL;
+    }
+
+    res = Py_BuildValue("O(O)", reconstructor, dict);
+    Py_DECREF(dict);
+    return res;
+}
+
+PyObject *
+struct_reconstructor(PyCoilStruct *self, PyObject *args)
+{
+    CoilStruct *node;
+    PyObject *dict;
+
+    if (!PyArg_ParseTuple(args, "O:ccoil._struct_reconstructor", &dict))
+        return NULL;
+
+
+    node = coil_struct_new(NULL, NULL);
+    if (!struct_update_from_pyitems(node, dict)) {
+        g_object_unref(node);
+        return NULL;
+    }
+
+    return ccoil_struct_new(node);
+}
+
 /*
 """
 :param base: A *dict*, *Struct*, or a sequence of (key, value)
@@ -1672,6 +1721,7 @@ struct_init(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
 }
 
 static PyMethodDef struct_methods[] = {
+    {"__reduce__", (PyCFunction)struct_reduce, METH_NOARGS, NULL},
     {"clear",(PyCFunction)struct_empty, METH_NOARGS, NULL},
     {"container",(PyCFunction)struct_get_container, METH_NOARGS, NULL},
     {"copy",(PyCFunction)struct_copy, METH_VARARGS | METH_KEYWORDS, NULL},
