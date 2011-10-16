@@ -762,6 +762,9 @@ struct_insert_internal(CoilStruct     *self,
   {
     GObject *ob = g_value_get_object(value);
     g_object_set(ob, "container", self, NULL);
+    if (COIL_IS_LINK(ob)) {
+      g_object_set(ob, "path", path, NULL);
+    }
   }
   else if (G_VALUE_HOLDS(value, COIL_TYPE_LIST))
   {
