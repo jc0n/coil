@@ -49,11 +49,13 @@ listproxy_dealloc(ListProxyObject *self)
     g_object_unref(self->node);
 }
 
-#define CHECK_INITIALIZED(self) \
-    if (self->arr == NULL) { \
-        PyErr_SetString(PyExc_RuntimeError, "coil list is not initialized"); \
-        return NULL; \
-    }
+static const char _list_notinitialized[] = "coil list is not initialized";
+
+#define CHECK_INITIALIZED(self)                                              \
+    if (self->arr == NULL) {                                                 \
+        PyErr_SetString(PyExc_RuntimeError, _list_notinitialized);           \
+        return NULL;                                                         \
+    }                                                                        \
 
 #define CHECK_VALUE(value) \
     if (PyCoilStruct_Check(v)) {                                             \
@@ -61,7 +63,7 @@ listproxy_dealloc(ListProxyObject *self)
                      "coil list cannot contain type '%s'",                   \
                      Py_TYPE_NAME(v));                                       \
         return NULL;                                                         \
-    }                                                                         \
+    }                                                                        \
 
 static PyObject *
 list_insert(ListProxyObject *self, PyObject *args)
@@ -161,10 +163,29 @@ list_clear(ListProxyObject *self, PyObject *unused)
 }
 
 static PyObject *
-list_count(ListProxyObject *self, PyObject *args)
+list_count(ListProxyObject *self, PyObject *v)
 {
-    /* TODO */
-    Py_RETURN_NONE;
+    GValue *arrv;
+    PyObject *w;
+    Py_ssize_t count = 0;
+    gsize i, n;
+
+    CHECK_INITIALIZED(self);
+
+    n = self->arr->n_values;
+    for (i = 0; i < n; i++) {
+        int cmp;
+        arrv = g_value_array_get_nth(self->arr, i);
+        w = coil_value_as_pyobject(self->node, arrv);
+        if (w == NULL)
+            return NULL;
+        cmp = PyObject_RichCompareBool(w, v, Py_EQ);
+        if (cmp > 0)
+            count++;
+        else if (cmp < 0)
+            return NULL;
+    }
+    return PyLong_FromLong(count);
 }
 
 static PyObject *
@@ -229,7 +250,35 @@ list_len(ListProxyObject *self)
 static int
 list_contains(ListProxyObject *self, PyObject *item)
 {
-    /* TODO(jcon) */
+    PyObject *v;
+    GValue *arrv;
+    gsize i, n;
+
+    if (self->arr == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, _list_notinitialized);
+        return -1;
+    }
+
+    n = self->arr->n_values;
+    for (i = 0; i < n; i++) {
+        int cmp;
+
+        arrv = g_value_array_get_nth(self->arr, i);
+        v = coil_value_as_pyobject(self->node, arrv);
+        if (v == NULL)
+            return -1;
+        cmp = PyObject_RichCompareBool(v, item, Py_EQ);
+        Py_DECREF(v);
+        if (cmp < 0) {
+            if (PyErr_Occurred() &&
+                    PyErr_ExceptionMatches(PyExc_NotImplementedError))
+                continue;
+            else
+                return -1;
+        }
+        if (cmp)
+            return 1;
+    }
     return 0;
 }
 
@@ -260,7 +309,7 @@ static PyObject *
 list_richcompare(PyObject *x, PyObject *y, int op)
 {
     ListProxyObject *self;
-    PyObject *fast, *res, *vx, *vy;
+    PyObject *fast, *res, *vx = NULL, *vy;
     guint i, n, m;
     gint cmp;
 
@@ -291,8 +340,10 @@ list_richcompare(PyObject *x, PyObject *y, int op)
         int k;
 
         arrv = g_value_array_get_nth(self->arr, i);
-        vx = coil_value_as_pyobject(self->node, arrv);
         vy = PySequence_Fast_GET_ITEM(fast, i);
+        vx = coil_value_as_pyobject(self->node, arrv);
+        if (vx == NULL)
+            return NULL;
 
         k = PyObject_RichCompareBool(vx, vy, Py_EQ);
         if (k < 0) {
@@ -314,27 +365,27 @@ list_richcompare(PyObject *x, PyObject *y, int op)
             case Py_GE: cmp = n >= m; break;
             default: {
                 assert(0);
-                Py_DECREF(vx);
+                Py_XDECREF(vx);
                 Py_DECREF(fast);
                 return NULL;
             }
         }
         res = (cmp) ? Py_True : Py_False;
         Py_INCREF(res);
-        Py_DECREF(vx);
+        Py_XDECREF(vx);
         Py_DECREF(fast);
         return res;
     }
 
     if (op == Py_EQ || op == Py_NE) {
-        Py_DECREF(vx);
+        Py_XDECREF(vx);
         Py_DECREF(fast);
         res = (op == Py_EQ) ? Py_True : Py_False;
         Py_INCREF(res);
         return res;
     }
     res = PyObject_RichCompare(vx, vy, op);
-    Py_DECREF(vx);
+    Py_XDECREF(vx);
     Py_DECREF(fast);
     return res;
 }
