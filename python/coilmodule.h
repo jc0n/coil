@@ -77,8 +77,6 @@ listproxy_register_types(PyObject *m, PyObject *d);
 void
 ccoil_error(GError ** error);
 
-PyObject *pylist_from_value_list(GList * list);
-
 GValue *coil_value_from_pyobject(PyObject * o);
 
 PyObject *coil_value_as_pyobject(CoilStruct *node, GValue *value);
