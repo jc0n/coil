@@ -438,6 +438,12 @@ list_reconstructor(ListProxyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O:ccoil._list_reconstructor", &list))
         return NULL;
 
+    if (!PyList_CheckExact(list)) {
+        PyErr_Format(PyExc_TypeError, "expecting list got type '%s'.",
+                Py_TYPE_NAME(list));
+        return NULL;
+    }
+
     return list;
 }
 

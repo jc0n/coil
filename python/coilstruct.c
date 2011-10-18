@@ -1611,6 +1611,11 @@ struct_reconstructor(PyCoilStruct *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O:ccoil._struct_reconstructor", &dict))
         return NULL;
 
+    if (!PyDict_CheckExact(dict)) {
+        PyErr_Format(PyExc_TypeError, "expecting dict got type '%s'.",
+                Py_TYPE_NAME(dict));
+        return NULL;
+    }
 
     node = coil_struct_new(NULL, NULL);
     if (!struct_update_from_pyitems(node, dict)) {
