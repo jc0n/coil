@@ -58,10 +58,10 @@ static const char _list_notinitialized[] = "coil list is not initialized";
     }                                                                        \
 
 #define CHECK_VALUE(value) \
-    if (PyCoilStruct_Check(v)) {                                             \
+    if (PyCoilStruct_Check(value)) {                                         \
         PyErr_Format(PyExc_TypeError,                                        \
                      "coil list cannot contain type '%s'",                   \
-                     Py_TYPE_NAME(v));                                       \
+                     Py_TYPE_NAME(value));                                   \
         return NULL;                                                         \
     }                                                                        \
 
