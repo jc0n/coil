@@ -5,7 +5,6 @@
  */
 
 #include "coilmodule.h"
-#include "coilstruct.h"
 
 PyDoc_STRVAR(ccoil_module_documentation,
              "C implementation and optimization of the Python coil module.");
@@ -226,9 +225,9 @@ coil_value_as_pyobject(CoilStruct *node, GValue *value)
             return PyString_FromStringAndSize((char *)&val, 1);
         }
         case G_TYPE_BOOLEAN:
-            return PyBool_FromLong(g_value_get_boolean(value));
+            return PyBool_FromLong((long)g_value_get_boolean(value));
         case G_TYPE_INT:
-            return PyLong_FromLong(g_value_get_int(value));
+            return PyLong_FromLong((long)g_value_get_int(value));
         case G_TYPE_UINT:
             return PyLong_FromUnsignedLong((gulong) g_value_get_uint(value));
         case G_TYPE_LONG:

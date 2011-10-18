@@ -5,7 +5,6 @@
  */
 
 #include "coilmodule.h"
-#include "coilstruct.h"
 
 static GQuark struct_wrapper_key = 0;
 
