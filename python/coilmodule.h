@@ -5,6 +5,7 @@
  */
 
 #ifndef _COILMODULE_H
+#define _COILMODULE_H
 
 #include "Python.h"
 #include "pygobject.h"
