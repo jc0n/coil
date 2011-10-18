@@ -317,8 +317,8 @@ list_richcompare(PyObject *x, PyObject *y, int op)
     CHECK_INITIALIZED(self);
 
     if (!ListProxyObject_Check(x) || !PySequence_Check(y)) {
-        PyErr_SetObject(PyExc_NotImplementedError, NULL);
-        return NULL;
+        Py_INCREF(Py_NotImplemented);
+        return Py_NotImplemented;
     }
 
     fast = PySequence_Fast(y, "expecting sequence");
