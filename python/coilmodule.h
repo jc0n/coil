@@ -22,25 +22,41 @@
   if (dict) \
     PyDict_SetItemString(dict, name, (PyObject *)&type);
 
-#define ListProxyObject_Check(obj) \
-    (&ListProxyObject_Type == (PyTypeObject *)((PyObject *)obj)->ob_type)
-
-#define PyCoilStruct_Check(obj) \
-    (&PyCoilStruct_Type == (PyTypeObject *)((PyObject *)obj)->ob_type || \
-     PyObject_IsInstance((PyObject *)obj, (PyObject *)&PyCoilStruct_Type))
-
-#define PyCoilStructIter_Check(o) \
-    (&PyCoilStructIter_Type == (PyTypeObject *)((PyObject *)o)->ob_type)
-
 #ifndef Py_TYPE
-# define Py_TYPE(o) ((o)->ob_type)
+# define Py_TYPE(o) ((PyTypeObject *)((PyObject *)o)->ob_type)
 #endif
 
 #ifndef Py_TYPE_NAME
 # define Py_TYPE_NAME(o) (Py_TYPE(o)->tp_name)
 #endif
 
-extern PyTypeObject ListProxyObject_Type;
+#define _PyType_Check(obj, type) \
+    ((PyTypeObject *)&type == Py_TYPE(obj))
+
+#define _PyType_CheckExact(obj, type)                                        \
+    (_PyType_Check(obj) ||                                                   \
+     PyObject_IsInstance((PyObject *)obj, (PyObject *)&type))
+
+#define ListProxyObject_Check(obj) \
+    _PyType_Check(obj, ListProxy_Type)
+
+#define ListProxyObject_CheckExact(obj) \
+    _PyType_CheckExact(obj, ListProxy_Type)
+
+#define PyCoilStruct_Check(obj) \
+    _PyType_Check(obj, PyCoilStruct_Type)
+
+#define PyCoilStruct_CheckExact(obj) \
+    _PyType_CheckExact(obj, PyCoilStruct_Type)
+
+#define PyCoilStructIter_Check(obj) \
+    _PyType_Check(obj, PyCoilStructIter_Type)
+
+#define PyCoilStructIter_CheckExact(obj) \
+    _PyType_CheckExact(obj, PyCoilStructIter_Type)
+
+
+extern PyTypeObject ListProxy_Type;
 extern PyTypeObject PyCoilStruct_Type;
 extern PyTypeObject PyCoilStructIterItem_Type;
 extern PyTypeObject PyCoilStructIterKey_Type;
@@ -76,7 +92,7 @@ PyObject *ccoil_struct_new(CoilStruct * node);
 CoilStruct *ccoil_struct_get_real(PyObject *obj);
 
 PyObject *struct_reconstructor(PyCoilStruct *, PyObject *);
-PyObject *list_reconstructor(ListProxyObject *, PyObject *);
+PyObject *listproxy_reconstructor(ListProxyObject *, PyObject *);
 
 extern PyObject *ccoilError;
 extern PyObject *StructError;

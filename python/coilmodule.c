@@ -510,7 +510,7 @@ ccoil_parse_file(PyObject * ignored, PyObject * args, PyObject * kwargs)
 static PyMethodDef ccoil_functions[] = {
     {"_struct_reconstructor", (PyCFunction)struct_reconstructor, METH_VARARGS,
     PyDoc_STR("Internal. Used for pickling support.")},
-    {"_list_reconstructor", (PyCFunction)list_reconstructor, METH_VARARGS,
+    {"_listproxy_reconstructor", (PyCFunction)listproxy_reconstructor, METH_VARARGS,
     PyDoc_STR("Internal. Used for pickling support.")},
 
     {"parse", (PyCFunction)ccoil_parse, METH_VARARGS | METH_KEYWORDS, NULL},
