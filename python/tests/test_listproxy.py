@@ -83,7 +83,13 @@ z: [[1 2] [3 4]]
         pass
 
     def testPop(self):
-        pass
+        for i in self.rx:
+            self.assertEquals(self.px.pop(0), self.rx.pop(0))
+        for i in self.ry:
+            self.assertEquals(self.py.pop(), self.ry.pop())
+        n = self.pz.pop(1)
+        self.assertEquals(list(n), [3, 4])
+        self.assertEquals(list(self.pz), [[1, 2]])
 
     def testRemove(self):
         pass
