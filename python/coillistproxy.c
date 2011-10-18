@@ -25,7 +25,7 @@ ccoil_listproxy_new(CoilStruct *node, GValueArray *arr)
 
     ListProxyObject *self;
 
-    self = PyObject_New(ListProxyObject, &ListProxyObject_Type);
+    self = PyObject_New(ListProxyObject, &ListProxy_Type);
     if (self == NULL)
         return NULL;
 
@@ -38,7 +38,7 @@ ccoil_listproxy_new(CoilStruct *node, GValueArray *arr)
 int
 listproxy_register_types(PyObject *m, PyObject *d)
 {
-    PyType_Register(d, ListProxyObject_Type, "_ListProxy", 0);
+    PyType_Register(d, ListProxy_Type, "_ListProxy", 0);
     return 0;
 }
 
@@ -49,11 +49,11 @@ listproxy_dealloc(ListProxyObject *self)
     g_object_unref(self->node);
 }
 
-static const char _list_notinitialized[] = "coil list is not initialized";
+static const char _listproxy_notinitialized[] = "coil list is not initialized";
 
 #define CHECK_INITIALIZED(self)                                              \
-    if (self->arr == NULL) {                                                 \
-        PyErr_SetString(PyExc_RuntimeError, _list_notinitialized);           \
+    if (self->arr == NULL || !G_IS_OBJECT(self->node)) {                     \
+        PyErr_SetString(PyExc_RuntimeError, _listproxy_notinitialized);      \
         return NULL;                                                         \
     }                                                                        \
 
@@ -66,7 +66,7 @@ static const char _list_notinitialized[] = "coil list is not initialized";
     }                                                                        \
 
 static PyObject *
-list_insert(ListProxyObject *self, PyObject *args)
+listproxy_insert(ListProxyObject *self, PyObject *args)
 {
     Py_ssize_t i, n;
     PyObject *v;
@@ -96,7 +96,7 @@ list_insert(ListProxyObject *self, PyObject *args)
 }
 
 static PyObject *
-list_append(ListProxyObject *self, PyObject *v)
+listproxy_append(ListProxyObject *self, PyObject *v)
 {
     GValue *value;
 
@@ -112,7 +112,7 @@ list_append(ListProxyObject *self, PyObject *v)
 }
 
 static PyObject *
-list_copy(ListProxyObject *self, PyObject *unused)
+listproxy_copy(ListProxyObject *self, PyObject *unused)
 {
     PyObject *res;
     guint i, n;
@@ -140,7 +140,7 @@ list_copy(ListProxyObject *self, PyObject *unused)
 }
 
 static PyObject *
-list_clear(ListProxyObject *self, PyObject *unused)
+listproxy_clear(ListProxyObject *self, PyObject *unused)
 {
     GValue *v;
     GValueArray *arr;
@@ -163,7 +163,7 @@ list_clear(ListProxyObject *self, PyObject *unused)
 }
 
 static PyObject *
-list_count(ListProxyObject *self, PyObject *v)
+listproxy_count(ListProxyObject *self, PyObject *v)
 {
     GValue *arrv;
     PyObject *w;
@@ -189,14 +189,14 @@ list_count(ListProxyObject *self, PyObject *v)
 }
 
 static PyObject *
-list_extend(ListProxyObject *self, PyObject *args)
+listproxy_extend(ListProxyObject *self, PyObject *args)
 {
     /* TODO */
     Py_RETURN_NONE;
 }
 
 static PyObject *
-list_index(ListProxyObject *self, PyObject *args)
+listproxy_index(ListProxyObject *self, PyObject *args)
 {
     /* TODO */
     Py_RETURN_NONE;
@@ -235,7 +235,7 @@ convert_to_python_list(CoilStruct *node, GValueArray *arr)
 }
 
 static PyObject *
-list_pop(ListProxyObject *self, PyObject *args)
+listproxy_pop(ListProxyObject *self, PyObject *args)
 {
     PyObject *res;
     Py_ssize_t i = -1;
@@ -271,7 +271,7 @@ list_pop(ListProxyObject *self, PyObject *args)
 }
 
 static PyObject *
-list_remove(ListProxyObject *self, PyObject *args)
+listproxy_remove(ListProxyObject *self, PyObject *w)
 {
     /* TODO */
     Py_RETURN_NONE;
@@ -285,7 +285,7 @@ list_reverse(ListProxyObject *self, PyObject *args)
 }
 
 static PyObject *
-list_sort(ListProxyObject *self, PyObject *args)
+listproxy_sort(ListProxyObject *self, PyObject *args)
 {
     /* TODO */
     Py_RETURN_NONE;
@@ -300,7 +300,7 @@ listproxy_init(ListProxyObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static Py_ssize_t
-list_len(ListProxyObject *self)
+listproxy_len(ListProxyObject *self)
 {
     if (self->arr == NULL)
         return 0;
@@ -309,14 +309,14 @@ list_len(ListProxyObject *self)
 }
 
 static int
-list_contains(ListProxyObject *self, PyObject *item)
+listproxy_contains(ListProxyObject *self, PyObject *item)
 {
     PyObject *v;
     GValue *arrv;
     gsize i, n;
 
     if (self->arr == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, _list_notinitialized);
+        PyErr_SetString(PyExc_RuntimeError, _listproxy_notinitialized);
         return -1;
     }
 
@@ -344,7 +344,7 @@ list_contains(ListProxyObject *self, PyObject *item)
 }
 
 static PyObject *
-list_item(ListProxyObject *self, Py_ssize_t i)
+listproxy_item(ListProxyObject *self, Py_ssize_t i)
 {
     GValue *value;
 
@@ -360,14 +360,14 @@ list_item(ListProxyObject *self, Py_ssize_t i)
 }
 
 static PyObject *
-list_concat(ListProxyObject *self, PyObject *other)
+listproxy_concat(ListProxyObject *self, PyObject *other)
 {
     /* TODO */
     Py_RETURN_NONE;
 }
 
 static PyObject *
-list_richcompare(PyObject *x, PyObject *y, int op)
+listproxy_richcompare(PyObject *x, PyObject *y, int op)
 {
     ListProxyObject *self;
     PyObject *fast, *res, *vx = NULL, *vy;
@@ -453,7 +453,7 @@ list_richcompare(PyObject *x, PyObject *y, int op)
 
 
 static PyObject *
-list_repeat(ListProxyObject *self, Py_ssize_t n)
+listproxy_repeat(ListProxyObject *self, Py_ssize_t n)
 {
     /* TODO */
     Py_RETURN_NONE;
@@ -461,7 +461,7 @@ list_repeat(ListProxyObject *self, Py_ssize_t n)
 
 #if 0
 static int
-list_ass_slice(ListProxyObject *self,
+listproxy_ass_slice(ListProxyObject *self,
                Py_ssize_t low, Py_ssize_t high,
                PyObject *v)
 {
@@ -471,32 +471,32 @@ list_ass_slice(ListProxyObject *self,
 #endif
 
 static PyObject *
-list_inplace_repeat(ListProxyObject *self, Py_ssize_t n)
+listproxy_inplace_repeat(ListProxyObject *self, Py_ssize_t n)
 {
     /* TODO */
     Py_RETURN_NONE;
 }
 
 static PyObject *
-list_inplace_concat(ListProxyObject *self, PyObject *other)
+listproxy_inplace_concat(ListProxyObject *self, PyObject *other)
 {
     /* TODO */
     Py_RETURN_NONE;
 }
 
 static int
-list_ass_item(ListProxyObject *self, Py_ssize_t i, PyObject *v)
+listproxy_ass_item(ListProxyObject *self, Py_ssize_t i, PyObject *v)
 {
     /* TODO */
     return 0;
 }
 
 PyObject *
-list_reconstructor(ListProxyObject *self, PyObject *args)
+listproxy_reconstructor(ListProxyObject *self, PyObject *args)
 {
     PyObject *list;
 
-    if (!PyArg_ParseTuple(args, "O:ccoil._list_reconstructor", &list))
+    if (!PyArg_ParseTuple(args, "O:ccoil._listproxy_reconstructor", &list))
         return NULL;
 
     if (!PyList_CheckExact(list)) {
@@ -509,7 +509,7 @@ list_reconstructor(ListProxyObject *self, PyObject *args)
 }
 
 static PyObject *
-list_reduce(ListProxyObject *self, PyObject *unused)
+listproxy_reduce(ListProxyObject *self, PyObject *unused)
 {
     PyObject *res, *list;
     static PyObject *reconstructor = NULL;
@@ -522,7 +522,7 @@ list_reduce(ListProxyObject *self, PyObject *unused)
         PyObject *module = PyImport_ImportModule("ccoil");
         if (module == NULL)
             return NULL;
-        reconstructor = PyObject_GetAttrString(module, "_list_reconstructor");
+        reconstructor = PyObject_GetAttrString(module, "_listproxy_reconstructor");
         Py_DECREF(module);
         if (reconstructor == NULL)
             return NULL;
@@ -535,36 +535,35 @@ list_reduce(ListProxyObject *self, PyObject *unused)
 
 PySequenceMethods listproxy_as_sequence =
 {
-	(lenfunc)list_len,                /* sq_length */
-	(binaryfunc)list_concat,   	      /* sq_concat */
-	(ssizeargfunc)list_repeat,        /* sq_repeat */
-	(ssizeargfunc)list_item,          /* sq_item */
+	(lenfunc)listproxy_len,                /* sq_length */
+	(binaryfunc)listproxy_concat,   	      /* sq_concat */
+	(ssizeargfunc)listproxy_repeat,        /* sq_repeat */
+	(ssizeargfunc)listproxy_item,          /* sq_item */
     0,                                /* sq_slice */
-	(ssizeobjargproc)list_ass_item,	  /* sq_ass_item */
+	(ssizeobjargproc)listproxy_ass_item,	  /* sq_ass_item */
     0,                                /* sq_ass_slice */
-	(objobjproc)list_contains,        /* sq_contains */
-	(binaryfunc)list_inplace_concat,  /* sq_inplace_concat */
-	(ssizeargfunc)list_inplace_repeat,/* sq_inplace_repeat */
+	(objobjproc)listproxy_contains,        /* sq_contains */
+	(binaryfunc)listproxy_inplace_concat,  /* sq_inplace_concat */
+	(ssizeargfunc)listproxy_inplace_repeat,/* sq_inplace_repeat */
 };
 
 static PyMethodDef listproxy_methods[] =
 {
-    {"__reduce__", (PyCFunction)list_reduce, METH_NOARGS, NULL},
-    {"append", (PyCFunction)list_append, METH_O, NULL},
-    {"count", (PyCFunction)list_count, METH_O, NULL},
-    {"copy", (PyCFunction)list_copy, METH_NOARGS, NULL},
-    {"clear", (PyCFunction)list_clear, METH_NOARGS, NULL},
-    {"extend", (PyCFunction)list_extend, METH_O, NULL},
-    {"index", (PyCFunction)list_index, METH_VARARGS, NULL},
-    {"insert", (PyCFunction)list_insert, METH_VARARGS, NULL},
-    {"pop", (PyCFunction)list_pop, METH_VARARGS, NULL},
-    {"remove", (PyCFunction)list_remove, METH_O, NULL},
-    {"reverse", (PyCFunction)list_reverse, METH_NOARGS, NULL},
-    {"sort", (PyCFunction)list_sort, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"__reduce__", (PyCFunction)listproxy_reduce, METH_NOARGS, NULL},
+    {"append", (PyCFunction)listproxy_append, METH_O, NULL},
+    {"count", (PyCFunction)listproxy_count, METH_O, NULL},
+    {"copy", (PyCFunction)listproxy_copy, METH_NOARGS, NULL},
+    {"clear", (PyCFunction)listproxy_clear, METH_NOARGS, NULL},
+    {"extend", (PyCFunction)listproxy_extend, METH_O, NULL},
+    {"index", (PyCFunction)listproxy_index, METH_VARARGS, NULL},
+    {"insert", (PyCFunction)listproxy_insert, METH_VARARGS, NULL},
+    {"pop", (PyCFunction)listproxy_pop, METH_VARARGS, NULL},
+    {"remove", (PyCFunction)listproxy_remove, METH_O, NULL},
+    {"sort", (PyCFunction)listproxy_sort, METH_VARARGS | METH_KEYWORDS, NULL},
     {NULL, NULL}
 };
 
-PyTypeObject ListProxyObject_Type =
+PyTypeObject ListProxy_Type =
 {
   PyObject_HEAD_INIT(NULL)
   0,
@@ -601,7 +600,7 @@ PyTypeObject ListProxyObject_Type =
   listproxy_doc,                                     /* tp_doc */
   (traverseproc)0,                              /* tp_traverse */
   (inquiry)0,                                   /* tp_clear */
-  (richcmpfunc)list_richcompare,                /* tp_richcompare */
+  (richcmpfunc)listproxy_richcompare,                /* tp_richcompare */
   0,                                            /* tp_weaklistoffset */
   (getiterfunc)0,                               /* tp_iter */
   (iternextfunc)0,                              /* tp_iternext */
