@@ -203,10 +203,71 @@ list_index(ListProxyObject *self, PyObject *args)
 }
 
 static PyObject *
+convert_to_python_list(CoilStruct *node, GValueArray *arr)
+{
+    PyObject *res;
+    gsize i, n;
+
+    n = arr->n_values;
+    res = PyList_New(n);
+    if (res == NULL)
+        return NULL;
+
+    for (i = 0; i < n; i++) {
+        PyObject *v;
+        GValue *arrv;
+
+        arrv = g_value_array_get_nth(arr, i);
+        if (G_VALUE_HOLDS(arrv, COIL_TYPE_LIST)) {
+            GValueArray *subarr = (GValueArray *)g_value_get_boxed(arrv);
+            v = convert_to_python_list(node, subarr);
+        }
+        else {
+            v = coil_value_as_pyobject(node, arrv);
+        }
+        if (v == NULL) {
+            Py_DECREF(res);
+            return NULL;
+        }
+        PyList_SET_ITEM(res, i, v);
+    }
+    return res;
+}
+
+static PyObject *
 list_pop(ListProxyObject *self, PyObject *args)
 {
-    /* TODO */
-    Py_RETURN_NONE;
+    PyObject *res;
+    Py_ssize_t i = -1;
+    GValue *value;
+    gsize n;
+
+    CHECK_INITIALIZED(self);
+
+    if (!PyArg_ParseTuple(args, "|n:pop", &i))
+        return NULL;
+
+    n = self->arr->n_values;
+    if (i < 0)
+        i = n - 1;
+    else if (i > n) {
+        PyErr_SetString(PyExc_IndexError, "index out of range");
+        return NULL;
+    }
+
+    value = g_value_array_get_nth(self->arr, i);
+    if (G_VALUE_HOLDS(value, COIL_TYPE_LIST)) {
+        GValueArray *arr = (GValueArray *)g_value_get_boxed(value);
+        res = convert_to_python_list(self->node, arr);
+    }
+    else {
+        res = coil_value_as_pyobject(self->node, value);
+    }
+    if (res == NULL)
+        return NULL;
+
+    g_value_array_remove(self->arr, i);
+    return res;
 }
 
 static PyObject *
