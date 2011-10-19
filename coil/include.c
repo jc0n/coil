@@ -471,27 +471,43 @@ err:
 }
 
 static int
-process_individual_imports(CoilInclude  *self, GError **error)
+process_import_array(CoilInclude *self, GValueArray *arr, GError **error)
+{
+    g_return_val_if_fail(COIL_IS_INCLUDE(self), -1);
+    g_return_val_if_fail(arr != NULL, -1);
+    g_return_val_if_fail(error == NULL || *error == NULL, -1);
+
+    GValue *import;
+    gsize i, n = arr->n_values;
+
+    for (i = 0; i < n; i++) {
+        import = g_value_array_get_nth(arr, i);
+        if (expand_import(import, error) < 0)
+            return -1;
+        if (G_VALUE_HOLDS(import, COIL_TYPE_LIST)) {
+            GValueArray *subarr = (GValueArray *)g_value_get_boxed(import);
+            if (process_import_array(self, subarr, error) < 0)
+                return -1;
+        }
+        else if (process_import(self, import, error) < 0)
+            return -1;
+    }
+    return 0;
+}
+
+static int
+process_all_imports(CoilInclude *self, GError **error)
 {
     g_return_val_if_fail(COIL_IS_INCLUDE(self), FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-    GValue *import;
     GValueArray *imports;
-    guint i, n;
 
     imports = self->priv->imports;
     if (imports == NULL)
         return 0;
 
-    n = imports->n_values;
-    for (i = 0; i < n; i++) {
-        import = g_value_array_get_nth(imports, i);
-        if (process_import(self, import, error) < 0)
-            return -1;
-    }
-
-    return 0;
+    return process_import_array(self, imports, error);
 }
 
 static gboolean
@@ -507,13 +523,11 @@ include_expand(gconstpointer include, const GValue **return_value, GError **erro
     if (priv->is_expanded)
         return TRUE;
 
-    if (priv->imports != NULL) {
-        if (priv->imports->n_values > 0) {
-            if (process_individual_imports(self, error) < 0)
-                goto error;
-            priv->is_expanded = TRUE;
-            return TRUE;
-        }
+    if (priv->imports != NULL && priv->imports->n_values > 0) {
+        if (process_all_imports(self, error) < 0)
+            goto error;
+        priv->is_expanded = TRUE;
+        return TRUE;
     }
 
     /* import everything */
