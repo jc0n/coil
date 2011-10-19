@@ -47,7 +47,6 @@ AC_CONFIG_FILES([
     python/tests/Makefile
     tests/Makefile
     tests/functional/Makefile
-    tests/benchmark/Makefile
 ])
 
 AC_CONFIG_SRCDIR([coil/struct.c])
@@ -62,6 +61,7 @@ COIL_ARG_ENABLE(debug, whether to enable debugging,
 
 if test "$COIL_DEBUG" = "yes"; then
   AC_DEFINE([COIL_DEBUG], [1], [ ])
+  CFLAGS="${CFLAGS} -O0 -g"
 else
   AC_DEFINE([COIL_DEBUG], [0], [ ])
 fi
@@ -76,7 +76,6 @@ COIL_ARG_ENABLE(include-caching, whether to cache included files,
 
 if test "$COIL_INCLUDE_CACHING" = "yes"; then
   AC_DEFINE([COIL_INCLUDE_CACHING], [1], [ ])
-  CFLAGS="-O0 -g"
 else
   AC_DEFINE([COIL_INCLUDE_CACHING], [0], [ ])
 fi
@@ -149,7 +148,7 @@ else
 fi
 
 AC_CHECK_FUNCS(strcmp strcpy strlen)
-AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr)
+AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr memmem)
 AC_CHECK_FUNCS(stat lstat)
 
 AC_HEADER_TIME

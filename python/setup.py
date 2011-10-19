@@ -30,8 +30,8 @@ if os.system('pkg-config --exists ' + libname + ' >/dev/null') == 0:
     with os.popen('pkg-config --libs ' + libname) as pkgcfg:
         libs = pkgcfg.readline().strip().split()
 else:
-    print("Unable to read pkg-config for %s, build terminated" % libname)
-    raise SystemExit
+    cflags = ['-I..', '-I../coil', '-O2']
+    libs = ['-lcoil-0.1', '-L../coil/.libs/']
 
 
 if os.system('pkg-config --exists pygobject-2.0 >/dev/null') == 0:
@@ -56,7 +56,7 @@ coilmodule = Extension('ccoil',
                        sources=['coilmodule.c',
                                 'coilstruct.c',
                                 'coillistproxy.c'],
-                       include_dirs = iflags + ['..'],
+                       include_dirs = iflags,
                        extra_compile_args = extra_cflags,
                        library_dirs = libdirs,
                        libraries = libsonly)

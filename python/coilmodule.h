@@ -9,6 +9,9 @@
 
 #include "Python.h"
 #include "pygobject.h"
+
+#undef HAVE_STAT
+
 #include "config.h"
 
 #include "coil.h"
