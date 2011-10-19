@@ -10,6 +10,10 @@
 #include "Python.h"
 #include "pygobject.h"
 
+#undef HAVE_STAT
+
+#include "config.h"
+
 #include "coil.h"
 
 #define PyType_Register(dict, type, name, rval) \

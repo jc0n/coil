@@ -391,7 +391,7 @@ static PyObject *
 listproxy_richcompare(PyObject *x, PyObject *y, int op)
 {
     ListProxyObject *self;
-    PyObject *fast, *res, *vx = NULL, *vy;
+    PyObject *fast, *res, *vx = NULL, *vy = NULL;
     gsize i, n, m, k;
     gint cmp;
 
