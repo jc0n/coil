@@ -2,42 +2,30 @@ include $(top_srcdir)/Makefile.decl
 
 SUBDIRS = tests
 
-AM_CPPFLAGS = $(PYTHON_INCLUDES) \
-			  $(GLIB_CFLAGS) \
-			  $(PYGOBJECT_CFLAGS) \
-			  -I$(top_srcdir)/coil \
-			  -fno-strict-aliasing \
-			  -Wall -Werror
-
-pkgpythondir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
-pkgpyexecdir = $(pyexecdir)/coil-@LIBCOIL_API_VERSION@
-
-ccoildir = $(pkgpyexecdir)/coil
-
-pkgpyexec_LTLIBRARIES =
+MODULES =
 
 if BUILD_PYTHON_BINDING
-pkgpyexec_LTLIBRARIES += ccoil.la
+MODULES += coilmodule
 endif
 
-ccoil_HEADERS = coilmodule.h
+all: $(MODULES)
 
-ccoil_la_SOURCES = \
-				   coilstruct.c \
-				   coilmodule.c \
-				   coillistproxy.c
+COIL_LIBS = $(top_srcdir)/coil/libcoil-@LIBCOIL_API_VERSION@.la
 
-ccoil_la_LIBADD = \
-				  @GLIB_LIBS@ \
-				  @PYGOBJECT_LIBS@ \
-				  $(top_srcdir)/coil/libcoil-@LIBCOIL_API_VERSION@.la
+coilmodule: buildconf.py $(COIL_LIBS)
+	$(PYTHON) $(srcdir)/setup.py build
 
-ccoil_la_LDFLAGS = -module -avoid-version
+install-exec-hook:
+	$(PYTHON) $(srcdir)/setup.py install
 
-all: $(pkgpyexec_LTLIBRARIES:.la=.so)
+buildconf.py: $(top_srcdir)/config.h
+	@$(SED) -e '/^#/!d' \
+	 	   -e 's/#define //' \
+	 	   -e 's/[^=] /\0= /' $^ > $(srcdir)/$@
 
+if BUILD_PYTHON_BINDING
 clean-local:
-	rm -f $(pkgpyexec_LTLIBRARIES:.la=.so)
-
-.la.so:
-	$(LN_S) .libs/$@ $@ || true
+	test -z "${PYTHON}" && !-d $(srcdir)/build || \
+		$(PYTHON) $(srcdir)/setup.py clean
+	find . -type f -name "*.py[co]" -exec rm -f '{}' ';'
+endif

@@ -9,6 +9,7 @@
 
 #include "Python.h"
 #include "pygobject.h"
+#include "config.h"
 
 #include "coil.h"
 

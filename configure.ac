@@ -112,32 +112,6 @@ else
 fi
 
 dnl
-dnl Language Bindings
-dnl
-
-COIL_ARG_WITH(python, whether to build python support,
-              [Build python binding],  yes)
-
-if test "$COIL_PYTHON" = "yes"; then
-  AM_CHECK_PYTHON_HEADERS(,[AC_MSG_ERROR(could not find Python headers)])
-  AM_PATH_PYTHON(2.6)
-
-  PKG_CHECK_MODULES(PYGOBJECT, [pygobject-2.0 >= 2.0],
-                    [have_pygobject=yes], [have_pygobject=no])
-
-  if test "x$have_pygobject" = "xno"; then
-    AC_MSG_ERROR($PYGOBJECT_PKG_ERRORS)
-  fi
-
-  AC_SUBST(PYGOBJECT_LIBS)
-  AC_SUBST(PYGOBJECT_CFLAGS)
-
-  AM_CONDITIONAL(BUILD_PYTHON_BINDING, true)
-else
-  AM_CONDITIONAL(BUILD_PYTHON_BINDING, false)
-fi
-
-dnl
 dnl GLIB Dependency
 dnl
 
@@ -146,6 +120,29 @@ PKG_CHECK_MODULES(GLIB, [gobject-2.0 >= 2.22],
 
 if test "x$have_glib" = "xno"; then
     AC_MSG_ERROR($GLIB_PKG_ERRORS)
+fi
+
+dnl
+dnl Language Bindings
+dnl
+
+COIL_ARG_WITH(python, whether to build python support,
+              [Build python binding],  yes)
+
+if test "$COIL_PYTHON" = "yes"; then
+  AM_CHECK_PYTHON_HEADERS(,[AC_MSG_ERROR(could not find Python headers)])
+  AM_PATH_PYTHON([2.6])
+
+  PKG_CHECK_MODULES(PYGOBJECT, [pygobject-2.0 >= 2.0],
+                    [have_pygobject=yes], [have_pygobject=no])
+
+  if test "x$have_pygobject" = "xno"; then
+    AC_MSG_ERROR($PYGOBJECT_PKG_ERRORS)
+  fi
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, true)
+  AC_SUBST(PYTHON)
+else
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, false)
 fi
 
 AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr memmem)
