@@ -392,16 +392,15 @@ listproxy_richcompare(PyObject *x, PyObject *y, int op)
 {
     ListProxyObject *self;
     PyObject *fast, *res, *vx = NULL, *vy;
-    guint i, n, m;
+    gsize i, n, m, k;
     gint cmp;
 
     self = (ListProxyObject *)x;
-    CHECK_INITIALIZED(self);
-
-    if (!ListProxyObject_Check(x) || !PySequence_Check(y)) {
+    if (!ListProxyObject_Check(self) || !PySequence_Check(y)) {
         Py_INCREF(Py_NotImplemented);
         return Py_NotImplemented;
     }
+    CHECK_INITIALIZED(self);
 
     fast = PySequence_Fast(y, "expecting sequence");
     if (fast == NULL)
@@ -411,29 +410,29 @@ listproxy_richcompare(PyObject *x, PyObject *y, int op)
     m = Py_SIZE(fast);
 
     if (n != m && (op == Py_EQ || op == Py_NE)) {
+        Py_DECREF(fast);
         res = (op == Py_EQ) ? Py_False : Py_True;
         Py_INCREF(res);
-        Py_DECREF(fast);
         return res;
     }
 
-    for (i = 0; i < n && i < m; i++) {
-        GValue *arrv;
-        int k;
-
-        arrv = g_value_array_get_nth(self->arr, i);
-        vy = PySequence_Fast_GET_ITEM(fast, i);
+    k = MIN(n, m);
+    for (i = 0; i < k; i++) {
+        GValue *arrv = g_value_array_get_nth(self->arr, i);
         vx = coil_value_as_pyobject(self->node, arrv);
         if (vx == NULL)
             return NULL;
 
-        k = PyObject_RichCompareBool(vx, vy, Py_EQ);
-        if (k < 0) {
+        vy = PySequence_Fast_GET_ITEM(fast, i);
+        assert(vy != NULL);
+
+        cmp = PyObject_RichCompareBool(vx, vy, Py_EQ);
+        if (cmp < 0) {
             Py_DECREF(vx);
             Py_DECREF(fast);
             return NULL;
         }
-        if (!k)
+        if (!cmp)
             break;
     }
 
@@ -452,10 +451,10 @@ listproxy_richcompare(PyObject *x, PyObject *y, int op)
                 return NULL;
             }
         }
-        res = (cmp) ? Py_True : Py_False;
-        Py_INCREF(res);
         Py_XDECREF(vx);
         Py_DECREF(fast);
+        res = (cmp) ? Py_True : Py_False;
+        Py_INCREF(res);
         return res;
     }
 
@@ -466,9 +465,9 @@ listproxy_richcompare(PyObject *x, PyObject *y, int op)
         Py_INCREF(res);
         return res;
     }
-    res = PyObject_RichCompare(vx, vy, op);
     Py_XDECREF(vx);
     Py_DECREF(fast);
+    res = PyObject_RichCompare(vx, vy, op);
     return res;
 }
 
