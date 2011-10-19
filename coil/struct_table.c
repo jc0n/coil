@@ -14,40 +14,6 @@
 
 #define HASH_BYTE(hash, byte) hash = (hash * 33 + (byte))
 
-#if COIL_DEBUG
-void struct_table_assert(StructTable *) G_GNUC_UNUSED;
-void struct_table_print(StructTable *) G_GNUC_UNUSED;
-
-void
-struct_table_assert(StructTable *table)
-{
-  g_assert(table != NULL);
-  g_assert(table->max > table->size);
-  g_assert(table->ref_count > 0);
-}
-
-void
-struct_table_print(StructTable *table)
-{
-  g_return_if_fail(table);
-
-  StructEntry **ep, *e;
-  gint          n = table->max;
-
-  g_print("<StructTable *%p, size=%u, max=%u, ref_count=%d>",
-          table, table->size, table->max, table->ref_count);
-
-  for (ep = table->bucket, e = *ep;
-       n-- > 0; ep++, e = *ep)
-    if (e)
-    {
-      const CoilPath *p = e->path;
-      const GValue   *v = e->value;
-      g_print("(%s, %p, %u)\n", p->path, (void *)v, e->hash);
-    }
-}
-#endif
-
 static inline guint
 hash_bytes(guint         hash,
            const guchar *byte,
