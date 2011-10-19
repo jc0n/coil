@@ -34,6 +34,7 @@ static gboolean no_string_quotes = FALSE;
 static gboolean no_clobber_attributes = FALSE;
 static gboolean permissive = FALSE;
 static gboolean show_dependencies = FALSE;
+static gboolean show_version = FALSE;
 
 static const GOptionEntry main_entries[] =
 {
@@ -64,6 +65,9 @@ static const GOptionEntry main_entries[] =
 
   {"permissive", 0, 0, G_OPTION_ARG_NONE, &permissive,
       "Ignore minor errors during parsing.", NULL},
+
+  {"version", 0, 0, G_OPTION_ARG_NONE, &show_version,
+      "Print version and exit.", NULL},
 
   {G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &files, NULL, NULL},
 
@@ -151,6 +155,9 @@ check_main_entries(GOptionContext *context,
                    GError        **error)
 {
   guint num_files;
+
+  if (show_version)
+      return TRUE;
 
   if (files == NULL)
   {
@@ -729,6 +736,13 @@ main (int argc,
       char **argv)
 {
   parse_options(&argc, &argv);
+
+  if (show_version) {
+      printf("coildump v%s\n"
+             "Copyright (C) 2011 John O'Connor\n",
+             PACKAGE_VERSION);
+      exit (EXIT_SUCCESS);
+  }
 
   coil_init();
 
