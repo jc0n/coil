@@ -1,0 +1,13 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+coildump=coildump
+
+Name: libcoil
+Description: A general purpose configuration library.
+Requires: glib-2.0 gobject-2.0
+Version:@PACKAGE_VERSION@
+Libs: -L${libdir} -lcoil-0.1
+Cflags: -I${includedir}/coil-0.1 -I${libdir}/coil-0.1/include
