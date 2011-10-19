@@ -33,6 +33,8 @@ AC_PROG_SED
 AC_PROG_LIBTOOL
 AC_PROG_INSTALL
 
+PKG_PROG_PKG_CONFIG(0.16)
+
 AM_CONFIG_HEADER([config.h])
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -120,7 +122,12 @@ if test "x$have_glib" = "xno"; then
     AC_MSG_ERROR($GLIB_PKG_ERRORS)
 fi
 
+AC_CHECK_FUNCS(strcmp strcpy strlen)
 AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr)
+AC_CHECK_FUNCS(stat lstat)
+
+AC_HEADER_TIME
+AC_CHECK_MEMBERS([struct stat.st_mtime])
 
 AC_SUBST(CFLAGS)
 AC_SUBST(LDFLAGS)
