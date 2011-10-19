@@ -273,15 +273,32 @@ listproxy_pop(ListProxyObject *self, PyObject *args)
 static PyObject *
 listproxy_remove(ListProxyObject *self, PyObject *w)
 {
-    /* TODO */
-    Py_RETURN_NONE;
-}
+    gsize i, n;
 
-static PyObject *
-list_reverse(ListProxyObject *self, PyObject *args)
-{
-    /* TODO */
-    Py_RETURN_NONE;
+    CHECK_INITIALIZED(self);
+    CHECK_VALUE(w);
+
+    n = self->arr->n_values;
+    for (i = 0; i < n; i++) {
+        GValue *arrv;
+        PyObject *v;
+        int cmp;
+
+        arrv = g_value_array_get_nth(self->arr, i);
+        v = coil_value_as_pyobject(self->node, arrv);
+        if (v == NULL)
+            return NULL;
+        cmp = PyObject_RichCompareBool(v, w, Py_EQ);
+        Py_DECREF(v);
+        if (cmp < 0)
+            return NULL;
+        if (cmp) {
+            g_value_array_remove(self->arr, i);
+            Py_RETURN_NONE;
+        }
+    }
+    PyErr_SetString(PyExc_ValueError, "item not in list");
+    return NULL;
 }
 
 static PyObject *
