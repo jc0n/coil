@@ -92,10 +92,16 @@ z: [[1 2] [3 4]]
         self.assertEquals(list(self.pz), [[1, 2]])
 
     def testRemove(self):
-        pass
+        self.assertRaises(ValueError, self.px.remove, -42)
+        tests = ((2, 1, 2, 3),
+                 (None, True),
+                 ([3, 4], [1, 2]))
+        for test, proxy, real in zip(tests, self.proxies, self.lists):
+            for arg in test:
+                proxy.remove(arg)
+                real.remove(arg)
+                self.assertEquals(proxy, real)
 
-    def testReverse(self):
-        pass
 
     def testSort(self):
         pass
