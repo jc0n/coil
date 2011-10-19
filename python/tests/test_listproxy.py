@@ -83,6 +83,7 @@ z: [[1 2] [3 4]]
         pass
 
     def testPop(self):
+        self.assertRaises(IndexError, self.px.pop, -100)
         for i in self.rx:
             self.assertEquals(self.px.pop(0), self.rx.pop(0))
         for i in self.ry:
