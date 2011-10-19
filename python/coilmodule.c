@@ -64,14 +64,15 @@ CoilPath *
 coil_path_from_pyobject(PyObject *obj, GError **error)
 {
     gchar *str = NULL;
+    PyObject *xstr = NULL;
+    CoilPath *path;
     Py_ssize_t len;
 
     if (PyUnicode_Check(obj)) {
-        PyObject *str;
-        str = PyUnicode_AsEncodedString(obj, "ascii", NULL);
-        if (str == NULL)
+        xstr = PyUnicode_AsEncodedString(obj, "ascii", NULL);
+        if (xstr == NULL)
             return NULL;
-        obj = str;
+        obj = xstr;
     }
     if (PyString_Check(obj)) {
         if (PyString_AsStringAndSize(obj, &str, &len) < 0)
@@ -83,7 +84,9 @@ coil_path_from_pyobject(PyObject *obj, GError **error)
             Py_TYPE_NAME(obj));
         return NULL;
     }
-    return coil_path_new_len(str, (guint)len, error);
+    path = coil_path_new_len(str, (guint)len, error);
+    Py_XDECREF(xstr);
+    return path;
 }
 
 GValue *
