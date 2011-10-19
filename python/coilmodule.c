@@ -5,7 +5,6 @@
  */
 
 #include "coilmodule.h"
-#include "coilstruct.h"
 
 PyDoc_STRVAR(ccoil_module_documentation,
              "C implementation and optimization of the Python coil module.");

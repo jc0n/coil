@@ -20,9 +20,7 @@ if BUILD_PYTHON_BINDING
 pkgpyexec_LTLIBRARIES += ccoil.la
 endif
 
-ccoil_HEADERS = \
-				coilmodule.h \
-				coilstruct.h
+ccoil_HEADERS = coilmodule.h
 
 ccoil_la_SOURCES = \
 				   coilstruct.c \
