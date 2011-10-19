@@ -248,9 +248,13 @@ listproxy_pop(ListProxyObject *self, PyObject *args)
         return NULL;
 
     n = self->arr->n_values;
+    if (n == 0) {
+        PyErr_SetString(PyExc_IndexError, "pop from empty list");
+        return NULL;
+    }
     if (i < 0)
-        i = n - 1;
-    else if (i > n) {
+        i += n;
+    if (i < 0 || i >= n) {
         PyErr_SetString(PyExc_IndexError, "index out of range");
         return NULL;
     }
