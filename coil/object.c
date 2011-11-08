@@ -267,6 +267,36 @@ coil_object_get_property(GObject    *object,
   }
 }
 
+void
+coil_object_get(CoilObject *object, const char *first_property_name, ...)
+{
+    g_return_if_fail(COIL_IS_OBJECT(object));
+
+    va_list args;
+
+    va_start(args, first_property_name);
+    g_object_get_valist(G_OBJECT(object), first_property_name, args);
+    va_end(args);
+}
+
+void
+coil_object_set(CoilObject *object, const char *first_property_name, ...)
+{
+    g_return_if_fail(COIL_IS_OBJECT(object));
+
+    va_list args;
+
+    va_start(args, first_property_name);
+    g_object_set_valist(G_OBJECT(object), first_property_name, args);
+    va_end(args);
+}
+
+inline guint
+coil_object_get_refcount(CoilObject *object)
+{
+    return G_OBJECT(object)->ref_count;
+}
+
 static void
 coil_object_init(CoilObject *self)
 {

@@ -76,6 +76,17 @@ G_BEGIN_DECLS
 GType
 coil_object_get_type(void) G_GNUC_CONST;
 
+void
+coil_object_get(CoilObject *object, const char *first_property_name, ...)
+    G_GNUC_NULL_TERMINATED;
+
+void
+coil_object_set(CoilObject *object, const char *first_property_name, ...)
+    G_GNUC_NULL_TERMINATED;
+
+guint
+coil_object_get_refcount(CoilObject *object);
+
 CoilObject *
 coil_object_copy(gconstpointer     object,
                      GError          **error,
