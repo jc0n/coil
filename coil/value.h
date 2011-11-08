@@ -16,17 +16,17 @@ extern CoilNone *coil_none_object;
 
 struct _CoilNone
 {
-  GObject parent_instance;
+    GObject parent_instance;
 };
 
 struct _CoilNoneClass
 {
-  GObjectClass parent_class;
+    GObjectClass parent_class;
 };
 
 /* block padding chars for string output */
 #define COIL_BLOCK_PADDING "    " /* 4 spaces */
-#define COIL_BLOCK_PADDING_LEN                                      \
+#define COIL_BLOCK_PADDING_LEN                                               \
   (COIL_STATIC_STRLEN(COIL_BLOCK_PADDING))
 
 /* character to quote single line strings */
@@ -38,14 +38,14 @@ struct _CoilNoneClass
 /* multiline quotes after line exceeds n chars */
 #define COIL_MULTILINE_LEN 80
 
-#define coil_value_init(v_ptr, type, v_func, ptr)           \
-  G_STMT_START                                              \
-  {                                                         \
-    v_ptr = coil_value_alloc();                             \
-    g_value_init(v_ptr, type);                              \
-    G_PASTE_ARGS(g_value_,v_func)(v_ptr, ptr);              \
-  }                                                         \
-  G_STMT_END
+#define coil_value_init(v_ptr, type, v_func, ptr)                            \
+G_STMT_START                                                                 \
+{                                                                            \
+    v_ptr = coil_value_alloc();                                              \
+    g_value_init(v_ptr, type);                                               \
+    G_PASTE_ARGS(g_value_,v_func)(v_ptr, ptr);                               \
+}                                                                            \
+G_STMT_END
 
 G_BEGIN_DECLS
 
@@ -71,20 +71,15 @@ void
 free_string_list(GList *list);
 
 void
-coil_value_build_string(const GValue     *value,
-                        GString          *const buffer,
-                        CoilStringFormat *format,
-                        GError          **error);
+coil_value_build_string(const GValue *value,
+    GString *const buffer, CoilStringFormat *format, GError **error);
 
 gchar *
-coil_value_to_string(const GValue     *value,
-                     CoilStringFormat *format,
-                     GError          **error);
+coil_value_to_string(const GValue *value,
+    CoilStringFormat *format, GError **error);
 
 gint
-coil_value_compare(const GValue *,
-                   const GValue *,
-                   GError      **);
+coil_value_compare(const GValue *v1, const GValue *v2, GError **);
 
 G_END_DECLS
 

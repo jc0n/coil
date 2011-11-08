@@ -32,16 +32,16 @@ typedef struct _CoilLinkPrivate CoilLinkPrivate;
 
 struct _CoilLink
 {
-  CoilObject   parent_instance;
-  CoilLinkPrivate *priv;
+    CoilObject   parent_instance;
+    CoilLinkPrivate *priv;
 
-  /* public */
-  CoilPath *target_path;
+    /* public */
+    CoilPath *target_path;
 };
 
 struct _CoilLinkClass
 {
-  CoilObjectClass parent_class;
+    CoilObjectClass parent_class;
 };
 
 G_BEGIN_DECLS

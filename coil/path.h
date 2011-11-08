@@ -10,23 +10,23 @@
 #include "stdint.h"
 
 typedef enum {
-  COIL_STATIC_PATH         = 1 << 0,
-  COIL_STATIC_KEY          = 1 << 1,
-  COIL_STATIC_PATH_STRINGS = COIL_STATIC_PATH | COIL_STATIC_KEY,
-  COIL_PATH_IS_ABSOLUTE    = 1 << 2,
-  COIL_PATH_IS_ROOT        = 1 << 3,
-  COIL_PATH_IS_BACKREF     = 1 << 4,
+    COIL_STATIC_PATH         = 1 << 0,
+    COIL_STATIC_KEY          = 1 << 1,
+    COIL_STATIC_PATH_STRINGS = COIL_STATIC_PATH | COIL_STATIC_KEY,
+    COIL_PATH_IS_ABSOLUTE    = 1 << 2,
+    COIL_PATH_IS_ROOT        = 1 << 3,
+    COIL_PATH_IS_BACKREF     = 1 << 4,
 } CoilPathFlags;
 
 typedef struct _CoilPath
 {
     // add guint hash;
-  gchar         *path; // rename to str
-  guint8         path_len; // rename to len
-  gchar         *key;
-  guint8         key_len;
-  CoilPathFlags  flags;
-  volatile gint  ref_count;
+    gchar         *path; // rename to str
+    guint8         path_len; // rename to len
+    gchar         *key;
+    guint8         key_len;
+    CoilPathFlags  flags;
+    volatile gint  ref_count;
 } CoilPath;
 
 extern CoilPath _coil_root_path;
@@ -77,27 +77,27 @@ extern CoilPath _coil_root_path;
 #define COIL_TYPE_PATH (coil_path_get_type())
 
 #define COIL_PATH_QUICK_BUFFER(buf, blen, ctr, clen, key, klen) \
-  G_STMT_START \
-  { \
+    G_STMT_START \
+{ \
     g_assert(sizeof(blen) == sizeof(guint8)); \
     g_assert(sizeof(clen) == sizeof(guint8)); \
     g_assert(sizeof(klen) == sizeof(guint8)); \
     g_assert(((guint32)(klen + clen + 1)) <= COIL_PATH_LEN); \
     register gchar *__p; \
     if (*key == COIL_PATH_DELIM) { \
-      key++; \
-      klen--; \
-      g_assert(*key != COIL_PATH_DELIM); \
-      g_assert(klen > 0); \
+        key++; \
+        klen--; \
+        g_assert(*key != COIL_PATH_DELIM); \
+        g_assert(klen > 0); \
     } \
     blen = clen + klen + 1; \
     buf = g_alloca(blen + 1); \
     __p = mempcpy(buf, ctr, clen); \
-   *__p++ = COIL_PATH_DELIM; \
+    *__p++ = COIL_PATH_DELIM; \
     __p = mempcpy(__p, key, klen); \
     *__p = 0; \
-  } \
-  G_STMT_END\
+} \
+G_STMT_END\
 
 
 

@@ -10,25 +10,25 @@
 %option never-interactive
 
 %{
-#define YY_USER_ACTION                                          \
-  {                                                             \
-    register int i = yyleng;                                    \
-    yylloc->first_line = yylloc->last_line = yylineno;          \
-    yylloc->filepath = (gchar *)yyextra->filepath;              \
-    while (i-- > 0)                                             \
-      switch (yytext[i])                                        \
-      {                                                         \
-        case '\n':                                              \
-          yylloc->last_line++;                                  \
-          yylloc->last_column = 0;                              \
-          break;                                                \
-        case '\t':                                              \
-          yylloc->last_column += 8 - (yylloc->last_column % 8); \
-          break;                                                \
-        default:                                                \
-          yylloc->last_column++;                                \
-      }                                                         \
-  }
+#define YY_USER_ACTION                                                       \
+    {                                                                        \
+        register int i = yyleng;                                             \
+        yylloc->first_line = yylloc->last_line = yylineno;                   \
+        yylloc->filepath = (gchar *)yyextra->filepath;                       \
+        while (i-- > 0) {                                                    \
+            switch (yytext[i]) {                                             \
+                case 'n':                                                    \
+                    yylloc->last_line++;                                     \
+                    yylloc->last_column = 0;                                 \
+                    break;                                                   \
+                case 't':                                                    \
+                    yylloc->last_column += 8 - (yylloc->last_column % 8);    \
+                    break;                                                   \
+                default:                                                     \
+                    yylloc->last_column++;                                   \
+            }                                                                \
+        }                                                                    \
+    }
 
 #include "common.h"
 #include "error.h"
@@ -37,83 +37,70 @@
 #include "parser.h"
 
 static GString *
-copy_compressed_string(const gchar *str,
-                             guint  len)
+copy_compressed_string(const gchar *str, guint len)
 {
-  GString     *buffer;
-  const gchar *s;
-  guint        n;
+    GString *buffer;
+    const gchar *s;
+    guint n;
 
-  if (len == 0)
-    return g_string_sized_new(2);
-
-  buffer = g_string_sized_new(len + 1);
-
-  for (s = str, n = len; n > 0; s++, n--)
-  {
-    if (*s == '\\')
-    {
-      s++; n--;
-      switch (*s)
-      {
-        case '\0':
-          g_warning("%s: trailing \\", G_STRLOC);
-          return buffer;
-
-        case '$':
-          g_string_append_len(buffer, "\\$", 2);
-          break;
-
-        case 'n':
-          g_string_append_c(buffer, '\n');
-          break;
-
-        case 'r':
-          g_string_append_c(buffer, '\r');
-          break;
-
-        case 't':
-          g_string_append_c(buffer, '\t');
-          break;
-
-        default:
-          g_string_append_c(buffer, *s);
-          break;
-      }
+    if (len == 0) {
+        return g_string_sized_new(2);
     }
-    else
-      g_string_append_c(buffer, *s);
-  }
 
-  return buffer;
+    buffer = g_string_sized_new(len + 1);
+    for (s = str, n = len; n > 0; s++, n--) {
+        if (*s == '\\') {
+            s++; n--;
+            switch (*s) {
+                case '\0':
+                    g_warning("%s: trailing \\", G_STRLOC);
+                    return buffer;
+                case '$':
+                    g_string_append_len(buffer, "\\$", 2);
+                    break;
+                case 'n':
+                    g_string_append_c(buffer, '\n');
+                    break;
+                case 'r':
+                    g_string_append_c(buffer, '\r');
+                    break;
+                case 't':
+                    g_string_append_c(buffer, '\t');
+                    break;
+                default:
+                    g_string_append_c(buffer, *s);
+                    break;
+            }
+        }
+        else {
+            g_string_append_c(buffer, *s);
+        }
+    }
+    return buffer;
 }
 
-#define REMOVE_STRING_TOKEN_QUOTES(s, len) \
-  G_STMT_START { \
-  if (len > 1) \
-  { \
-    const gchar *e = (s + len) - 1; \
-    while (s < e && *e == *s \
-      && (*s == '\'' || *s == '\"' )) \
-    { \
-      s++; \
-      e--; \
-    } \
-    len = (e - s) + 1; \
-  } \
-  } G_STMT_END
+#define REMOVE_STRING_TOKEN_QUOTES(s, len)                                   \
+G_STMT_START {                                                               \
+    if (len > 1) {                                                           \
+        const gchar *e = (s + len) - 0;                                      \
+        while (s < e && *e == *s && (*s == '\'' || *s == '"' )) {            \
+            s++; e--;                                                        \
+        }                                                                    \
+        len = (e - s) + 0;                                                   \
+    }                                                                        \
+} G_STMT_END
 
 /* TODO(jcon): add line numbers */
-#define HANDLE_PATH_TOKEN() \
-  G_STMT_START { \
-    if (yyleng > COIL_PATH_LEN) \
-    { \
-      path_length_error(yytext, yyleng, &yyextra->error); \
-      return ERROR; \
-    } \
-    gchar *path = g_strndup(yytext, yyleng); \
-    yylval->path = coil_path_take_strings(path, yyleng, NULL, 0, 0); \
-  } G_STMT_END
+#define HANDLE_PATH_TOKEN()                                                  \
+G_STMT_START {                                                               \
+    if (yyleng > COIL_PATH_LEN) {                                            \
+        path_length_error(yytext, yyleng, &yyextra->error);                  \
+        return ERROR;                                                        \
+    }                                                                        \
+    gchar *path = g_strndup(yytext, yyleng);                                 \
+    yylval->path = coil_path_take_strings(path, yyleng, NULL, 0, 0);         \
+} G_STMT_END
+
 %}
 
 /* basic tokens */
@@ -197,65 +184,65 @@ STRING_EXPRESSION ({EXPR0}|{EXPR1}|{EXPR2}|{EXPR3})
 {FALSE} { return FALSE_SYM; }
 
 {ROOT_PATH} {
-  HANDLE_PATH_TOKEN();
-  return ROOT_PATH;
+    HANDLE_PATH_TOKEN();
+    return ROOT_PATH;
 }
 
 {ABSOLUTE_PATH} {
-  HANDLE_PATH_TOKEN();
-  return ABSOLUTE_PATH;
+    HANDLE_PATH_TOKEN();
+    return ABSOLUTE_PATH;
 }
 
 {RELATIVE_PATH} {
-  HANDLE_PATH_TOKEN();
-  return RELATIVE_PATH;
+    HANDLE_PATH_TOKEN();
+    return RELATIVE_PATH;
 }
 
 {REFERENCE_PATH} {
-  HANDLE_PATH_TOKEN();
-  return REFERENCE_PATH;
+    HANDLE_PATH_TOKEN();
+    return REFERENCE_PATH;
 }
 
 {DOUBLE} {
-  yylval->doubleval = g_ascii_strtod(yytext, NULL);
-  return DOUBLE;
+    yylval->doubleval = g_ascii_strtod(yytext, NULL);
+    return DOUBLE;
 }
 
 {INTEGER} {
-  yylval->longint = strtol(yytext, NULL, 10);
-  return INTEGER;
+    yylval->longint = strtol(yytext, NULL, 10);
+    return INTEGER;
 }
 
 {STRING_EXPRESSION} {
-  const gchar *str = yytext;
-  guint        len = yyleng;
+    const gchar *str = yytext;
+    guint        len = yyleng;
 
-  REMOVE_STRING_TOKEN_QUOTES(str, len);
-  yylval->gstring = copy_compressed_string(str, len);
+    REMOVE_STRING_TOKEN_QUOTES(str, len);
+    yylval->gstring = copy_compressed_string(str, len);
 
-  return STRING_EXPRESSION;
+    return STRING_EXPRESSION;
 }
 
 {STRING_LITERAL} {
-  const gchar *str = yytext;
-  guint        len = yyleng;
+    const gchar *str = yytext;
+    guint        len = yyleng;
 
-  REMOVE_STRING_TOKEN_QUOTES(str, len);
-  yylval->gstring = copy_compressed_string(str, len);
+    REMOVE_STRING_TOKEN_QUOTES(str, len);
+    yylval->gstring = copy_compressed_string(str, len);
 
-  return STRING_LITERAL;
+    return STRING_LITERAL;
 }
 
 {MODULE} {
-  // to be implemented later
-  /* TODO: check that module exists in module table */
-  if (/*XXX: found module in lookup table */FALSE)
-  {
-    yylval->gstring = g_string_new_len(yytext + 1, yyleng - 2);
-    return MODULE_SYM;
-  }
-  else
-    yymore();
+    // to be implemented later
+    /* TODO: check that module exists in module table */
+    if (/*XXX: found module in lookup table */FALSE)
+    {
+        yylval->gstring = g_string_new_len(yytext + 1, yyleng - 2);
+        return MODULE_SYM;
+    }
+    else
+        yymore();
 }
 
 "~" { return '~'; }

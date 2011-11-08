@@ -12,13 +12,14 @@
 void *
 memchr(const void *src, unsigned char c, size_t n)
 {
-  const unsigned char *p;
+    const unsigned char *p;
 
-  for (p = src; n > 0; n--, p++)
-    if (*p == c)
-      return (void *)p;
-
-  return NULL;
+    for (p = src; n > 0; n--, p++) {
+        if (*p == c) {
+            return (void *)p;
+        }
+    }
+    return NULL;
 }
 #endif
 
@@ -26,13 +27,14 @@ memchr(const void *src, unsigned char c, size_t n)
 void *
 memrchr(const void *src, unsigned char c, size_t n)
 {
-  const unsigned char *p;
+    const unsigned char *p;
 
-  for (p = src + n; n > 0; n--, p--)
-    if (*p == c)
-      return (void *)p;
-
-  return NULL;
+    for (p = src + n; n > 0; n--, p--) {
+        if (*p == c) {
+            return (void *)p;
+        }
+    }
+    return NULL;
 }
 #endif
 
@@ -40,11 +42,11 @@ memrchr(const void *src, unsigned char c, size_t n)
 void *
 mempcpy(void *dst, const unsigned char *src, size_t n)
 {
-  const unsigned char *p;
+    const unsigned char *p;
 
-  for (p = src; n > 0; n--)
-    *dst++ = *sp++;
-
-  return (char *)dp;
+    for (p = src; n > 0; n--) {
+        *dst++ = *sp++;
+    }
+    return (char *)dp;
 }
 #endif

@@ -11,41 +11,40 @@ typedef struct _CoilStringFormat CoilStringFormat;
 
 #include "struct.h"
 
-typedef enum {
+typedef enum
+{
+    LEGACY                     = 1 << 0,
+    COMPACT                    = 1 << 1,
 
-  LEGACY                     = 1 << 0,
-  COMPACT                    = 1 << 1,
+    FLATTEN_PATHS              = 1 << 2,
 
-  FLATTEN_PATHS              = 1 << 2,
+    ESCAPE_QUOTES              = 1 << 3,
 
-  ESCAPE_QUOTES              = 1 << 3,
+    BLANK_LINE_AFTER_ITEM      = 1 << 4,
+    BLANK_LINE_AFTER_BRACE     = 1 << 5,
+    BLANK_LINE_AFTER_STRUCT    = 1 << 6,
 
-  BLANK_LINE_AFTER_ITEM      = 1 << 4,
-  BLANK_LINE_AFTER_BRACE     = 1 << 5,
-  BLANK_LINE_AFTER_STRUCT    = 1 << 6,
+    COMMAS_IN_LIST             = 1 << 7,
 
-  COMMAS_IN_LIST             = 1 << 7,
+    BRACE_ON_BLANK_LINE        = 1 << 8,
+    LIST_ON_BLANK_LINE         = 1 << 9,
 
-  BRACE_ON_BLANK_LINE        = 1 << 8,
-  LIST_ON_BLANK_LINE         = 1 << 9,
-
-  FORCE_EXPAND               = 1 << 10,
-  DONT_QUOTE_STRINGS         = 1 << 11,
-
+    FORCE_EXPAND               = 1 << 10,
+    DONT_QUOTE_STRINGS         = 1 << 11,
 } CoilStringFormatOptions;
 
 struct _CoilStringFormat
 {
-  CoilStringFormatOptions options;
+    CoilStringFormatOptions options;
 
-  guint8                  block_indent;
-  guint8                  brace_indent;
+    guint8                  block_indent;
+    guint8                  brace_indent;
 
-  guint                   multiline_len;
+    guint                   multiline_len;
 
-  guint                   indent_level;
+    guint                   indent_level;
 
-  CoilStruct             *context;
+    CoilStruct             *context;
 };
 
 extern CoilStringFormat default_string_format;

@@ -44,13 +44,13 @@ typedef struct _CoilIncludePrivate  CoilIncludePrivate;
 
 struct _CoilInclude
 {
-  CoilObject      parent_instance;
-  CoilIncludePrivate *priv;
+    CoilObject      parent_instance;
+    CoilIncludePrivate *priv;
 };
 
 struct _CoilIncludeClass
 {
-  CoilObjectClass parent_class;
+    CoilObjectClass parent_class;
 };
 
 G_BEGIN_DECLS

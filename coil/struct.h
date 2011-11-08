@@ -37,21 +37,21 @@ typedef struct _CoilStructIter    CoilStructIter;
 
 struct _CoilStruct
 {
-  CoilObject     parent_instance;
-  CoilStructPrivate *priv;
+    CoilObject     parent_instance;
+    CoilStructPrivate *priv;
 };
 
 struct _CoilStructClass
 {
-  CoilObjectClass parent_class;
+    CoilObjectClass parent_class;
 };
 
 struct _CoilStructIter
 {
-  CoilStruct *node;
-  GList      *position;
+    CoilStruct *node;
+    GList      *position;
 #if COIL_DEBUG
-  guint       version;
+    guint       version;
 #endif
 };
 
