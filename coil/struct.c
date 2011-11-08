@@ -15,17 +15,13 @@
 #include "link.h"
 #include "include.h"
 
-G_DEFINE_TYPE(CoilStruct, coil_struct, COIL_TYPE_EXPANDABLE);
+G_DEFINE_TYPE(CoilStruct, coil_struct, COIL_TYPE_OBJECT);
 
 #define COIL_STRUCT_GET_PRIVATE(obj) \
   (G_TYPE_INSTANCE_GET_PRIVATE ((obj), COIL_TYPE_STRUCT, CoilStructPrivate))
 
 struct _CoilStructPrivate
 {
-  CoilStruct          *root;
-
-  CoilPath            *path;
-
   StructTable         *table;
 
   GQueue               entries;
@@ -161,21 +157,19 @@ become_root_struct(CoilStruct *self)
 
   priv->hash = 0;
 
-  if (priv->path)
-    coil_path_unref(priv->path);
-  priv->path = CoilRootPath;
-  priv->root = self;
+  coil_object_set(COIL_OBJECT(self),
+          "container", NULL,
+          "path", coil_root_path,
+          "root", self,
+          NULL);
 
   if (priv->table)
     struct_table_unref(priv->table);
   priv->table = struct_table_new();
 
-  g_object_set(G_OBJECT(self), "container", NULL, NULL);
-
   coil_value_init(value, COIL_TYPE_STRUCT, take_object, self);
 
-  entry = struct_table_insert(priv->table, 0,
-                              coil_path_ref(priv->path), value);
+  entry = struct_table_insert(priv->table, 0, CoilRootPath, value);
 
   g_object_add_toggle_ref(G_OBJECT(self),
                           (GToggleNotify)destroy_root_struct,
@@ -212,9 +206,9 @@ struct_change_container(CoilStruct *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
-  CoilObject    *const super = COIL_OBJECT(self);
+  CoilObject    *const object = COIL_OBJECT(self);
   CoilStructIter     it;
-  CoilStruct        *old_container = super->container;
+  CoilStruct        *old_container = object->container;
   StructTable       *old_table = NULL;
   StructEntry       *entry;
   GError            *internal_error = NULL;
@@ -225,7 +219,7 @@ struct_change_container(CoilStruct *self,
   {
     g_assert(G_OBJECT(self)->ref_count > 1);
     if (!struct_delete_internal(old_container, priv->hash,
-                                priv->path->path, priv->path->path_len,
+                                object->path->path, object->path->path_len,
                                 FALSE, FALSE, &internal_error))
       goto error;
   }

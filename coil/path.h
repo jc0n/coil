@@ -20,8 +20,9 @@ typedef enum {
 
 typedef struct _CoilPath
 {
-  gchar         *path;
-  guint8         path_len;
+    // add guint hash;
+  gchar         *path; // rename to str
+  guint8         path_len; // rename to len
   gchar         *key;
   guint8         key_len;
   CoilPathFlags  flags;

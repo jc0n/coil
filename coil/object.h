@@ -42,6 +42,7 @@ struct _CoilObject
   /* * public * */
   CoilStruct   *root;
   CoilStruct   *container;
+  CoilPath     *path;
   CoilLocation  location;
 };
 
