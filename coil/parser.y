@@ -1071,14 +1071,12 @@ void yyerror(YYLTYPE        *yylocp,
   g_return_if_fail(parser != NULL);
   g_return_if_fail(yylocp != NULL);
 
+  GError *err;
+
   if (parser->error)
     return;
 
-  parser->errors = g_list_prepend(parser->errors,
-    coil_error_new(COIL_ERROR_PARSE,
-                   (*yylocp),
-                   "%s",
-                    msg));
-/*                    yyget_text(parser->scanner)));*/
+  err = coil_error_new(COIL_ERROR_PARSE, yylocp, "%s", msg);
+  parser->errors = g_list_prepend(parser->errors, err);
 }
 

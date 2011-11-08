@@ -6,7 +6,6 @@
 #ifndef __COIL_OBJECT_H
 #define __COIL_OBJECT_H
 
-#include "error.h"
 #include "path.h"
 #include "value.h"
 
@@ -31,23 +30,14 @@
         (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_OBJECT, \
           CoilObjectClass))
 
-#define coil_object_error_new(code, exp, format, args...)         \
-        coil_error_new(code, (COIL_OBJECT(exp))->location,        \
-                        format, ## args)
-
-#define coil_object_error_new_literal(code, exp, message)         \
-        coil_error_new_literal(code,                                  \
-                                (COIL_OBJECT(exp))->location,     \
-                                message)
-
 typedef struct _CoilObject         CoilObject;
 typedef struct _CoilObjectClass    CoilObjectClass;
 typedef struct _CoilObjectPrivate  CoilObjectPrivate;
 
 struct _CoilObject
 {
-  GObject                parent_instance;
-  CoilObjectPrivate *priv;
+  GObject             parent_instance;
+  CoilObjectPrivate  *priv;
 
   /* * public * */
   CoilStruct   *root;
