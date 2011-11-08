@@ -3,51 +3,51 @@
  *
  * Author: John O'Connor
  */
-#ifndef __COIL_EXPANDABLE_H
-#define __COIL_EXPANDABLE_H
+#ifndef __COIL_OBJECT_H
+#define __COIL_OBJECT_H
 
 #include "error.h"
 #include "path.h"
 #include "value.h"
 
-#define COIL_TYPE_EXPANDABLE          \
-        (coil_expandable_get_type())
+#define COIL_TYPE_OBJECT          \
+        (coil_object_get_type())
 
-#define COIL_EXPANDABLE(obj)          \
-        (G_TYPE_CHECK_INSTANCE_CAST((obj), COIL_TYPE_EXPANDABLE, \
-          CoilExpandable))
+#define COIL_OBJECT(obj)          \
+        (G_TYPE_CHECK_INSTANCE_CAST((obj), COIL_TYPE_OBJECT, \
+          CoilObject))
 
-#define COIL_IS_EXPANDABLE(obj)       \
-        (G_TYPE_CHECK_INSTANCE_TYPE((obj), COIL_TYPE_EXPANDABLE))
+#define COIL_IS_OBJECT(obj)       \
+        (G_TYPE_CHECK_INSTANCE_TYPE((obj), COIL_TYPE_OBJECT))
 
-#define COIL_EXPANDABLE_CLASS(klass)  \
-        (G_TYPE_CHECK_CLASS_CAST((klass), COIL_TYPE_EXPANDABLE, \
-          CoilExpandableClass))
+#define COIL_OBJECT_CLASS(klass)  \
+        (G_TYPE_CHECK_CLASS_CAST((klass), COIL_TYPE_OBJECT, \
+          CoilObjectClass))
 
-#define COIL_IS_EXPANDABLE_CLASS(klass) \
-        (G_TYPE_CHECK_CLASS_TYPE((klass), COIL_TYPE_EXPANDABLE))
+#define COIL_IS_OBJECT_CLASS(klass) \
+        (G_TYPE_CHECK_CLASS_TYPE((klass), COIL_TYPE_OBJECT))
 
-#define COIL_EXPANDABLE_GET_CLASS(obj)  \
-        (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_EXPANDABLE, \
-          CoilExpandableClass))
+#define COIL_OBJECT_GET_CLASS(obj)  \
+        (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_OBJECT, \
+          CoilObjectClass))
 
-#define coil_expandable_error_new(code, exp, format, args...)         \
-        coil_error_new(code, (COIL_EXPANDABLE(exp))->location,        \
+#define coil_object_error_new(code, exp, format, args...)         \
+        coil_error_new(code, (COIL_OBJECT(exp))->location,        \
                         format, ## args)
 
-#define coil_expandable_error_new_literal(code, exp, message)         \
+#define coil_object_error_new_literal(code, exp, message)         \
         coil_error_new_literal(code,                                  \
-                                (COIL_EXPANDABLE(exp))->location,     \
+                                (COIL_OBJECT(exp))->location,     \
                                 message)
 
-typedef struct _CoilExpandable         CoilExpandable;
-typedef struct _CoilExpandableClass    CoilExpandableClass;
-typedef struct _CoilExpandablePrivate  CoilExpandablePrivate;
+typedef struct _CoilObject         CoilObject;
+typedef struct _CoilObjectClass    CoilObjectClass;
+typedef struct _CoilObjectPrivate  CoilObjectPrivate;
 
-struct _CoilExpandable
+struct _CoilObject
 {
   GObject                parent_instance;
-  CoilExpandablePrivate *priv;
+  CoilObjectPrivate *priv;
 
   /* * public * */
   CoilStruct   *root;
@@ -55,12 +55,12 @@ struct _CoilExpandable
   CoilLocation  location;
 };
 
-struct _CoilExpandableClass
+struct _CoilObjectClass
 {
   GObjectClass parent_class;
 
   /* Abstract Methods */
-  CoilExpandable *(*copy) (gconstpointer     self,
+  CoilObject *(*copy) (gconstpointer     self,
                            const gchar      *first_property_name,
                            va_list           properties,
                            GError          **error);
@@ -84,41 +84,41 @@ struct _CoilExpandableClass
 G_BEGIN_DECLS
 
 GType
-coil_expandable_get_type(void) G_GNUC_CONST;
+coil_object_get_type(void) G_GNUC_CONST;
 
-CoilExpandable *
-coil_expandable_copy(gconstpointer     object,
+CoilObject *
+coil_object_copy(gconstpointer     object,
                      GError          **error,
                      const gchar      *first_property_name,
                      ...) G_GNUC_NULL_TERMINATED;
 
 void
-coil_expandable_build_string(CoilExpandable   *self,
+coil_object_build_string(CoilObject   *self,
                              GString *const    buffer,
                              CoilStringFormat *format,
                              GError          **error);
 
 gchar *
-coil_expandable_to_string(CoilExpandable   *self,
+coil_object_to_string(CoilObject   *self,
                           CoilStringFormat *format,
                           GError          **error);
 
 gboolean
-coil_expandable_equals(gconstpointer  e1,
+coil_object_equals(gconstpointer  e1,
                        gconstpointer  e2,
                        GError       **error);
 
  /* TODO(jcon): consider removing */
 gboolean
-coil_expandable_value_equals(const GValue  *v1,
+coil_object_value_equals(const GValue  *v1,
                              const GValue  *v2,
                              GError       **error);
 
  /* TODO(jcon): consider removing */
 gboolean
-coil_is_expanded(CoilExpandable *self);
+coil_is_expanded(CoilObject *self);
 
- /* const expandable pointer */
+ /* const object pointer */
 gboolean
 coil_expand_value(const GValue  *value,
                   const GValue **return_value,
@@ -133,4 +133,4 @@ coil_expand(gpointer        object,
 
 G_END_DECLS
 
-#endif /* COIL_EXPANDABLE_H */
+#endif /* COIL_OBJECT_H */

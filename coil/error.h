@@ -92,27 +92,27 @@ typedef struct _CoilLocation
                             COIL_LOCATION_FORMAT "%s",            \
                             message)
 
-#define coil_expandable_error(err, code, ex, format, args...) \
+#define coil_object_error(err, code, ex, format, args...) \
         coil_set_error(err, code, \
-                       COIL_EXPANDABLE(ex)->location, \
+                       COIL_OBJECT(ex)->location, \
                        format, \
                        ##args)
 /*
 #define coil_struct_error(err, st, format, args...) \
-        coil_expandable_set_error(err, COIL_ERROR_STRUCT, \
+        coil_object_set_error(err, COIL_ERROR_STRUCT, \
                         st, "(in struct %s) " format, \
                         coil_struct_get_path(st)->path, \
                         ##args)
                         */
 
 #define coil_struct_error(err, node, format, args...) \
-  coil_expandable_error(err, COIL_ERROR_STRUCT, \
+  coil_object_error(err, COIL_ERROR_STRUCT, \
                         node, "<%s>: " format, \
                         coil_struct_get_path(node)->path, \
                         ##args)
 
 #define coil_link_error(err, link, format, args...) \
-        coil_expandable_error(err, COIL_ERROR_LINK, \
+        coil_object_error(err, COIL_ERROR_LINK, \
                         link, "<%s>: " format, \
                         coil_link_get_path(link)->path, \
                         ##args)

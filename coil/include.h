@@ -35,7 +35,7 @@
     g_object_new(COIL_TYPE_INCLUDE, ##args, NULL)
 
 #define coil_include_error(err, incl, format, args...) \
-    coil_expandable_error(err, COIL_ERROR_INCLUDE, \
+    coil_object_error(err, COIL_ERROR_INCLUDE, \
                           incl, "Include error: " format, ##args)
 
 typedef struct _CoilInclude         CoilInclude;
@@ -44,13 +44,13 @@ typedef struct _CoilIncludePrivate  CoilIncludePrivate;
 
 struct _CoilInclude
 {
-  CoilExpandable      parent_instance;
+  CoilObject      parent_instance;
   CoilIncludePrivate *priv;
 };
 
 struct _CoilIncludeClass
 {
-  CoilExpandableClass parent_class;
+  CoilObjectClass parent_class;
 };
 
 G_BEGIN_DECLS

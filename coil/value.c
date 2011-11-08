@@ -228,10 +228,10 @@ coil_value_build_string(const GValue     *value,
 
   if (g_type_is_a(type, COIL_TYPE_EXPANDABLE))
   {
-    CoilExpandable *object;
+    CoilObject *object;
 
-    object = COIL_EXPANDABLE(g_value_get_object(value));
-    coil_expandable_build_string(object, buffer, format, error);
+    object = COIL_OBJECT(g_value_get_object(value));
+    coil_object_build_string(object, buffer, format, error);
     return;
   }
 
@@ -497,7 +497,7 @@ value_compare_as_fundamental(const GValue *v1,
         if (o1 == o2)
           return 0;
 
-        return !coil_expandable_equals(o1, o2, error);
+        return !coil_object_equals(o1, o2, error);
       }
 
       break;

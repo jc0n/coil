@@ -16,7 +16,7 @@
 #include "parser_defs.h"
 #include "include.h"
 
-G_DEFINE_TYPE(CoilInclude, coil_include, COIL_TYPE_EXPANDABLE);
+G_DEFINE_TYPE(CoilInclude, coil_include, COIL_TYPE_OBJECT);
 
 #define COIL_INCLUDE_GET_PRIVATE(obj) \
         (G_TYPE_INSTANCE_GET_PRIVATE((obj), COIL_TYPE_INCLUDE, \
@@ -24,8 +24,8 @@ G_DEFINE_TYPE(CoilInclude, coil_include, COIL_TYPE_EXPANDABLE);
 
 struct _CoilIncludePrivate
 {
-    GValue      *file_value; /* (expandable -> string) OR string */
-    GValueArray *imports; /* list of (expandable -> string) or strings */
+    GValue      *file_value; /* (object -> string) OR string */
+    GValueArray *imports; /* list of (object -> string) or strings */
 
     CoilStruct  *namespace;
 
@@ -195,9 +195,9 @@ expand_file_value(CoilInclude *self, GError **error)
     const gchar *this_filepath, *filepath = NULL;
     GValue *file_value = priv->file_value;
 
-    this_filepath = COIL_EXPANDABLE(self)->location.filepath;
+    this_filepath = COIL_OBJECT(self)->location.filepath;
 
-    if (G_VALUE_HOLDS(file_value, COIL_TYPE_EXPANDABLE)) {
+    if (G_VALUE_HOLDS(file_value, COIL_TYPE_OBJECT)) {
         const GValue *return_value = NULL;
 
         if (!coil_expand_value(file_value, &return_value, TRUE, error))
@@ -251,7 +251,7 @@ load_namespace(CoilInclude *self, GError **error)
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
     CoilIncludePrivate *priv = self->priv;
-    CoilExpandable *const super = COIL_EXPANDABLE(self);
+    CoilObject *const super = COIL_OBJECT(self);
     CoilStruct *root, *namespace;
     const gchar *filepath;
     guint test_flags;
@@ -313,7 +313,7 @@ expand_import(GValue *import,
     GObject *ob;
     const GValue *returnval = NULL;
 
-    if (!G_VALUE_HOLDS(import, COIL_TYPE_EXPANDABLE))
+    if (!G_VALUE_HOLDS(import, COIL_TYPE_OBJECT))
         return 0;
 
     ob = g_value_dup_object(import);
@@ -401,7 +401,7 @@ process_import(CoilInclude *self, GValue *import, GError **error)
     }
 
     source = COIL_STRUCT(g_value_dup_object(value));
-    container = COIL_EXPANDABLE(self)->container;
+    container = COIL_OBJECT(self)->container;
 
     res = MERGE_NAMESPACE(source, container, error);
     g_object_unref(source);
@@ -481,7 +481,7 @@ include_expand(gconstpointer include, const GValue **return_value, GError **erro
         goto error;
 
     g_object_ref(namespace);
-    container = COIL_EXPANDABLE(self)->container;
+    container = COIL_OBJECT(self)->container;
 
     if (!MERGE_NAMESPACE(namespace, container, error))
         goto error;
@@ -722,12 +722,12 @@ coil_include_class_init(CoilIncludeClass *klass)
     gobject_class->get_property = coil_include_get_property;
     gobject_class->dispose = coil_include_dispose;
 
-    CoilExpandableClass *expandable_class = COIL_EXPANDABLE_CLASS(klass);
+    CoilObjectClass *object_class = COIL_OBJECT_CLASS(klass);
 
-    expandable_class->is_expanded = include_is_expanded;
-    expandable_class->expand = include_expand;
-    expandable_class->equals = coil_include_equals;
-    expandable_class->build_string = include_build_string;
+    object_class->is_expanded = include_is_expanded;
+    object_class->expand = include_expand;
+    object_class->equals = coil_include_equals;
+    object_class->build_string = include_build_string;
 
     g_object_class_install_property(gobject_class, PROP_FILE_VALUE,
             g_param_spec_pointer("file_value",

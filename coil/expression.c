@@ -9,10 +9,10 @@
 #include <string.h>
 
 #include "struct.h"
-#include "expandable.h"
+#include "object.h"
 #include "expression.h"
 
-G_DEFINE_TYPE(CoilExpr, coil_expr, COIL_TYPE_EXPANDABLE);
+G_DEFINE_TYPE(CoilExpr, coil_expr, COIL_TYPE_OBJECT);
 
 #define COIL_EXPR_GET_PRIVATE(obj) \
   (G_TYPE_INSTANCE_GET_PRIVATE((obj), COIL_TYPE_EXPR, CoilExprPrivate))
@@ -44,7 +44,7 @@ append_path_substitution(CoilExpr         *self,
   g_return_if_fail(path != NULL);
   g_return_if_fail(len > 0);
 
-  CoilStruct   *container = COIL_EXPANDABLE(self)->container;
+  CoilStruct   *container = COIL_OBJECT(self)->container;
   const GValue *value;
   GError       *internal_error = NULL;
 
@@ -139,7 +139,7 @@ expr_equals(gconstpointer  object,
             GError       **error)
 {
   g_return_val_if_fail(COIL_IS_EXPR(object), FALSE);
-  g_return_val_if_fail(COIL_IS_EXPANDABLE(other_object), FALSE);
+  g_return_val_if_fail(COIL_IS_OBJECT(other_object), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   const GValue  *v1, *v2;
@@ -255,13 +255,13 @@ expr_translate_path(GString    *expr,
 }
 #endif
 
-static CoilExpandable *
+static CoilObject *
 expr_copy(gconstpointer     _self,
           const gchar      *first_property_name,
           va_list           properties,
           GError          **error)
 {
-  g_return_val_if_fail(COIL_IS_EXPANDABLE(_self), NULL);
+  g_return_val_if_fail(COIL_IS_OBJECT(_self), NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
   CoilExpr        *self = COIL_EXPR(_self);
@@ -275,15 +275,15 @@ expr_copy(gconstpointer     _self,
 #if COIL_PATH_TRANSLATION
   CoilStruct     *new_container, *old_container;
 
-  new_container = COIL_EXPANDABLE(copy)->container;
-  old_container = COIL_EXPANDABLE(self)->container;
+  new_container = COIL_OBJECT(copy)->container;
+  old_container = COIL_OBJECT(self)->container;
 
   if (!coil_struct_compare_root(old_container, new_container)
     && !expr_translate_path(string, old_container, new_container, error))
       return NULL;
 #endif
 
-  return COIL_EXPANDABLE(copy);
+  return COIL_OBJECT(copy);
 }
 
 static void
@@ -368,20 +368,20 @@ static void
 coil_expr_class_init(CoilExprClass *klass)
 {
   GObjectClass        *gobject_class;
-  CoilExpandableClass *expandable_class;
+  CoilObjectClass *object_class;
 
   gobject_class = G_OBJECT_CLASS(klass);
-  expandable_class = COIL_EXPANDABLE_CLASS(klass);
+  object_class = COIL_OBJECT_CLASS(klass);
 
   g_type_class_add_private(klass, sizeof(CoilExprPrivate));
 
   gobject_class->finalize = coil_expr_finalize;
 
-  expandable_class->is_expanded = expr_is_expanded;
-  expandable_class->expand = expr_expand;
-  expandable_class->equals = expr_equals;
-  expandable_class->build_string = expr_build_string;
-  expandable_class->copy = expr_copy;
+  object_class->is_expanded = expr_is_expanded;
+  object_class->expand = expr_expand;
+  object_class->equals = expr_equals;
+  object_class->build_string = expr_build_string;
+  object_class->copy = expr_copy;
 
   g_value_register_transform_func(COIL_TYPE_EXPR, G_TYPE_STRING,
                                   exprval_to_strval);

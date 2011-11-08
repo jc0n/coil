@@ -28,13 +28,13 @@ typedef struct _CoilExprPrivate CoilExprPrivate;
 
 struct _CoilExpr
 {
-  CoilExpandable   parent_instance;
+  CoilObject   parent_instance;
   CoilExprPrivate *priv;
 };
 
 struct _CoilExprClass
 {
-  CoilExpandableClass parent_class;
+  CoilObjectClass parent_class;
 };
 
 G_BEGIN_DECLS

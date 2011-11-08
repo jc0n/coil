@@ -12,7 +12,7 @@ typedef struct _CoilStructPrivate CoilStructPrivate;
 typedef struct _CoilStructIter    CoilStructIter;
 
 #include "path.h"
-#include "expandable.h"
+#include "object.h"
 #include "value.h"
 
 #include "struct_table.h"
@@ -37,13 +37,13 @@ typedef struct _CoilStructIter    CoilStructIter;
 
 struct _CoilStruct
 {
-  CoilExpandable     parent_instance;
+  CoilObject     parent_instance;
   CoilStructPrivate *priv;
 };
 
 struct _CoilStructClass
 {
-  CoilExpandableClass parent_class;
+  CoilObjectClass parent_class;
 };
 
 struct _CoilStructIter

@@ -32,7 +32,7 @@ typedef struct _CoilLinkPrivate CoilLinkPrivate;
 
 struct _CoilLink
 {
-  CoilExpandable   parent_instance;
+  CoilObject   parent_instance;
   CoilLinkPrivate *priv;
 
   /* public */
@@ -41,7 +41,7 @@ struct _CoilLink
 
 struct _CoilLinkClass
 {
-  CoilExpandableClass parent_class;
+  CoilObjectClass parent_class;
 };
 
 G_BEGIN_DECLS

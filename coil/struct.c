@@ -212,7 +212,7 @@ struct_change_container(CoilStruct *self,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilStructPrivate *const priv = self->priv;
-  CoilExpandable    *const super = COIL_EXPANDABLE(self);
+  CoilObject    *const super = COIL_OBJECT(self);
   CoilStructIter     it;
   CoilStruct        *old_container = super->container;
   StructTable       *old_table = NULL;
@@ -420,7 +420,7 @@ coil_struct_empty(CoilStruct *self,
     return;
   }*/
 
-  CoilExpandable *object;
+  CoilObject *object;
   while ((object = g_queue_pop_head(&priv->dependencies)))
     g_object_unref(object);
 
@@ -525,7 +525,7 @@ coil_struct_get_container(const CoilStruct *self)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
 
-  return COIL_EXPANDABLE(self)->container;
+  return COIL_OBJECT(self)->container;
 }
 
 COIL_API(const CoilPath *)
@@ -736,7 +736,7 @@ struct_insert_internal(CoilStruct     *self,
 #endif
 
   /* XXX: if value is struct, path will change based on container. */
-  /* TODO(jcon): implement set_container in expandable */
+  /* TODO(jcon): implement set_container in object */
   if (value_is_struct)
   {
     CoilStruct *object, *container;
@@ -757,11 +757,11 @@ struct_insert_internal(CoilStruct     *self,
     return TRUE;
   }
 
-  if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
+  if (G_VALUE_HOLDS(value, COIL_TYPE_OBJECT))
   {
-    CoilExpandable *object;
+    CoilObject *object;
 
-    object = COIL_EXPANDABLE(g_value_get_object(value));
+    object = COIL_OBJECT(g_value_get_object(value));
     g_object_set(G_OBJECT(object),
                  "container", self,
                  NULL);
@@ -1482,7 +1482,7 @@ coil_struct_add_dependency(CoilStruct     *self,
                            GError        **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
-  g_return_val_if_fail(COIL_IS_EXPANDABLE(object), FALSE);
+  g_return_val_if_fail(COIL_IS_OBJECT(object), FALSE);
   g_return_val_if_fail(self != object, FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
@@ -1653,7 +1653,7 @@ coil_struct_extend(CoilStruct  *self,
   g_return_val_if_fail(COIL_IS_STRUCT(parent), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  return coil_struct_add_dependency(self, COIL_EXPANDABLE(parent), error);
+  return coil_struct_add_dependency(self, COIL_OBJECT(parent), error);
 }
 
 COIL_API(gboolean)
@@ -1667,7 +1667,7 @@ coil_struct_extend_path(CoilStruct  *self,
   g_return_val_if_fail(context == NULL || COIL_IS_STRUCT(context), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-  CoilExpandable *dependency;
+  CoilObject *dependency;
   const GValue   *value;
   guint           hash = 0;
   GError         *internal_error = NULL;
@@ -1700,7 +1700,7 @@ coil_struct_extend_path(CoilStruct  *self,
       goto error;
     }
 
-    dependency = COIL_EXPANDABLE(g_value_get_object(value));
+    dependency = COIL_OBJECT(g_value_get_object(value));
   }
   else
   {
@@ -1713,7 +1713,7 @@ coil_struct_extend_path(CoilStruct  *self,
     if (G_UNLIKELY(container == NULL))
       goto error;
 
-    dependency = COIL_EXPANDABLE(container);
+    dependency = COIL_OBJECT(container);
   }
 
   coil_path_unref(path);
@@ -1838,7 +1838,7 @@ coil_struct_iter_next_expand(CoilStructIter  *iter,
     return FALSE;
 
   /* stop iteration on error */
-  if (G_VALUE_HOLDS(*value, COIL_TYPE_EXPANDABLE))
+  if (G_VALUE_HOLDS(*value, COIL_TYPE_OBJECT))
     return coil_expand_value(*value, value, recursive, error);
 
   return TRUE;
@@ -1953,7 +1953,7 @@ struct_merge_item(CoilStruct     *self,
     coil_value_init(value, COIL_TYPE_STRUCT, take_object, new_obj);
   }
   else if (force_expand
-    && G_VALUE_HOLDS(srcvalue, COIL_TYPE_EXPANDABLE))
+    && G_VALUE_HOLDS(srcvalue, COIL_TYPE_OBJECT))
   {
     const GValue *real_value = NULL;
 
@@ -1969,12 +1969,12 @@ struct_merge_item(CoilStruct     *self,
 
     value = coil_value_copy(real_value);
   }
-  else if (G_VALUE_HOLDS(srcvalue, COIL_TYPE_EXPANDABLE))
+  else if (G_VALUE_HOLDS(srcvalue, COIL_TYPE_OBJECT))
   {
-    CoilExpandable *obj, *obj_copy;
+    CoilObject *obj, *obj_copy;
 
-    obj = COIL_EXPANDABLE(g_value_get_object(srcvalue));
-    obj_copy = coil_expandable_copy(obj, &internal_error,
+    obj = COIL_OBJECT(g_value_get_object(srcvalue));
+    obj_copy = coil_object_copy(obj, &internal_error,
                                     "container", self,
                                     NULL);
 
@@ -2047,11 +2047,11 @@ coil_struct_merge(CoilStruct  *src,
 
 static gboolean
 struct_expand_dependency(CoilStruct     *self,
-                         CoilExpandable *dependency,
+                         CoilObject *dependency,
                          GError        **error)
 {
   g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
-  g_return_val_if_fail(COIL_IS_EXPANDABLE(dependency), FALSE);
+  g_return_val_if_fail(COIL_IS_OBJECT(dependency), FALSE);
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   const GValue   *expanded_value = NULL;
@@ -2119,7 +2119,7 @@ struct_expand_dependency(CoilStruct     *self,
 /* This should not be called directly
  * Call indirectly by coil_struct_expand or coil_expand
  * */
-/* TODO(jcon): think about expandable API in more detail. */
+/* TODO(jcon): think about object API in more detail. */
 static gboolean
 struct_expand(gconstpointer    object,
               const GValue   **return_value,
@@ -2130,7 +2130,7 @@ struct_expand(gconstpointer    object,
 
   CoilStruct        *self = COIL_STRUCT(object);
   CoilStructPrivate *priv = self->priv;
-  CoilExpandable    *dependency;
+  CoilObject    *dependency;
   GList             *list;
 
   g_return_val_if_fail(!priv->is_prototype, FALSE);
@@ -2150,7 +2150,7 @@ struct_expand(gconstpointer    object,
 
   while (list)
   {
-    dependency = COIL_EXPANDABLE(list->data);
+    dependency = COIL_OBJECT(list->data);
     priv->expand_ptr = list;
 
     if (!struct_expand_dependency(self, dependency, error))
@@ -2199,10 +2199,10 @@ coil_struct_expand_items(CoilStruct  *self,
   coil_struct_iter_init(&it, self);
   while (coil_struct_iter_next(&it, NULL, &value))
   {
-    if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
+    if (G_VALUE_HOLDS(value, COIL_TYPE_OBJECT))
     {
-      CoilExpandable *object;
-      object = COIL_EXPANDABLE(g_value_get_object(value));
+      CoilObject *object;
+      object = COIL_OBJECT(g_value_get_object(value));
 
       if (container && !struct_change_notify(container, error))
         return FALSE;
@@ -2228,7 +2228,7 @@ maybe_expand_value(CoilStruct    *self,
   g_return_val_if_fail(value, NULL);
   g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-  if (G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE))
+  if (G_VALUE_HOLDS(value, COIL_TYPE_OBJECT))
   {
     if (!struct_change_notify(self, error))
       return NULL;
@@ -2594,7 +2594,7 @@ coil_struct_dependency_treev(CoilStruct *self,
   while (list)
   {
     GNode          *branch;
-    CoilExpandable *object = COIL_EXPANDABLE(list->data);
+    CoilObject *object = COIL_OBJECT(list->data);
 
     if (ntypes > 0)
     {
@@ -2903,7 +2903,7 @@ struct_build_string_internal(CoilStruct       *self,
     _struct_build_scoped_string(self, buffer, &format_, error);
 }
 
-/* expandable build string virtual function */
+/* object build string virtual function */
 static void
 _struct_build_string(gconstpointer     object,
                      GString          *buffer,
@@ -2996,7 +2996,7 @@ error:
   return NULL;
 }
 
-static CoilExpandable *
+static CoilObject *
 struct_copy_valist(gconstpointer     obj,
                    const gchar      *first_property_name,
                    va_list           properties,
@@ -3010,7 +3010,7 @@ struct_copy_valist(gconstpointer     obj,
                                              properties,
                                              error);
 
-  return COIL_EXPANDABLE(copy);
+  return COIL_OBJECT(copy);
 }
 
 static gint
@@ -3140,7 +3140,7 @@ coil_struct_new_valist(const gchar *first_property_name,
 
   self = COIL_STRUCT(object);
   priv = self->priv;
-  container = COIL_EXPANDABLE(self)->container;
+  container = COIL_OBJECT(self)->container;
 
   if (priv->path && !COIL_PATH_IS_ROOT(priv->path))
   {
@@ -3327,13 +3327,13 @@ coil_struct_class_init (CoilStructClass *klass)
   gobject_class->dispose = coil_struct_dispose;
   gobject_class->finalize = coil_struct_finalize;
 
-   /* override expandable methods */
-  CoilExpandableClass *expandable_class = COIL_EXPANDABLE_CLASS(klass);
-  expandable_class->copy = struct_copy_valist;
-  expandable_class->is_expanded = struct_needs_expand;
-  expandable_class->expand = struct_expand;
-  expandable_class->equals = coil_struct_equals;
-  expandable_class->build_string = _struct_build_string;
+   /* override object methods */
+  CoilObjectClass *object_class = COIL_OBJECT_CLASS(klass);
+  object_class->copy = struct_copy_valist;
+  object_class->is_expanded = struct_needs_expand;
+  object_class->expand = struct_expand;
+  object_class->equals = coil_struct_equals;
+  object_class->build_string = _struct_build_string;
 
   /* setup param specifications */
 

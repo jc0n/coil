@@ -19,12 +19,12 @@ lib_LTLIBRARIES = libcoil-@LIBCOIL_API_VERSION@.la
 libcoil_@LIBCOIL_API_VERSION@_la_SOURCES = \
 				coil.c \
 				error.c \
-				expandable.c \
 				expression.c \
 				include.c \
 				link.c \
 				list.c \
 				marshal.c \
+				object.c \
 				parser.y \
 				path.c \
 				scanner.l \
@@ -44,13 +44,13 @@ libcoil_include_HEADERS=\
 				coil.h \
 				common.h \
 				error.h \
-				expandable.h \
 				expression.h \
 				format.h \
 				include.h \
 				link.h \
 				list.h \
 				marshal.h \
+				object.h \
 				parser.h \
 				parser_defs.h \
 				path.h \

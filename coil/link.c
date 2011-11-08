@@ -12,7 +12,7 @@
 #include "value.h"
 #include "link.h"
 
-G_DEFINE_TYPE(CoilLink, coil_link, COIL_TYPE_EXPANDABLE);
+G_DEFINE_TYPE(CoilLink, coil_link, COIL_TYPE_OBJECT);
 
 #define COIL_LINK_GET_PRIVATE(lnk) \
   (G_TYPE_INSTANCE_GET_PRIVATE ((lnk), COIL_TYPE_LINK, CoilLinkPrivate))
@@ -55,7 +55,7 @@ link_expand(gconstpointer   link,
   g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
   CoilLink        *const self = COIL_LINK(link);
-  CoilStruct      *container = COIL_EXPANDABLE(link)->container;
+  CoilStruct      *container = COIL_OBJECT(link)->container;
   const CoilPath  *container_path;
   const GValue    *value;
   GError          *internal_error = NULL;
@@ -96,7 +96,7 @@ error:
   return FALSE;
 }
 
-static CoilExpandable *
+static CoilObject *
 link_copy(gconstpointer obj,
           const gchar  *first_property_name,
           va_list       properties,
@@ -122,8 +122,8 @@ link_copy(gconstpointer obj,
     const CoilPath *container_path;
     CoilPath       *path;
 
-    new_container = COIL_EXPANDABLE(copy)->container;
-    old_container = COIL_EXPANDABLE(self)->container;
+    new_container = COIL_OBJECT(copy)->container;
+    old_container = COIL_OBJECT(self)->container;
 
     if (!coil_struct_compare_root(old_container, new_container))
     {
@@ -135,7 +135,7 @@ link_copy(gconstpointer obj,
   }
 #endif
 
-  return COIL_EXPANDABLE(copy);
+  return COIL_OBJECT(copy);
 }
 
 COIL_API(gboolean)
@@ -177,7 +177,7 @@ coil_link_build_string(CoilLink         *self,
 
   const CoilPath *container_path;
   CoilPath       *target_path;
-  CoilStruct     *container = COIL_EXPANDABLE(self)->container;
+  CoilStruct     *container = COIL_OBJECT(self)->container;
 
   container_path = coil_struct_get_path(container);
 
@@ -359,22 +359,22 @@ static void
 coil_link_class_init(CoilLinkClass *klass)
 {
   GObjectClass        *gobject_class;
-  CoilExpandableClass *expandable_class;
+  CoilObjectClass *object_class;
 
   g_type_class_add_private(klass, sizeof(CoilLinkPrivate));
 
   gobject_class = G_OBJECT_CLASS(klass);
-  expandable_class = COIL_EXPANDABLE_CLASS(klass);
+  object_class = COIL_OBJECT_CLASS(klass);
 
   gobject_class->set_property = coil_link_set_property;
   gobject_class->get_property = coil_link_get_property;
   gobject_class->finalize = coil_link_finalize;
 
-  expandable_class->is_expanded = link_is_expanded;
-  expandable_class->copy = link_copy;
-  expandable_class->expand = link_expand;
-  expandable_class->equals = coil_link_equals;
-  expandable_class->build_string = link_build_string;
+  object_class->is_expanded = link_is_expanded;
+  object_class->copy = link_copy;
+  object_class->expand = link_expand;
+  object_class->equals = coil_link_equals;
+  object_class->build_string = link_build_string;
 
   g_object_class_install_property(gobject_class, PROP_TARGET_PATH,
       g_param_spec_boxed("target_path",
