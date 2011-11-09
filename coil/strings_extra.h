@@ -17,6 +17,9 @@ void *
 memrchr(const void *src, int c, size_t n);
 #endif
 
-/* TODO(jcon): add other prototypes */
+#if !HAVE_MEMPCPY
+void *
+mempcpy(void *dst, const unsigned char *src, size_t n);
+#endif
 
 #endif
