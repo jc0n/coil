@@ -22,27 +22,23 @@
 #include "scanner.h"
 
 #define PEEK_CONTAINER(parser) \
-  (CoilStruct *)g_queue_peek_head(&(parser)->containers)
+  COIL_OBJECT(g_queue_peek_head(&(parser)->containers))
 
 #define PEEK_NTH_CONTAINER(parser, n) \
-  (CoilStruct *)g_queue_peek_nth(&(parser)->containers, n)
+  COIL_OBJECT(g_queue_peek_nth(&(parser)->containers, n))
 
 #define POP_CONTAINER(parser) \
-  (CoilStruct *)g_queue_pop_head(&(parser)->containers)
+  COIL_OBJECT(g_queue_pop_head(&(parser)->containers))
 
 #define PUSH_CONTAINER(parser, c) \
   g_queue_push_head(&(parser)->containers, (c))
 
 #define parser_error(parser, format, args...) \
-  g_set_error(&parser->error, \
-              COIL_ERROR, \
-              COIL_ERROR_PARSE, \
-              format, \
-              ##args)
+  g_set_error(&parser->error, COIL_ERROR, COIL_ERROR_PARSE, \
+              format, ##args)
 
-void yyerror(YYLTYPE     *yylocp,
-             CoilParser  *parser,
-             const gchar *msg);
+void
+yyerror(YYLTYPE *yylocp, CoilParser *parser, const gchar *msg);
 
 static void
 parser_handle_error(CoilParser *parser)
@@ -108,11 +104,10 @@ handle_undefined_prototypes(CoilParser *parser)
     defined after an expansion */
     prototypes = g_hash_table_get_values(proto_table);
     while (prototypes != NULL) {
-        CoilStruct *prototype = (CoilStruct *)prototypes->data;
-        CoilStruct *container = coil_struct_get_container(prototype);
+        CoilObject *prototype = COIL_OBJECT(prototypes->data);
 
-        if (!coil_struct_is_prototype(container)) {
-            coil_struct_expand(container, &parser->error);
+        if (!coil_struct_is_prototype(prototype->container)) {
+            coil_struct_expand(prototype->container, &parser->error);
         }
         if (G_UNLIKELY(parser->error)) {
             parser_handle_error(parser);
@@ -135,10 +130,9 @@ handle_undefined_prototypes(CoilParser *parser)
 
         /* convert list of prototypes to list of paths */
         for (lp = list; lp; lp = g_list_next(lp)) {
-            CoilStruct     *prototype = COIL_STRUCT(lp->data);
-            const CoilPath *path = coil_struct_get_path(prototype);
+            CoilObject *prototype = COIL_OBJECT(lp->data);
 
-            lp->data = (gpointer)path;
+            lp->data = prototype->path;
             /* cast the prototype to an empty struct
                to allow continue despite errors */
             CoilStructFunc apply_fn = (CoilStructFunc)make_prototype_final;
@@ -149,7 +143,7 @@ handle_undefined_prototypes(CoilParser *parser)
         list = g_list_sort(list, (GCompareFunc)coil_path_compare);
         while (list != NULL) {
             const CoilPath *path = (CoilPath *)list->data;
-            g_string_append_printf(msg, "%s, ", path->path);
+            g_string_append_printf(msg, "%s, ", path->str);
             list = g_list_delete_link(list, list);
         }
         parser_error(parser, "%s", msg->str);
@@ -174,28 +168,26 @@ parser_post_processing(CoilParser *parser)
 static gboolean
 parser_push_container(CoilParser *parser)
 {
-    CoilStruct     *new_container, *container = PEEK_CONTAINER(parser);
+    CoilObject *new, *container = PEEK_CONTAINER(parser);
     const CoilPath *path = parser->path;
 
-    new_container = coil_struct_create_containers_fast(container,
-                                                       path->path, path->path_len,
-                                                       FALSE, FALSE,
-                                                       &parser->error);
-    if (new_container == NULL)
+    new = coil_struct_create_containers_fast(container, path->str, path->len,
+                                             FALSE, FALSE, &parser->error);
+    if (new == NULL)
         return FALSE;
 
-    g_object_set(new_container, "accumulate", TRUE, NULL);
-    PUSH_CONTAINER(parser, new_container);
+    coil_object_set(new, "accumulate", TRUE, NULL);
+    PUSH_CONTAINER(parser, new);
     return TRUE;
 }
 
 static void
 parser_pop_container(CoilParser *parser)
 {
-    CoilStruct *container = POP_CONTAINER(parser);
+    CoilObject *container = POP_CONTAINER(parser);
 
-    g_object_set(container, "accumulate", FALSE, NULL);
-    g_object_unref(container);
+    coil_object_set(container, "accumulate", FALSE, NULL);
+    coil_object_unref(container);
 }
 
 /* arguments can take the following form..
@@ -205,24 +197,22 @@ parser_pop_container(CoilParser *parser)
     - or -
     case 3. @include: [[filename [paths...]]...]
 */
-
 static gboolean
-parser_handle_include(CoilParser     *parser,
-                      CoilLocation *location,
-                      GList                *include_args)
+parser_handle_include(CoilParser *parser, CoilLocation *location,
+    GList *include_args)
 {
     g_return_val_if_fail(parser, FALSE);
     g_return_val_if_fail(parser->error == NULL, FALSE);
 
-    CoilInclude *include;
-    CoilStruct *container = PEEK_CONTAINER(parser);
+    CoilObject *include;
+    CoilObject *container = PEEK_CONTAINER(parser);
     GValue *file_value, *import;
     GValueArray *imports;
     gsize i, n;
 
     if (include_args == NULL) {
-            parser_error(parser, "No filename specified for include/import.");
-            return FALSE;
+        parser_error(parser, "No filename specified for include/import.");
+        return FALSE;
     }
 
     file_value = (GValue *)include_args->data;
@@ -232,9 +222,9 @@ parser_handle_include(CoilParser     *parser,
     imports = g_value_array_new(n);
 
     for (i = 0; i < n; i++) {
-            import = (GValue *)include_args->data;
-            imports = g_value_array_insert(imports, i, import);
-            include_args = g_list_delete_link(include_args, include_args);
+        import = (GValue *)include_args->data;
+        imports = g_value_array_insert(imports, i, import);
+        include_args = g_list_delete_link(include_args, include_args);
     }
 
     include = coil_include_new("file_value", file_value,
@@ -371,332 +361,318 @@ parser_has_errors(CoilParser *const parser)
 %%
 
 coil
-  : context
+    : context
 ;
 
 context
-  : /* empty */
-  | context statement
-  |  error
-  {
-    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+    : /* empty */
+    | context statement
+    |  error {
+        CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-    if (!coil_struct_is_root(container))
-      parser_pop_container(YYCTX);
-
-    parser_handle_error(YYCTX);
-  }
+        if (!coil_struct_is_root(container)) {
+            parser_pop_container(YYCTX);
+        }
+        parser_handle_error(YYCTX);
+    }
 ;
 
 statement
-  : builtin_property
-  | deletion
-  | assignment
+    : builtin_property
+    | deletion
+    | assignment
 ;
 
 deletion
-  : '~' RELATIVE_PATH
-  {
-    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+    : '~' RELATIVE_PATH {
+        CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-    if (!coil_struct_mark_deleted_path(container, $2, FALSE, &YYCTX->error))
-      YYERROR;
-  }
+        if (!coil_struct_mark_deleted_path(container, $2,
+                FALSE, &YYCTX->error)) {
+            YYERROR;
+        }
+    }
 ;
 
 assignment
-  : assignment_path ':' assignment_value
+    : assignment_path ':' assignment_value
 ;
 
 assignment_path
-  : RELATIVE_PATH
-  {
-    /* do some resolving up front for those that need it
-      -- this prevents resolving paths twice and such */
-    const CoilStruct *container = PEEK_CONTAINER(YYCTX);
-    const CoilPath   *container_path = coil_struct_get_path(container);
+    : RELATIVE_PATH {
+        CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-    if (YYCTX->path)
-      coil_path_unref(YYCTX->path);
+        if (YYCTX->path) {
+            coil_path_unref(YYCTX->path);
+        }
+        /* resolve path to prevent doing this more than once in other places */
+        YYCTX->path = coil_path_resolve($1, container->path, &YYCTX->error);
+        coil_path_unref($1);
 
-    YYCTX->path = coil_path_resolve($1, container_path, &YYCTX->error);
-    coil_path_unref($1);
-
-    if (G_UNLIKELY(YYCTX->error))
-      YYERROR;
-  }
+        if (G_UNLIKELY(YYCTX->error)) {
+            YYERROR;
+        }
+    }
 ;
 
 assignment_value
-  : container
-  | value
-  {
-    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+    : container
+    | value {
+        CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-    if (!coil_struct_insert_path(container,
-                                 YYCTX->path, $1, FALSE,
-                                 &YYCTX->error))
-    {
-      YYCTX->path = NULL;
-      YYERROR;
+        if (!coil_struct_insert_path(container, YYCTX->path, $1,
+                FALSE, &YYCTX->error)) {
+            YYCTX->path = NULL;
+            YYERROR;
+        }
+        YYCTX->path = NULL;
     }
-
-    YYCTX->path = NULL;
-  }
 ;
 
 container
-  : container_declaration
-  {
-    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+    : container_declaration {
+        CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-    if (!coil_struct_is_root(container))
-      parser_pop_container(YYCTX);
-  }
+        if (!coil_struct_is_root(container)) {
+            parser_pop_container(YYCTX);
+        }
+    }
 ;
 
 container_declaration
-  : container_context_inherit
-  | container_context
+    : container_context_inherit
+    | container_context
 ;
 
 container_context_inherit
-  : path_list_comma '{'
-  {
-    CoilStruct *container, *context;
+    : path_list_comma '{' {
+        CoilObject *context = PEEK_CONTAINER(YYCTX), *container;
 
-    context = PEEK_CONTAINER(YYCTX);
-
-    if (!parser_push_container(YYCTX))
-      YYERROR;
-
-    container = PEEK_CONTAINER(YYCTX);
-
-    if (!coil_struct_extend_paths(container, $1, context, &YYCTX->error))
-      YYERROR;
-
-    coil_path_list_free($1);
-  }
-  context '}'
+        if (!parser_push_container(YYCTX)) {
+            YYERROR;
+        }
+        container = PEEK_CONTAINER(YYCTX);
+        if (!coil_struct_extend_paths(container, $1, context, &YYCTX->error)) {
+            YYERROR;
+        }
+        coil_path_list_free($1);
+    } context '}'
 ;
 
 container_context
-  : '{'
-  {
-    if (!parser_push_container(YYCTX))
-      YYERROR;
-  }
-  context '}'
+    : '{' {
+        if (!parser_push_container(YYCTX)) {
+            YYERROR;
+        }
+    } context '}'
 ;
 
 builtin_property
-  : extend_property
-  | include_property
+    : extend_property
+    | include_property
 ;
 
 extend_property_declaration
-  : EXTEND_SYM
-  | EXTEND_SYM ':' /* compat */
+    : EXTEND_SYM
+    | EXTEND_SYM ':' /* compat */
 ;
 
 extend_property
-  : extend_property_declaration path_list
-  {
-    CoilStruct *container = PEEK_CONTAINER(YYCTX);
+    : extend_property_declaration path_list {
+        CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-    if (!coil_struct_extend_paths(container, $2, NULL, &YYCTX->error))
-      YYERROR;
-
-    coil_path_list_free($2);
-  }
+        if (!coil_struct_extend_paths(container, $2, NULL, &YYCTX->error)) {
+            YYERROR;
+        }
+        coil_path_list_free($2);
+    }
 ;
 
 include_declaration
-  : INCLUDE_SYM
-  | INCLUDE_SYM ':' /* compat */
+    : INCLUDE_SYM
+    | INCLUDE_SYM ':' /* compat */
 ;
 
 include_property
-  : include_declaration include_args
-  {
-    if (!parser_handle_include(YYCTX, &@$, $2))
-      YYERROR;
-  }
+    : include_declaration include_args {
+        if (!parser_handle_include(YYCTX, &@$, $2)) {
+            YYERROR;
+        }
+    }
 ;
 
 include_args
-  : include_file
-  { $$ = $1; }
-  | include_arglist
-  { $$ = $1; }
+    : include_file { $$ = $1; }
+    | include_arglist { $$ = $1; }
 ;
 
 include_file
-  : link
-  { $$ = g_list_prepend(NULL, $1); }
-  | string
-  { $$ = g_list_prepend(NULL, $1); }
+    : link { $$ = g_list_prepend(NULL, $1); }
+    | string { $$ = g_list_prepend(NULL, $1); }
 ;
 
 include_arglist
-  : '[' include_file include_import_list ']'
-  { $$ = g_list_concat($2, $3); }
+    : '[' include_file include_import_list ']' { $$ = g_list_concat($2, $3); }
 ;
 
 include_import_list
-  : /* empty */                       { $$ = NULL; }
-  | include_import_list_spaced        { $$ = $1; }
-  | ',' include_import_list_comma     { $$ = $2; }
-  | ',' include_import_list_comma ',' { $$ = $2; }
+    : /* empty */ { $$ = NULL; }
+    | include_import_list_spaced { $$ = $1; }
+    | ',' include_import_list_comma { $$ = $2; }
+    | ',' include_import_list_comma ',' { $$ = $2; }
 ;
 
 include_import_list_spaced
-  : include_import_path
-  { $$ = g_list_prepend(NULL, $1); }
-  | include_import_list_spaced include_import_path
-  { $$ = g_list_prepend($1, $2); }
+    : include_import_path { $$ = g_list_prepend(NULL, $1); }
+    | include_import_list_spaced include_import_path {
+        $$ = g_list_prepend($1, $2);
+    }
 ;
 
 include_import_list_comma
-  : include_import_path
-  { $$ = g_list_prepend(NULL, $1); }
-  | include_import_list_comma ',' include_import_path
-  { $$ = g_list_prepend($1, $3); }
+    : include_import_path { $$ = g_list_prepend(NULL, $1); }
+    | include_import_list_comma ',' include_import_path {
+        $$ = g_list_prepend($1, $3);
+    }
 ;
 
 include_import_path
-  : link             { $$ = $1; }
-  | pathstring_value { $$ = $1; }
+    : link { $$ = $1; }
+    | pathstring_value { $$ = $1; }
 ;
 
 link
-  : link_path                   { $$ = $1; }
-  | '=' link_path               { $$ = $2; }
+    : link_path { $$ = $1; }
+    | '=' link_path { $$ = $2; }
 ;
 
 link_path
-  : path
-  {
-    CoilStruct *container = PEEK_CONTAINER(YYCTX);
-    CoilLink   *link;
+    : path {
+        CoilObject *link, *container = PEEK_CONTAINER(YYCTX);
+        /* XXX: YYCTX->path is null when link is not assigned to a path
+          ie. @extends: [ =..some_node ]
+        */
+        link = coil_link_new(&YYCTX->error,
+                             "target_path", $1,
+                             "path", YYCTX->path,
+                             "container", container,
+                             "location", &@$,
+                             NULL);
 
-  /* XXX: YYCTX->path is null when link is not assigned to a path
-      ie. @extends: [ =..some_node ]
-   */
-    link = coil_link_new(&YYCTX->error,
-                         "target_path", $1,
-                         "path", YYCTX->path,
-                         "container", container,
-                         "location", &@$,
-                         NULL);
+        coil_path_unref($1);
 
-    coil_path_unref($1);
-
-    if (link == NULL)
-      YYERROR;
-
-    coil_value_init($$, COIL_TYPE_LINK, take_object, link);
-  }
+        if (link == NULL) {
+            YYERROR;
+        }
+        coil_value_init($$, COIL_TYPE_LINK, take_object, link);
+    }
 ;
 
 pathstring_value
-  : pathstring { coil_value_init($$, COIL_TYPE_PATH, take_boxed, $1); }
+    : pathstring { coil_value_init($$, COIL_TYPE_PATH, take_boxed, $1); }
 ;
 
 pathstring
-  : STRING_LITERAL
-  {
-    if (!($$ = parser_make_path_from_string(YYCTX, $1)))
-      YYERROR;
-  }
+    : STRING_LITERAL {
+        if (!($$ = parser_make_path_from_string(YYCTX, $1))) {
+            YYERROR;
+        }
+    }
 ;
 
 path_list
-  : '[' path_list_spaced ']' { $$ = $2; }
-
-/* TODO(jcon): examine shift reduce conflict */
-  | path_list_comma         { $$ = $1; }
+      : '[' path_list_spaced ']' { $$ = $2; }
+      | path_list_comma { $$ = $1; } /* TODO(jcon): examine shift reduce conflict */
 ;
 
 path_list_spaced
-  : path                     { $$ = g_list_prepend(NULL, $1); }
-  | path_list_spaced path     { $$ = g_list_prepend($1, $2); }
+    : path { $$ = g_list_prepend(NULL, $1); }
+    | path_list_spaced path { $$ = g_list_prepend($1, $2); }
 ;
 
 path_list_comma
-  : path_list_comma_items     { $$ = $1; }
-  | path_list_comma_items ',' { $$ = $1; }
+    : path_list_comma_items { $$ = $1; }
+    | path_list_comma_items ',' { $$ = $1; }
 ;
 
 path_list_comma_items
-  : path                           { $$ = g_list_prepend(NULL, $1); }
-  | path_list_comma_items ',' path { $$ = g_list_prepend($1, $3); }
+    : path { $$ = g_list_prepend(NULL, $1); }
+    | path_list_comma_items ',' path { $$ = g_list_prepend($1, $3); }
 ;
 
 value_list
-  : '[' ']'                      { $$ = g_value_array_new(0); }
-  | '[' value_list_contents ']'
-  {
-    /* coil's value list is backed with a g_value_array */
-    gsize i, n;
-    GList *list;
+    : '[' ']' { $$ = g_value_array_new(0); }
+    | '[' value_list_contents ']' {
+        /* value list is backed with a g_value_array
+        XXX: this may change soon */
+        gsize i, n = g_list_length($2);
+        GList *list = g_list_last($2);
 
-    n = g_list_length($2);
-    $$ = g_value_array_new(n);
-    list = g_list_last($2);
-
-    /* list is reversed so restore order here */
-    for (i = 0; i < n; i++) {
-        GValue *value = (GValue *)list->data;
-        g_value_array_insert($$, i, value);
-        list = g_list_previous(list);
+        $$ = g_value_array_new(n);
+        /* list is reversed so restore order here */
+        for (i = 0; i < n; i++) {
+            GValue *value = (GValue *)list->data;
+            g_value_array_insert($$, i, value);
+            list = g_list_previous(list);
+        }
     }
-  }
 ;
 
 value_list_contents
-  : value_list_items_comma       { $$ = $1; }
-  | value_list_items_comma value { $$ = g_list_prepend($1, $2); }
-  | value_list_items             { $$ = $1; }
+    : value_list_items_comma { $$ = $1; }
+    | value_list_items_comma value { $$ = g_list_prepend($1, $2); }
+    | value_list_items { $$ = $1; }
 ;
 
 value_list_items
-  : value                  { $$ = g_list_prepend(NULL, $1); }
-  | value_list_items value { $$ = g_list_prepend($1, $2); }
+    : value { $$ = g_list_prepend(NULL, $1); }
+    | value_list_items value { $$ = g_list_prepend($1, $2); }
 ;
 
 value_list_items_comma
-  : value ','                        { $$ = g_list_prepend(NULL, $1); }
-  | value_list_items_comma value ',' { $$ = g_list_prepend($1, $2); }
+    : value ',' { $$ = g_list_prepend(NULL, $1); }
+    | value_list_items_comma value ',' { $$ = g_list_prepend($1, $2); }
 ;
 
 value
-  : primative  { $$ = $1; }
-  | string     { $$ = $1; }
-  | link       { $$ = $1; }
-  | value_list { coil_value_init($$, COIL_TYPE_LIST, take_boxed, $1); }
+    : primative { $$ = $1; }
+    | string { $$ = $1; }
+    | link { $$ = $1; }
+    | value_list { coil_value_init($$, COIL_TYPE_LIST, take_boxed, $1); }
 ;
 
 path
-  : ABSOLUTE_PATH  { $$ = $1; }
-  | REFERENCE_PATH { $$ = $1; }
-  | RELATIVE_PATH  { $$ = $1; }
-  | ROOT_PATH      { $$ = $1; }
+    : ABSOLUTE_PATH { $$ = $1; }
+    | REFERENCE_PATH { $$ = $1; }
+    | RELATIVE_PATH { $$ = $1; }
+    | ROOT_PATH { $$ = $1; }
 ;
 
 string
-  : STRING_LITERAL
-  { coil_value_init($$, G_TYPE_GSTRING, take_boxed, $1); }
-  | STRING_EXPRESSION
-  { coil_value_init($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL)); }
+    : STRING_LITERAL {
+        coil_value_init($$, G_TYPE_GSTRING, take_boxed, $1);
+    }
+    | STRING_EXPRESSION {
+        coil_value_init($$, COIL_TYPE_EXPR, take_object, coil_expr_new($1, NULL));
+    }
 ;
 
 primative
-  : NONE_SYM  { coil_value_init($$, COIL_TYPE_NONE, set_object, coil_none_object); }
-  | TRUE_SYM  { coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, TRUE); }
-  | FALSE_SYM { coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, FALSE); }
-  | INTEGER   { coil_value_init($$, G_TYPE_LONG, set_long, $1); }
-  | DOUBLE    { coil_value_init($$, G_TYPE_DOUBLE, set_double, $1); }
+    : NONE_SYM {
+        coil_value_init($$, COIL_TYPE_NONE, set_object, coil_none_object);
+    }
+    | TRUE_SYM {
+        coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, TRUE);
+    }
+    | FALSE_SYM {
+        coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, FALSE);
+    }
+    | INTEGER {
+        coil_value_init($$, G_TYPE_LONG, set_long, $1);
+    }
+    | DOUBLE {
+        coil_value_init($$, G_TYPE_DOUBLE, set_double, $1);
+    }
 ;
 
 %%
@@ -722,13 +698,13 @@ untrack_prototype(GObject *instance, GParamSpec *unused, gpointer data)
 
     ParserNotify *notify = (ParserNotify *)data;
     CoilParser *parser = (CoilParser *)notify->parser;
-    CoilStruct *root, *prototype = COIL_STRUCT(instance);
+    CoilObject *prototype = COIL_OBJECT(instance);
 
     g_return_if_fail(parser);
     g_return_if_fail(prototype);
 
-    root = coil_struct_get_root(prototype);
-    if (root == parser->root && !coil_struct_is_prototype(prototype)) {
+    if (prototype->root == parser->root &&
+        !coil_struct_is_prototype(prototype)) {
         g_hash_table_remove(parser->prototypes, prototype);
         g_signal_handler_disconnect(instance, notify->handler_id);
     }
@@ -747,13 +723,11 @@ track_prototype(GSignalInvocationHint *ihint,
     g_return_val_if_fail(n_param_values > 0, FALSE);
     g_return_val_if_fail(G_VALUE_HOLDS(&param_values[0], COIL_TYPE_STRUCT), FALSE);
 
-    CoilStruct *prototype, *root;
+    CoilObject *prototype;
     CoilParser *parser = (CoilParser *)data;
 
-    prototype = COIL_STRUCT(g_value_get_object(&param_values[0]));
-    root = coil_struct_get_root(prototype);
-
-    if (root == parser->root) {
+    prototype = COIL_OBJECT(g_value_get_object(&param_values[0]));
+    if (prototype->root == parser->root) {
         ParserNotify *notify;
 
         g_object_ref(prototype);
@@ -798,13 +772,13 @@ coil_parser_init(CoilParser *parser, gpointer scanner)
                                    (gpointer)parser, NULL);
 }
 
-static CoilStruct *
+static CoilObject *
 coil_parser_finish(CoilParser *parser, GError **error)
 {
     g_return_val_if_fail(parser, NULL);
     g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-    CoilStruct *container;
+    CoilObject *container;
 
     parser_post_processing(parser);
 
@@ -814,9 +788,8 @@ coil_parser_finish(CoilParser *parser, GError **error)
     g_hash_table_destroy(parser->prototypes);
 
     while ((container = g_queue_pop_head(&parser->containers))) {
-        g_object_unref(container);
+        coil_object_unref(container);
     }
-
     if (parser->path) {
         coil_path_unref(parser->path);
     }
@@ -892,7 +865,7 @@ coil_parser_prepare_for_buffer(CoilParser *const parser,
     parser->do_buffer_gc = TRUE;
 }
 
-COIL_API(CoilStruct *)
+COIL_API(CoilObject *)
 coil_parse_string_len(const gchar *string, gsize len, GError **error)
 {
     g_return_val_if_fail(string, NULL);
@@ -910,13 +883,13 @@ coil_parse_string_len(const gchar *string, gsize len, GError **error)
     return coil_parser_finish(&parser, error);
 }
 
-COIL_API(CoilStruct *)
+COIL_API(CoilObject *)
 coil_parse_string(const gchar *string, GError **error)
 {
     return coil_parse_string_len(string, strlen(string), error);
 }
 
-COIL_API(CoilStruct *)
+COIL_API(CoilObject *)
 coil_parse_buffer(gchar *buffer, gsize len, GError **error)
 {
     g_return_val_if_fail(buffer != NULL, NULL);
@@ -934,7 +907,7 @@ coil_parse_buffer(gchar *buffer, gsize len, GError **error)
     return coil_parser_finish(&parser, error);
 }
 
-COIL_API(CoilStruct *)
+COIL_API(CoilObject *)
 coil_parse_file(const gchar *filepath, GError **error)
 {
     g_return_val_if_fail(filepath, NULL);
@@ -961,7 +934,7 @@ coil_parse_file(const gchar *filepath, GError **error)
     return coil_parser_finish(&parser, error);
 }
 
-COIL_API(CoilStruct *)
+COIL_API(CoilObject *)
 coil_parse_stream(FILE *fp, const gchar *stream_name, GError **error)
 {
     g_return_val_if_fail(fp, NULL);

@@ -27,7 +27,7 @@ struct _CoilIncludePrivate
     GValue      *file_value; /* (object -> string) OR string */
     GValueArray *imports; /* list of (object -> string) or strings */
 
-    CoilStruct  *namespace;
+    CoilObject  *namespace;
 
     gboolean    is_expanded : 1;
 };
@@ -66,7 +66,7 @@ static GHashTable *namespace_cache = NULL;
 typedef struct _CacheEntry
 {
     gchar        *filepath;
-    CoilStruct   *namespace;
+    CoilObject   *namespace;
     time_t        m_time;
     volatile gint ref_count;
 } CacheEntry;
@@ -103,7 +103,7 @@ cache_gc_notify(gpointer data, GObject *object_address)
 }
 
 static void
-cache_save(GObject *object, const gchar *filepath, CoilStruct *namespace)
+cache_save(GObject *object, const gchar *filepath, CoilObject *namespace)
 {
     g_return_if_fail(G_IS_OBJECT(object));
     g_return_if_fail(filepath != NULL);
@@ -129,7 +129,7 @@ cache_save(GObject *object, const gchar *filepath, CoilStruct *namespace)
     }
 }
 
-static CoilStruct *
+static CoilObject *
 cache_load(gpointer _notify, const gchar *filepath, GError **error)
 {
     g_return_val_if_fail(G_IS_OBJECT(_notify), NULL);
@@ -138,7 +138,7 @@ cache_load(gpointer _notify, const gchar *filepath, GError **error)
 
     GObject *notify = G_OBJECT(_notify);
     CacheEntry *entry;
-    CoilStruct *namespace;
+    CoilObject *namespace;
     struct stat st;
 
     entry = g_hash_table_lookup(namespace_cache, filepath);
@@ -181,21 +181,22 @@ cache_load(gpointer _notify, const gchar *filepath, GError **error)
 
 #endif
 
-    static gboolean
-include_is_expanded(gconstpointer object)
+static gboolean
+include_is_expanded(CoilObject *object)
 {
     CoilInclude *self = COIL_INCLUDE(object);
     return self->priv->is_expanded;
 }
 
 static const gchar *
-expand_file_value(CoilInclude *self, GError **error)
+expand_file_value(CoilObject *o, GError **error)
 {
+    CoilInclude *self = COIL_INCLUDE(o);
     CoilIncludePrivate *const priv = self->priv;
     const gchar *this_filepath, *filepath = NULL;
     GValue *file_value = priv->file_value;
 
-    this_filepath = COIL_OBJECT(self)->location.filepath;
+    this_filepath = o->location.filepath;
 
     if (G_VALUE_HOLDS(file_value, COIL_TYPE_OBJECT)) {
         const GValue *return_value = NULL;
@@ -216,7 +217,7 @@ expand_file_value(CoilInclude *self, GError **error)
         filepath = g_value_get_string(file_value);
     }
     else {
-        coil_include_error(error, self,
+        coil_include_error(error, o,
                 "include path must expand to string type. "
                 "Found type '%s'.", G_VALUE_TYPE_NAME(priv->file_value));
         return NULL;
@@ -226,7 +227,7 @@ expand_file_value(CoilInclude *self, GError **error)
         return filepath;
 
     if (strcmp(filepath, this_filepath) == 0) {
-        coil_include_error(error, self, "a file should not import itself");
+        coil_include_error(error, o, "a file should not import itself");
         return FALSE;
     }
 
@@ -245,14 +246,15 @@ expand_file_value(CoilInclude *self, GError **error)
 }
 
 static int
-load_namespace(CoilInclude *self, GError **error)
+load_namespace(CoilObject *o, GError **error)
 {
-    g_return_val_if_fail(COIL_IS_INCLUDE(self), FALSE);
+    g_return_val_if_fail(COIL_IS_INCLUDE(o), FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
+    CoilInclude *self = COIL_INCLUDE(o);
     CoilIncludePrivate *priv = self->priv;
-    CoilObject *const super = COIL_OBJECT(self);
-    CoilStruct *root, *namespace;
+    CoilObject *const obj = COIL_OBJECT(self);
+    CoilObject *namespace;
     const gchar *filepath;
     guint test_flags;
     GError *internal_error = NULL;
@@ -269,20 +271,19 @@ load_namespace(CoilInclude *self, GError **error)
         priv->namespace = NULL;
     }
 
-    filepath = expand_file_value(self, error);
+    filepath = expand_file_value(o, error);
     if (filepath == NULL)
         return -1;
 
     /* XXX: this is questionably useful to do here */
     test_flags = G_FILE_TEST_IS_REGULAR | G_FILE_TEST_EXISTS;
     if (!g_file_test(filepath, test_flags)) {
-        coil_include_error(error, self,
+        coil_include_error(error, o,
                 "include path '%s' does not exist.", filepath);
         return -1;
     }
 
-    root = coil_struct_get_root(super->container);
-    namespace = CACHE_LOAD(root, filepath, &internal_error);
+    namespace = CACHE_LOAD(obj->root, filepath, &internal_error);
     if (namespace == NULL)
         return -1;
 
@@ -290,15 +291,15 @@ load_namespace(CoilInclude *self, GError **error)
     return 0;
 }
 
-static CoilStruct *
-get_namespace(CoilInclude *self, GError **error)
+static CoilObject *
+get_namespace(CoilObject *o, GError **error)
 {
-    g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
+    g_return_val_if_fail(COIL_IS_INCLUDE(o), NULL);
     g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-    CoilIncludePrivate *priv = self->priv;
+    CoilIncludePrivate *priv = COIL_INCLUDE(o)->priv;
 
-    if (priv->namespace == NULL && load_namespace(self, error) < 0)
+    if (priv->namespace == NULL && load_namespace(o, error) < 0)
         return NULL;
 
     return priv->namespace;
@@ -310,25 +311,25 @@ expand_import(GValue *import,
 {
     g_return_val_if_fail(G_IS_VALUE(import), -1);
 
-    GObject *ob;
+    CoilObject *o;
     const GValue *returnval = NULL;
 
     if (!G_VALUE_HOLDS(import, COIL_TYPE_OBJECT))
         return 0;
 
-    ob = g_value_dup_object(import);
-    if (!coil_expand(ob, &returnval, TRUE, error)) {
-        g_object_unref(ob);
+    o = COIL_OBJECT(g_value_dup_object(import));
+    if (!coil_object_expand(o, &returnval, TRUE, error)) {
+        g_object_unref(o);
         return -1;
     }
     if (returnval == NULL) {
         g_error("Expecting return value from expansion of type '%s'.",
-                G_OBJECT_TYPE_NAME(ob));
+                G_OBJECT_TYPE_NAME(o));
     }
     g_value_unset(import);
     g_value_init(import, G_VALUE_TYPE(returnval));
     g_value_copy(returnval, import);
-    g_object_unref(ob);
+    g_object_unref(o);
     return 0;
 }
 
@@ -363,20 +364,19 @@ get_path_from_import(GValue *import, GError **error)
 }
 
 static int
-process_import(CoilInclude *self, GValue *import, GError **error)
+process_import(CoilObject *o, GValue *import, GError **error)
 {
-    g_return_val_if_fail(COIL_IS_INCLUDE(self), -1);
+    g_return_val_if_fail(COIL_IS_INCLUDE(o), -1);
     g_return_val_if_fail(G_IS_VALUE(import), -1);
     g_return_val_if_fail(error == NULL || *error == NULL, -1);
 
     CoilPath *path = NULL;
-    CoilStruct *namespace = NULL;
-    CoilStruct *source, *container;
+    CoilObject *source, *namespace;
     GError *internal_error = NULL;
     const GValue *value;
     gboolean res;
 
-    namespace = get_namespace(self, error);
+    namespace = get_namespace(o, error);
     if (namespace == NULL)
         goto err;
 
@@ -388,37 +388,35 @@ process_import(CoilInclude *self, GValue *import, GError **error)
     value = coil_struct_lookup_path(namespace, path, FALSE, &internal_error);
     if (value == NULL) {
         if (internal_error == NULL) {
-            coil_include_error(error, self,
-                    "import path '%s' does not exist.", path->path);
+            coil_include_error(error, o,
+                    "import path '%s' does not exist.", path->str);
         }
         goto err;
     }
     /* TODO(jcon): support importing non struct paths */
     if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
-        coil_include_error(error, self,
-                "import path '%s' type must be struct.", path->path);
+        coil_include_error(error, o,
+                "import path '%s' type must be struct.", path->str);
         goto err;
     }
 
-    source = COIL_STRUCT(g_value_dup_object(value));
-    container = COIL_OBJECT(self)->container;
-
-    res = MERGE_NAMESPACE(source, container, error);
+    source = g_value_dup_object(value);
+    res = MERGE_NAMESPACE(source, o->container, error);
     g_object_unref(source);
     coil_path_unref(path);
     return (res) ? 0 : -1;
 
 err:
-    if (path)
+    if (path) {
         coil_path_unref(path);
-
+    }
     return -1;
 }
 
 static int
-process_import_array(CoilInclude *self, GValueArray *arr, GError **error)
+process_import_array(CoilObject *o, GValueArray *arr, GError **error)
 {
-    g_return_val_if_fail(COIL_IS_INCLUDE(self), -1);
+    g_return_val_if_fail(COIL_IS_INCLUDE(o), -1);
     g_return_val_if_fail(arr != NULL, -1);
     g_return_val_if_fail(error == NULL || *error == NULL, -1);
 
@@ -431,61 +429,59 @@ process_import_array(CoilInclude *self, GValueArray *arr, GError **error)
             return -1;
         if (G_VALUE_HOLDS(import, COIL_TYPE_LIST)) {
             GValueArray *subarr = (GValueArray *)g_value_get_boxed(import);
-            if (process_import_array(self, subarr, error) < 0)
+            if (process_import_array(o, subarr, error) < 0)
                 return -1;
         }
-        else if (process_import(self, import, error) < 0)
+        else if (process_import(o, import, error) < 0)
             return -1;
     }
     return 0;
 }
 
 static int
-process_all_imports(CoilInclude *self, GError **error)
+process_all_imports(CoilObject *o, GError **error)
 {
-    g_return_val_if_fail(COIL_IS_INCLUDE(self), FALSE);
+    g_return_val_if_fail(COIL_IS_INCLUDE(o), FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
     GValueArray *imports;
 
-    imports = self->priv->imports;
+    imports = COIL_INCLUDE(o)->priv->imports;
     if (imports == NULL)
         return 0;
 
-    return process_import_array(self, imports, error);
+    return process_import_array(o, imports, error);
 }
 
 static gboolean
-include_expand(gconstpointer include, const GValue **return_value, GError **error)
+include_expand(CoilObject *o, const GValue **return_value, GError **error)
 {
-    g_return_val_if_fail(COIL_IS_INCLUDE(include), FALSE);
+    g_return_val_if_fail(COIL_IS_INCLUDE(o), FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-    CoilInclude *const self = COIL_INCLUDE(include);
-    CoilIncludePrivate *const priv = self->priv;
-    CoilStruct *namespace = NULL, *container;
+    CoilInclude *self = COIL_INCLUDE(o);
+    CoilIncludePrivate *priv = self->priv;
+    CoilObject *namespace = NULL;
 
-    if (priv->is_expanded)
+    if (priv->is_expanded) {
         return TRUE;
-
+    }
     if (priv->imports != NULL && priv->imports->n_values > 0) {
-        if (process_all_imports(self, error) < 0)
+        if (process_all_imports(o, error) < 0) {
             goto error;
+        }
         priv->is_expanded = TRUE;
         return TRUE;
     }
-
     /* import everything */
-    namespace = get_namespace(self, error);
-    if (namespace == NULL)
+    namespace = get_namespace(o, error);
+    if (namespace == NULL) {
         goto error;
-
+    }
     g_object_ref(namespace);
-    container = COIL_OBJECT(self)->container;
-
-    if (!MERGE_NAMESPACE(namespace, container, error))
+    if (!MERGE_NAMESPACE(COIL_OBJECT(namespace), o->container, error)) {
         goto error;
-
+    }
     g_object_unref(namespace);
     priv->is_expanded = TRUE;
     return TRUE;
@@ -498,26 +494,10 @@ error:
 }
 
 COIL_API(gboolean)
-coil_include_equals(gconstpointer   e1,
-                    gconstpointer   e2,
-                    GError        **error)
+coil_include_equals(CoilObject *a, CoilObject *b, GError **error)
 {
     g_assert(0);
     return FALSE;
-}
-
-static void
-include_build_string(gconstpointer     include,
-                     GString          *const buffer,
-                     CoilStringFormat *format,
-                     GError          **error)
-{
-  g_return_if_fail(COIL_IS_INCLUDE(include));
-  g_return_if_fail(buffer);
-  g_return_if_fail(format);
-  g_return_if_fail(error == NULL || *error == NULL);
-
-  coil_include_build_string(COIL_INCLUDE(include), buffer, format, error);
 }
 
 static void
@@ -562,19 +542,18 @@ build_legacy_string(CoilInclude      *self,
     }
 }
 
-
-
-COIL_API(void)
-coil_include_build_string(CoilInclude      *self,
-                          GString          *const buffer,
-                          CoilStringFormat *format,
-                          GError          **error)
+static void
+include_build_string(CoilObject *include,
+                     GString *const buffer,
+                     CoilStringFormat *format,
+                     GError **error)
 {
-    g_return_if_fail(COIL_IS_INCLUDE(self));
+    g_return_if_fail(COIL_IS_INCLUDE(include));
     g_return_if_fail(buffer != NULL);
     g_return_if_fail(format != NULL);
     g_return_if_fail(error == NULL || *error == NULL);
 
+    CoilInclude *self = COIL_INCLUDE(include);
     CoilIncludePrivate *priv = self->priv;
     GValue *file_value = priv->file_value;
     GValueArray *imports = priv->imports, *args;
@@ -604,8 +583,8 @@ coil_include_build_string(CoilInclude      *self,
     g_value_array_free(args);
 }
 
-COIL_API(gchar *)
-coil_include_to_string(CoilInclude *self, CoilStringFormat *format, GError **error)
+static gchar *
+include_to_string(CoilObject *self, CoilStringFormat *format, GError **error)
 {
     g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
     g_return_val_if_fail(error == NULL || *error == NULL, NULL);
@@ -613,7 +592,7 @@ coil_include_to_string(CoilInclude *self, CoilStringFormat *format, GError **err
     GString *buffer;
 
     buffer = g_string_sized_new(128);
-    coil_include_build_string(self, buffer, format, error);
+    include_build_string(self, buffer, format, error);
 
     return g_string_free(buffer, FALSE);
 }

@@ -30,46 +30,42 @@
         (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_OBJECT, \
           CoilObjectClass))
 
+#define coil_object_ref(obj) g_object_ref(G_OBJECT(obj))
+#define coil_object_unref(obj) g_object_unref(G_OBJECT(obj))
+
 typedef struct _CoilObject         CoilObject;
 typedef struct _CoilObjectClass    CoilObjectClass;
 typedef struct _CoilObjectPrivate  CoilObjectPrivate;
 
 struct _CoilObject
 {
-  GObject             parent_instance;
-  CoilObjectPrivate  *priv;
+    GObject             parent_instance;
+    CoilObjectPrivate  *priv;
 
-  /* * public * */
-  CoilStruct   *root;
-  CoilStruct   *container;
-  CoilPath     *path;
-  CoilLocation  location;
+    /* * public * */
+    CoilObject   *root;
+    CoilObject   *container;
+    CoilPath     *path;
+    CoilLocation  location;
 };
 
 struct _CoilObjectClass
 {
-  GObjectClass parent_class;
+    GObjectClass parent_class;
 
-  /* Abstract Methods */
-  CoilObject *(*copy) (gconstpointer     self,
-                           const gchar      *first_property_name,
-                           va_list           properties,
-                           GError          **error);
+    /* Abstract Methods */
+    CoilObject *(*copy) (CoilObject *self, const gchar *first_property_name,
+            va_list properties, GError **error);
 
-  gboolean (*is_expanded) (gconstpointer self);
+    gboolean (*is_expanded) (CoilObject *self);
 
-  gboolean (*expand) (gconstpointer   self,
-                      const GValue  **return_value,
-                      GError        **error);
+    gboolean (*expand) (CoilObject *self, const GValue **return_value,
+            GError **error);
 
-  gint (*equals) (gconstpointer  self,
-                  gconstpointer  other,
-                  GError        **error);
+    gint (*equals) (CoilObject *self, CoilObject *other, GError **error);
 
-  void  (*build_string) (gconstpointer     self,
-                         GString          *buffer,
-                         CoilStringFormat *format,
-                         GError          **error);
+    void  (*build_string) (CoilObject *self, GString *buffer,
+            CoilStringFormat *format, GError **error);
 };
 
 G_BEGIN_DECLS
@@ -127,11 +123,25 @@ coil_expand_value(const GValue  *value,
                   gboolean       recursive,
                   GError       **error);
 
+/* replaced with coil_object_expand */
 gboolean
-coil_expand(gpointer        object,
-            const GValue  **return_value,
-            gboolean        recursive,
-            GError        **error);
+coil_expand(CoilObject *object, const GValue **return_value,
+        gboolean recursive, GError **error);
+
+
+/* TODO(jcon)
+CoilObject *
+coil_object_expand(CoilObject *object, gboolean recurse);
+*/
+#define coil_object_expand coil_expand
+/*
+gboolean
+coil_object_expand(CoilObject *object,
+                   const GValue **return_value,
+                   gboolean recursive,
+                   GError **error);
+*/
+
 
 G_END_DECLS
 

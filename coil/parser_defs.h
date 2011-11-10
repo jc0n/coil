@@ -43,42 +43,34 @@
 
 typedef struct _CoilParser
 {
-  const gchar *filepath;
-  CoilStruct  *root;
-  CoilPath    *path;
-  gulong       prototype_hook_id;
-  GQueue       containers;
-  GHashTable  *prototypes;
-  GError      *error;
-  GList       *errors;
-  gpointer     scanner;
-  gpointer     buffer_state;
-  gboolean     do_buffer_gc : 1;
-/*  gboolean     fatal_error : 1;*/
+    const gchar *filepath;
+    CoilObject  *root;
+    CoilPath    *path;
+    gulong       prototype_hook_id;
+    GQueue       containers;
+    GHashTable  *prototypes;
+    /*XXX: rename to last_error?? */
+    GError      *error;
+    GList       *errors;
+    gpointer     scanner;
+    gpointer     buffer_state;
+    gboolean     do_buffer_gc : 1;
 } CoilParser;
 
-COIL_API(CoilStruct *)
-coil_parse_stream(FILE *,
-                  const gchar *,
-                  GError **err);
+COIL_API(CoilObject *)
+coil_parse_stream(FILE *, const gchar *, GError **err);
 
-COIL_API(CoilStruct *)
-coil_parse_file(const gchar *filepath,
-                GError **err);
+COIL_API(CoilObject *)
+coil_parse_file(const gchar *filepath, GError **err);
 
-COIL_API(CoilStruct *)
-coil_parse_string(const gchar *string,
-                  GError     **err);
+COIL_API(CoilObject *)
+coil_parse_string(const gchar *string, GError **err);
 
-COIL_API(CoilStruct *)
-coil_parse_string_len(const gchar *string,
-                      gsize        len,
-                      GError     **err);
+COIL_API(CoilObject *)
+coil_parse_string_len(const gchar *string, gsize len, GError **err);
 
-COIL_API(CoilStruct *)
-coil_parse_buffer(gchar   *buffer,
-                  gsize    len,
-                  GError **error);
+COIL_API(CoilObject *)
+coil_parse_buffer(gchar *buffer, gsize len, GError **error);
 
 #endif
 

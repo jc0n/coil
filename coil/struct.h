@@ -46,6 +46,7 @@ struct _CoilStructClass
     CoilObjectClass parent_class;
 };
 
+/* XXX: move to struct.c */
 struct _CoilStructIter
 {
     CoilStruct *node;
@@ -55,10 +56,11 @@ struct _CoilStructIter
 #endif
 };
 
-typedef gboolean (*CoilStructFunc)(CoilStruct *, gpointer);
+typedef gboolean (*CoilStructFunc)(CoilObject *, gpointer);
 
 G_BEGIN_DECLS
 
+/* XXX: make private */
 gboolean
 make_prototype_final(CoilStruct *self,
                      gpointer    unused);
@@ -69,290 +71,240 @@ coil_struct_get_type(void) G_GNUC_CONST;
 GQuark
 coil_struct_prototype_quark(void) G_GNUC_CONST;
 
-CoilStruct *
-coil_struct_new(GError **error,
-                const gchar *first_property_name,
-                ...);
+CoilObject *
+coil_struct_new(GError **error, const gchar *first_property_name, ...);
 
-CoilStruct *
+CoilObject *
 coil_struct_new_valist(const gchar *first_property_name,
-                       va_list      properties,
-                       GError     **error);
+        va_list properties, GError **error);
 
-CoilStruct *
-coil_struct_create_containers(CoilStruct  *self,
-                              const gchar *path,
-                              guint        path_len,
-                              gboolean     prototype,
-                              gboolean     has_previous_lookup,
-                              GError     **error);
 
-CoilStruct *
-coil_struct_create_containers_fast(CoilStruct  *self,
+/* XXX: make private */
+CoilObject *
+coil_struct_create_containers(CoilObject *self,
+                              const gchar *path, guint path_len,
+                              gboolean prototype,
+                              gboolean has_previous_lookup,
+                              GError **error);
+
+/* XXX: make private */
+CoilObject *
+coil_struct_create_containers_fast(CoilObject *self,
                                    const gchar *path,
-                                   guint8       path_len,
-                                   gboolean     prototype,
-                                   gboolean     has_previous_lookup,
-                                   GError     **error);
+                                   guint path_len,
+                                   gboolean prototype,
+                                   gboolean has_previous_lookup,
+                                   GError **error);
 
 void
-coil_struct_empty(CoilStruct *self,
-                  GError    **error);
+coil_struct_empty(CoilObject *self, GError **error);
 
 gboolean
-coil_struct_is_root(const CoilStruct *self);
+coil_struct_is_root(CoilObject *self);
 
 gboolean
-coil_struct_is_prototype(const CoilStruct *self);
+coil_struct_is_prototype(CoilObject *self);
 
 gboolean
-coil_struct_is_empty(CoilStruct *self,
-                     GError    **error);
+coil_struct_is_empty(CoilObject *self, GError **error);
 
 gboolean
-coil_struct_is_ancestor(const CoilStruct *ancestor,
-                        const CoilStruct *descendent);
+coil_struct_is_ancestor(CoilObject *ancestor, CoilObject *descendent);
 
 gboolean
-coil_struct_is_descendent(const CoilStruct *descendent,
-                          const CoilStruct *ancestor);
-
-CoilStruct *
-coil_struct_get_root(const CoilStruct *self);
-
-CoilStruct *
-coil_struct_get_container(const CoilStruct *self);
-
-const CoilPath *
-coil_struct_get_path(const CoilStruct *self);
-
-gboolean
-coil_struct_compare_root(const CoilStruct *a,
-                          const CoilStruct *b);
+coil_struct_is_descendent(CoilObject *descendent, CoilObject *ancestor);
 
 void
-coil_struct_foreach_ancestor(CoilStruct     *self,
-                             gboolean        include_self,
-                             CoilStructFunc  func,
-                             gpointer        user_data);
+coil_struct_foreach_ancestor(CoilObject *self,
+                             gboolean include_self,
+                             CoilStructFunc func,
+                             gpointer user_data);
+
+/* XXX: make private */
+gboolean
+coil_struct_insert_path(CoilObject *self,
+                        CoilPath *path, /* steals */
+                        GValue *value, /* steals */
+                        gboolean replace,
+                        GError **error);
 
 gboolean
-coil_struct_insert_path(CoilStruct *self,
-                        CoilPath   *path, /* steals */
-                        GValue     *value, /* steals */
-                        gboolean    replace,
-                        GError    **error);
+coil_struct_insert(CoilObject  *self,
+                   gchar *path_str, /* steals */
+                   guint path_len,
+                   GValue *value, /* steals */
+                   gboolean replace,
+                   GError **error);
 
+/* XXX: remove */
 gboolean
-coil_struct_insert(CoilStruct  *self,
-                   gchar       *path_str, /* steals */
-                   guint        path_len,
-                   GValue      *value, /* steals */
-                   gboolean     replace,
-                   GError     **error);
+coil_struct_insert_fast(CoilObject *self,
+                        gchar *path_str, /* steals */
+                        guint8 path_len,
+                        GValue *value, /* steals */
+                        gboolean replace,
+                        GError **error);
 
+/* XXX: remove */
 gboolean
-coil_struct_insert_fast(CoilStruct  *self,
-                        gchar       *path_str, /* steals */
-                        guint8       path_len,
-                        GValue      *value, /* steals */
-                        gboolean     replace,
-                        GError     **error);
-gboolean
-coil_struct_insert_key(CoilStruct   *self,
-                       const gchar  *key,
-                       guint         key_len,
-                       GValue       *value, /* steals */
-                       gboolean      replace,
-                       GError      **error);
-
-gboolean
-coil_struct_delete_path(CoilStruct *self,
-                        CoilPath   *path,
-                        gboolean    strict,
-                        GError    **error);
-
-gboolean
-coil_struct_delete(CoilStruct  *self,
-                   const gchar *path,
-                   guint        path_len,
-                   gboolean     strict,
-                   GError     **error);
-
-gboolean
-coil_struct_delete_key(CoilStruct  *self,
+coil_struct_insert_key(CoilObject *self,
                        const gchar *key,
-                       guint        key_len,
-                       gboolean     strict,
-                       GError     **error);
+                       guint key_len,
+                       GValue *value, /* steals */
+                       gboolean replace,
+                       GError **error);
+
+/* XXX: remove */
+gboolean
+coil_struct_delete_path(CoilObject *self, CoilPath *path,
+        gboolean strict, GError **error);
 
 gboolean
-coil_struct_mark_deleted_path(CoilStruct *self,
-                              CoilPath   *path, /* steal */
-                              gboolean    force,
-                              GError    **error);
+coil_struct_delete(CoilObject *self, const gchar *path, guint path_len,
+                   gboolean strict, GError **error);
+
+/* XXX: remove */
+gboolean
+coil_struct_delete_key(CoilObject  *self,
+                       const gchar *key, guint key_len,
+                       gboolean strict, GError **error);
+
+/* XXX: make private */
+gboolean
+coil_struct_mark_deleted_path(CoilObject *self,
+                              CoilPath *path, /* steal */
+                              gboolean force,
+                              GError **error);
+
+/* XXX: remove */
+gboolean
+coil_struct_mark_deleted_fast(CoilObject *self,
+                              gchar *path_str, /* steal */
+                              guint8 path_len,
+                              gboolean force,
+                              GError **error);
+
+/* XXX: remove */
+gboolean
+coil_struct_mark_deleted(CoilObject *self,
+                         gchar *path_str, /* steal */
+                         guint path_len,
+                         gboolean force,
+                         GError **error);
+
+/* XXX: remove */
+gboolean
+coil_struct_mark_deleted_key(CoilObject *self, const gchar *key,
+        gboolean force, GError **error);
 
 gboolean
-coil_struct_mark_deleted_fast(CoilStruct  *self,
-                              gchar       *path_str, /* steal */
-                              guint8       path_len,
-                              gboolean     force,
-                              GError     **error);
+coil_struct_add_dependency(CoilObject *self,
+        CoilObject *object, GError **error);
 
 gboolean
-coil_struct_mark_deleted(CoilStruct  *self,
-                         gchar       *path_str, /* steal */
-                         guint        path_len,
-                         gboolean     force,
-                         GError     **error);
+coil_struct_extend(CoilObject *self,
+        CoilObject *parent, GError **error);
 
 gboolean
-coil_struct_mark_deleted_key(CoilStruct  *self,
-                             const gchar *key,
-                             gboolean     force,
-                             GError     **error);
+coil_struct_extend_path(CoilObject *self,
+                        CoilPath *path, /* steal */
+                        CoilObject *context,
+                        GError **error);
 
 gboolean
-coil_struct_add_dependency(CoilStruct     *self,
-                           gpointer        object,
-                           GError        **error);
-
-gboolean
-coil_struct_extend(CoilStruct  *self,
-                   CoilStruct  *parent,
-                   GError     **error);
-
-gboolean
-coil_struct_extend_path(CoilStruct  *self,
-                        CoilPath    *path, /* steal */
-                        CoilStruct  *context,
-                        GError     **error);
-
-gboolean
-coil_struct_extend_paths(CoilStruct *self,
-                         GList      *path_list, /* steals */
-                         CoilStruct *context,
-                         GError    **error);
+coil_struct_extend_paths(CoilObject *self,
+                         GList *path_list, /* steals */
+                         CoilObject *context,
+                         GError **error);
 
 void
-coil_struct_iter_init(CoilStructIter *iter,
-                      CoilStruct     *self);
+coil_struct_iter_init(CoilStructIter *iter, CoilObject *self);
 
 gboolean
-coil_struct_iter_next(CoilStructIter  *iter,
-                      const CoilPath **path,
-                      const GValue   **value);
+coil_struct_iter_next(CoilStructIter *iter, CoilPath **path,
+                      const GValue **value);
+
+/* XXX: remove */
+gboolean
+coil_struct_iter_next_expand(CoilStructIter *iter, CoilPath **path,
+        const GValue **value, gboolean recursive, GError **error);
 
 gboolean
-coil_struct_iter_next_expand(CoilStructIter  *iter,
-                             const CoilPath **path,
-                             const GValue   **value,
-                             gboolean         recursive,
-                             GError         **error);
+coil_struct_merge_full(CoilObject *src, CoilObject *dst,
+        gboolean overwrite, gboolean force_expand, GError **error);
 
 gboolean
-coil_struct_merge_full(CoilStruct  *src,
-                       CoilStruct  *dst,
-                       gboolean     overwrite,
-                       gboolean     force_expand,
-                       GError     **error);
+coil_struct_merge(CoilObject *src, CoilObject *dst, GError **error);
 
+/* XXX: remove */
 gboolean
-coil_struct_merge(CoilStruct *src,
-                  CoilStruct *dst,
-                  GError    **error);
+coil_struct_expand(CoilObject *self, GError **error);
 
+/* XXX: remove (replace with visitor pattern for object entries) */
 gboolean
-coil_struct_expand(CoilStruct *self,
-                   GError    **error);
+coil_struct_expand_items(CoilObject *self, gboolean recursive, GError **error);
 
-gboolean
-coil_struct_expand_items(CoilStruct  *self,
-                         gboolean     recursive,
-                         GError     **error);
+/* XXX: remove */
+const GValue *
+coil_struct_lookup_path(CoilObject *self, CoilPath *path,
+        gboolean expand_value, GError **error);
+
+/* XXX: remove */
+const GValue *
+coil_struct_lookup_key(CoilObject  *self, const gchar *key, guint key_len,
+        gboolean expand_value, GError **error);
+
+/* XXX: remove */
+const GValue *
+coil_struct_lookup_fast(CoilObject *self, const gchar *path, guint8 len,
+        gboolean expand_value, GError **error);
 
 const GValue *
-coil_struct_lookup_path(CoilStruct *self,
-                        CoilPath   *path,
-                        gboolean    expand_value,
-                        GError    **error);
-
-const GValue *
-coil_struct_lookup_key(CoilStruct  *self,
-                       const gchar *key,
-                       guint        key_len,
-                       gboolean     expand_value,
-                       GError     **error);
-
-const GValue *
-coil_struct_lookup_fast(CoilStruct  *self,
-                        const gchar *path_str,
-                        guint8       path_len,
-                        gboolean     expand_value,
-                        GError     **error);
-
-const GValue *
-coil_struct_lookup(CoilStruct  *self,
-                   const gchar *path_str,
-                   guint        path_len,
-                   gboolean     expand_value,
-                   GError     **error);
+coil_struct_lookup(CoilObject *self, const gchar *path, guint len,
+        gboolean expand_value, GError **error);
 
 GList *
-coil_struct_get_paths(CoilStruct *self,
-                      GError    **error);
+coil_struct_get_paths(CoilObject *self, GError **error);
 
 GList *
-coil_struct_get_values(CoilStruct *self,
-                       GError    **error);
+coil_struct_get_values(CoilObject *self, GError **error);
 
 GNode *
-coil_struct_dependency_tree(CoilStruct *self,
-                            guint       n_types,
-                            ...);
+coil_struct_dependency_tree(CoilObject *self, guint n_types, ...);
 
 GNode *
-coil_struct_dependency_valist(CoilStruct *self,
-                              guint       ntypes,
-                              va_list     args);
+coil_struct_dependency_valist(CoilObject *self, guint ntypes, va_list args);
 
 GNode *
-coil_struct_dependency_treev(CoilStruct *self,
-                             GNode      *tree,
-                             guint       ntypes,
-                             GType      *allowed_types,
-                             GError    **error);
+coil_struct_dependency_treev(CoilObject *self, GNode *tree, guint ntypes,
+        GType *allowed_types, GError **error);
 
 gint
-coil_struct_get_size(CoilStruct *self,
-                     GError    **error);
+coil_struct_get_size(CoilObject *self, GError **error);
 
+/* XXX: remove */
 void
-coil_struct_build_string(CoilStruct       *self,
-                         GString          *const buffer,
-                         CoilStringFormat *format,
-                         GError          **error);
+coil_struct_build_string(CoilObject *self,
+        GString *const buffer, CoilStringFormat *format, GError **error);
 
+/* XXX: remove */
 gchar *
-coil_struct_to_string(CoilStruct       *self,
-                      CoilStringFormat *format,
-                      GError          **error);
+coil_struct_to_string(CoilObject *self,
+        CoilStringFormat *format, GError **error);
 
-CoilStruct *
-coil_struct_copy(CoilStruct       *self,
-                 GError          **error,
-                 const gchar      *first_property_name,
-                 ...) G_GNUC_NULL_TERMINATED;
+/* XXX: remove */
+CoilObject *
+coil_struct_copy(CoilObject *self, GError **error,
+        const gchar *first_property_name, ...) G_GNUC_NULL_TERMINATED;
 
-CoilStruct *
-coil_struct_copy_valist(CoilStruct  *self,
-                        const gchar *first_property_name,
-                        va_list      properties,
-                        GError     **error);
+/* XXX: remove */
+CoilObject *
+coil_struct_copy_valist(CoilObject *self,
+        const gchar *first_property_name, va_list properties, GError **error);
+
+/* XXX: remove */
 gboolean
-coil_struct_equals(gconstpointer e1,
-                   gconstpointer e2,
-                   GError        **error);
+coil_struct_equals(CoilObject *a, CoilObject *b, GError **error);
 
 G_END_DECLS
 

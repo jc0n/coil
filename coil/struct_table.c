@@ -58,6 +58,12 @@ hash_relative_path(guint container_hash, const gchar *path, guint8 path_len)
     return hash_bytes(container_hash, (guchar *)path, path_len);
 }
 
+inline guint
+hash_path(CoilPath *path)
+{
+    return hash_absolute_path(path->str, path->len);
+}
+
 /**
  * Compute next highest power of 2 minus 1
  *
@@ -121,7 +127,7 @@ struct_table_rehash(StructTable *table, guint max)
         for (n = table->max, old = &table->bucket[n];
              n-- > 0; old = &table->bucket[n]) {
             for (entry = *old; entry; entry = next) {
-                guint idx = entry->hash & max;
+                guint idx = entry->hash & max; /* XXX: refactor */
 
                 next = entry->next;
                 entry->next = new[idx];
@@ -232,7 +238,7 @@ find_bucket(StructTable *table, guint hash, const gchar *path, guint8 path_len)
     for (bucket = &table->bucket[idx], entry = *bucket;
          entry; bucket = &entry->next, entry = *bucket) {
         const CoilPath *p = entry->path;
-
+/* XXX: refactor */
         if (entry->hash == hash && p->path_len == path_len &&
             memcmp(p->path, path, path_len) == 0) {
             break;
@@ -248,7 +254,7 @@ find_bucket_with_entry(StructTable *table, StructEntry *entry)
     g_return_val_if_fail(entry, NULL);
 
     StructEntry *e, **bucket;
-    guint idx = entry->hash & table->max;
+    guint idx = entry->hash & table->max; /* XXX: refactor */
 
     for (bucket = &table->bucket[idx], e = *bucket;
          e; bucket = &e->next, e = *bucket) {
@@ -290,7 +296,7 @@ struct_table_insert(StructTable *table, guint hash,
         clear_entry(*bucket);
     }
     entry = *bucket;
-    entry->hash = hash;
+    entry->hash = hash; /* XXX: refactor */
     entry->path = path;
     entry->value = value;
 

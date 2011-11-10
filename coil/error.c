@@ -106,7 +106,7 @@ coil_set_error_literal(GError **error, int code, CoilLocation *location,
 }
 
 void
-coil_object_error(GError **error, int code, gconstpointer obj,
+coil_object_error(GError **error, int code, CoilObject *obj,
                       const char *format,
                       ...)
 {
@@ -122,40 +122,37 @@ coil_object_error(GError **error, int code, gconstpointer obj,
 
 
 void
-coil_struct_error(GError **error, const CoilStruct *obj,
-                  const char *format, ...)
+coil_struct_error(GError **error, CoilObject *self, const char *format, ...)
 {
-    char *real_format, *path;
+    CoilObject *obj = COIL_OBJECT(self);
+    char *real_format;
     va_list args;
-    CoilLocation *loc;
 
-    path = coil_struct_get_path(obj)->path;
-    loc = &COIL_OBJECT(obj)->location;
-    real_format = g_strdup_printf("<%s>: %s", path, format);
+    real_format = g_strdup_printf("<%s>: %s", obj->path->str, format);
 
     va_start(args, format);
-    coil_set_error_valist(error, COIL_ERROR_STRUCT, loc, real_format, args);
+    coil_set_error_valist(error, COIL_ERROR_STRUCT,
+            &obj->location, real_format, args);
     va_end(args);
 
     g_free(real_format);
 }
 
 void
-coil_link_error(GError **error, const CoilLink *obj,
-                const char *format, ...)
+coil_link_error(GError **error, CoilObject *obj, const char *format, ...)
 {
     char *real_format;
     const CoilPath *path;
     CoilLocation *lo;
     va_list args;
 
-    path = coil_link_get_path(obj);
+    path = COIL_OBJECT(obj)->path;
     lo = &COIL_OBJECT(obj)->location;
 
     va_start(args, format);
 
     if (path) {
-        real_format = g_strdup_printf("Link<%s>: %s", path->path, format);
+        real_format = g_strdup_printf("Link<%s>: %s", path->str, format);
         coil_set_error_valist(error, COIL_ERROR_LINK, lo, real_format, args);
         g_free(real_format);
     }

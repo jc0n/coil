@@ -26,6 +26,8 @@ typedef enum
     PROP_O,
     PROP_CONTAINER,
     PROP_LOCATION,
+    PROP_PATH,
+    PROP_ROOT,
 } CoilObjectProperties;
 
 COIL_API(void)
@@ -113,28 +115,31 @@ coil_is_expanded(CoilObject *self) /* const object pointer */
 }
 
 COIL_API(gboolean)
-coil_expand(gpointer        object,
-            const GValue  **value_ptr,
-            gboolean        recursive,
-            GError        **error)
+coil_expand(CoilObject *object, const GValue **value_ptr,
+        gboolean recursive, GError **error)
 {
     g_return_val_if_fail(COIL_IS_OBJECT(object), FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-    CoilObject        *self = COIL_OBJECT(object);
-    CoilObjectPrivate *const priv = self->priv;
-    CoilObjectClass   *klass = COIL_OBJECT_GET_CLASS(self);
-    const GValue          *return_value = NULL;
-    GError                *internal_error = NULL;
+    CoilObject *self = COIL_OBJECT(object);
+    CoilObjectPrivate *priv = self->priv;
+    CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(self);
+    const GValue *return_value = NULL;
+    GError *internal_error = NULL;
 
     /* TODO(jcon): notify container of expansion */
 
     if (!g_static_mutex_trylock(&priv->expand_lock)) {
         /* TODO(jcon): improve error handling for cases like this */
-        coil_struct_error(&internal_error,
-                COIL_IS_STRUCT(self) ? COIL_STRUCT(self) : self->container,
+        CoilObject *container;
+        if (COIL_IS_STRUCT(self)) {
+            container = self;
+        }
+        else {
+            container = self->container;
+        }
+        coil_struct_error(&internal_error, container,
                 "Cycle detected during expansion");
-
         goto error;
     }
 
@@ -204,31 +209,39 @@ coil_object_copy(gconstpointer     object,
 }
 
 static void
-coil_object_set_property(GObject      *object,
-                             guint         property_id,
-                             const GValue *value,
-                             GParamSpec   *pspec)
+coil_object_set_property(GObject *object,
+                         guint property_id,
+                         const GValue *value,
+                         GParamSpec *pspec)
 {
     CoilObject *self = COIL_OBJECT(object);
 
     switch (property_id) {
-        case PROP_CONTAINER: {
-                self->container = g_value_get_object(value);
-                break;
+        case PROP_CONTAINER:
+            self->container = COIL_OBJECT(g_value_get_object(value));
+            if (self->container) {
+                self->root = self->container->root;
             }
-            /* TODO(jcon): refactor */
+            break;
         case PROP_LOCATION: {
-                if (self->location.filepath)
-                    g_free(self->location.filepath);
-
-                CoilLocation *loc_ptr;
-                loc_ptr = (CoilLocation *)g_value_get_pointer(value);
-                if (loc_ptr) {
-                    self->location = *((CoilLocation *)loc_ptr);
-                    self->location.filepath = g_strdup(loc_ptr->filepath);
-                }
-                break;
+            /* TODO(jcon): refactor */
+            CoilLocation *loc;
+            if (self->location.filepath) {
+                g_free(self->location.filepath);
             }
+            loc = (CoilLocation *)g_value_get_pointer(value);
+            if (loc) {
+                self->location = *((CoilLocation *)loc);
+                self->location.filepath = g_strdup(loc->filepath);
+            }
+            break;
+        }
+        case PROP_PATH:
+            self->path = (CoilPath *)g_value_dup_boxed(value);
+            break;
+        case PROP_ROOT:
+            self->root = COIL_OBJECT(g_value_get_object(value));
+            break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
             break;
@@ -236,10 +249,10 @@ coil_object_set_property(GObject      *object,
 }
 
 static void
-coil_object_get_property(GObject    *object,
-                             guint       property_id,
-                             GValue     *value,
-                             GParamSpec *pspec)
+coil_object_get_property(GObject *object,
+                         guint property_id,
+                         GValue *value,
+                         GParamSpec *pspec)
 {
     CoilObject *self = COIL_OBJECT(object);
 
@@ -251,7 +264,12 @@ coil_object_get_property(GObject    *object,
         case PROP_LOCATION:
             g_value_set_pointer(value, &(self->location));
             break;
-
+        case PROP_ROOT:
+            g_value_set_object(value, self->root);
+            break;
+        case PROP_PATH:
+            g_value_set_boxed(value, self->path);
+            break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
             break;
@@ -300,10 +318,10 @@ coil_object_init(CoilObject *self)
 }
 
 static CoilObject *
-_object_copy(gconstpointer      self,
-                 const gchar       *first_property_name,
-                 va_list            properties,
-                 GError           **error)
+_object_copy(CoilObject * self,
+             const gchar *first_property_name,
+             va_list properties,
+             GError **error)
 {
     g_error("Bad implementation of object->copy() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -312,7 +330,7 @@ _object_copy(gconstpointer      self,
 }
 
 static gboolean
-_object_is_expanded(gconstpointer self)
+_object_is_expanded(CoilObject * self)
 {
     g_error("Bad implementation of object->is_expanded() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -321,9 +339,7 @@ _object_is_expanded(gconstpointer self)
 }
 
 static gboolean
-_object_expand(gconstpointer  self,
-                   const GValue **return_value,
-                   GError       **error)
+_object_expand(CoilObject * self, const GValue **return_value, GError **error)
 {
     g_error("Bad implementation of object->expand() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -332,9 +348,7 @@ _object_expand(gconstpointer  self,
 }
 
 static gint
-_object_equals(gconstpointer self,
-                   gconstpointer other,
-                   GError     **error)
+_object_equals(CoilObject * self, CoilObject * other, GError **error)
 {
     g_error("Bad implementation of object->equals() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -343,10 +357,10 @@ _object_equals(gconstpointer self,
 }
 
 static void
-_object_build_string(gconstpointer     self,
-                         GString          *buffer,
-                         CoilStringFormat *format,
-                         GError          **error)
+_object_build_string(CoilObject * self,
+                     GString *buffer,
+                     CoilStringFormat *format,
+                     GError **error)
 {
     g_error("Bad implementation of object->build_string() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -355,7 +369,7 @@ _object_build_string(gconstpointer     self,
 static void
 coil_object_finalize(GObject *object)
 {
-    CoilObject        *const self = COIL_OBJECT(object);
+    CoilObject *const self = COIL_OBJECT(object);
     /* CoilObjectPrivate *const priv = self->priv; */
 
     /* TODO(jcon): refactor */
@@ -376,10 +390,10 @@ coil_object_class_init(CoilObjectClass *klass)
     /*
      * XXX: Override virtuals in sub-classes
      */
-    klass->copy         = _object_copy;
-    klass->is_expanded  = _object_is_expanded;
-    klass->expand       = _object_expand;
-    klass->equals       = _object_equals;
+    klass->copy = _object_copy;
+    klass->is_expanded = _object_is_expanded;
+    klass->expand = _object_expand;
+    klass->equals = _object_equals;
     klass->build_string = _object_build_string;
     /*
      * Properties

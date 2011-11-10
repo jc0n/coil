@@ -28,34 +28,27 @@ typedef struct _CoilExprPrivate CoilExprPrivate;
 
 struct _CoilExpr
 {
-  CoilObject   parent_instance;
-  CoilExprPrivate *priv;
+    CoilObject   parent_instance;
+    CoilExprPrivate *priv;
 };
 
 struct _CoilExprClass
 {
-  CoilObjectClass parent_class;
+    CoilObjectClass parent_class;
 };
 
 G_BEGIN_DECLS
 
 GType coil_expr_get_type(void) G_GNUC_CONST;
 
-gchar *
-coil_expr_to_string(CoilExpr         *self,
-                    CoilStringFormat *format,
-                    GError          **error);
-
+/* XXX: make private */
 CoilExpr *
-coil_expr_new(GString *expr_string,
-              const gchar *first_property_name,
-              ...);
+coil_expr_new(GString *expr_string, const gchar *first_property_name, ...);
 
+/* XXX: make private */
 CoilExpr *
-coil_expr_new_valist(GString *expr_string,
-                     const gchar *first_property_name,
-                     va_list      properties);
-
+coil_expr_new_valist(GString *expr_string, const gchar *first_property_name,
+        va_list properties);
 
 G_END_DECLS
 

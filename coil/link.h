@@ -48,37 +48,17 @@ G_BEGIN_DECLS
 
 GType coil_link_get_type(void) G_GNUC_CONST;
 
-CoilLink *
+CoilObject *
 coil_link_new(GError **error,
               const gchar *first_property_name,
               ...) G_GNUC_WARN_UNUSED_RESULT
                    G_GNUC_NULL_TERMINATED;
 
-CoilLink *
+CoilObject *
 coil_link_new_valist(const gchar *first_property_name,
                      va_list      properties,
                      GError     **error) G_GNUC_WARN_UNUSED_RESULT;
 
-const CoilPath *
-coil_link_get_path(const CoilLink *link);
-
-
-gboolean
-coil_link_equals(gconstpointer self,
-                 gconstpointer other,
-                 GError       **error);
-
-void
-coil_link_build_string(CoilLink         *self,
-                       GString          *const buffer,
-                       CoilStringFormat *format);
-
-gchar *
-coil_link_to_string(CoilLink         *self,
-                    CoilStringFormat *format);
-
-
 G_END_DECLS
-
 #endif
 

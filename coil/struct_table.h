@@ -24,7 +24,7 @@ struct _StructTable
 
 struct _StructEntry
 {
-    guint        hash;
+    guint        hash; /* XXX: remove */
     CoilPath    *path;
     GValue      *value;
 

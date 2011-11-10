@@ -8,8 +8,6 @@
 
 #include "struct.h"
 
-#define MAX_INCLUDE_DEPTH 1 << 8
-
 #define COIL_TYPE_INCLUDE                                                     \
         (coil_include_get_type())
 
@@ -31,8 +29,9 @@
         (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_INCLUDE,                  \
          CoilIncludeClass))
 
+/* XXX: make private */
 #define coil_include_new(args...)                                             \
-    g_object_new(COIL_TYPE_INCLUDE, ##args, NULL)
+    COIL_OBJECT(g_object_new(COIL_TYPE_INCLUDE, ##args, NULL))
 
 #define coil_include_error(err, incl, format, args...) \
     coil_object_error(err, COIL_ERROR_INCLUDE, \
@@ -58,29 +57,13 @@ G_BEGIN_DECLS
 GType
 coil_include_get_type(void) G_GNUC_CONST;
 
-
-gboolean
-coil_include_equals(gconstpointer   e1,
-                    gconstpointer   e2,
-                    GError        **error);
-
-void
-coil_include_build_string(CoilInclude *self,
-                          GString     *const buffer,
-                          CoilStringFormat *format,
-                          GError     **error);
-
-gchar *
-coil_include_to_string(CoilInclude      *self,
-                       CoilStringFormat *format,
-                       GError          **error);
-
-CoilStruct *
-coil_include_get_root_node(CoilInclude *self,
+/* XXX: remove (replace with property after errors are refactorerd) */
+CoilObject *
+coil_include_get_root_node(CoilObject *include,
                            GError     **error);
 
-CoilStruct *
-coil_include_dup_root_node(CoilInclude *self,
+CoilObject *
+coil_include_dup_root_node(CoilObject *include,
                            GError     **error);
 
 G_END_DECLS
