@@ -188,6 +188,9 @@ coil_path_relativize(CoilPath *path, CoilPath *base)
 gboolean
 coil_path_has_container(CoilPath *path, CoilPath *container, gboolean strict);
 
+CoilPath *
+coil_path_pop(CoilPath *path);
+
 G_END_DECLS
 #endif
 

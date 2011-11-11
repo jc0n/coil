@@ -739,3 +739,32 @@ coil_path_has_container(CoilPath *path, CoilPath *container,
     return key_len == path->key_len &&
         memcmp(path->str, container->str, container->len) == 0;
 }
+
+COIL_API(CoilPath *)
+coil_path_pop(CoilPath *path, int i)
+{
+    g_return_val_if_fail(path != NULL, NULL);
+
+    char *p;
+
+    if (i >= 0) {
+        do {
+            p = memchr(path->str, COIL_PATH_DELIM, path->len);
+            if (p == NULL) {
+                /* TODO error */
+                return NULL;
+            }
+        } while (--i > 0);
+    }
+    else {
+        while (i++ < 0) {
+            p = memrchr(path->str, COIL_PATH_DELIM, path->len);
+            if (p == NULL) {
+                /* TODO error */
+                return NULL;
+            }
+        }
+    }
+
+    return coil_path_new_len(path->str, p - path->str);
+}
