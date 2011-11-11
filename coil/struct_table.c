@@ -70,7 +70,7 @@ hash_path(CoilPath *path)
  * Satisfies requirement for table max size to be 2^n - 1
  */
 static guint
-compute_real_max(guint size)
+normalize_size(guint size)
 {
     g_return_val_if_fail(size > 0, 0);
 
@@ -94,7 +94,7 @@ struct_table_new_sized(gsize size)
     StructTable *table;
 
     table = g_new(StructTable, 1);
-    table->max = compute_real_max(size); /* max always (2^n)-1 */
+    table->max = normalize_size(size); /* max always (2^n)-1 */
     table->bucket = g_new0(StructEntry *, table->max + 1);
     table->ref_count = 1;
     table->size = 0;
@@ -109,26 +109,24 @@ struct_table_new(void)
 }
 
 static void
-struct_table_rehash(StructTable *table, guint max)
+do_resize(StructTable *table, guint max)
 {
     g_return_if_fail(table);
     g_return_if_fail(max > 0);
-    g_return_if_fail(max == compute_real_max(max));
+    g_return_if_fail(max == normalize_size(max));
 
     guint n;
     StructEntry *entry, *next, **old, **new;
 
-    if (table->max == max)
+    if (table->max == max) {
         return;
-
+    }
     new = g_new0(StructEntry *, max + 1);
-
     if (table->size > 0) {
         for (n = table->max, old = &table->bucket[n];
              n-- > 0; old = &table->bucket[n]) {
             for (entry = *old; entry; entry = next) {
-                guint idx = entry->hash & max; /* XXX: refactor */
-
+                guint idx = entry->path->hash & max; /* XXX: refactor */
                 next = entry->next;
                 entry->next = new[idx];
                 new[idx] = entry;
@@ -149,21 +147,18 @@ struct_table_get_size(const StructTable *table)
 }
 
 void
-struct_table_resize(StructTable *table,
-                   guint         size)
+struct_table_resize(StructTable *table, guint size)
 {
     g_return_if_fail(table);
     g_return_if_fail(size > 0);
 
-    guint max;
-
-    max = compute_real_max(size);
-    struct_table_rehash(table, max);
+    guint max = normalize_size(size);
+    do_resize(table, max);
 }
 
 /** grow by factor of 2 */
 static void
-struct_table_grow(StructTable *table)
+table_grow(StructTable *table)
 {
     g_return_if_fail(table);
 
@@ -171,11 +166,11 @@ struct_table_grow(StructTable *table)
 
     /* grow by power of 2 and prevent overflow issues */
     max = (table->max << 1) | table->max;
-    struct_table_rehash(table, max);
+    do_resize(table, max);
 }
 
 static void
-struct_table_shrink(StructTable *table)
+table_shrink(StructTable *table)
 {
     g_return_if_fail(table);
 
@@ -183,7 +178,7 @@ struct_table_shrink(StructTable *table)
 
     /** shrink by factor of 2 */
     max = (table->max >> 1) | DEFAULT_MAX;
-    struct_table_rehash(table, max);
+    do_resize(table, max);
 }
 
 static StructEntry *
@@ -225,22 +220,17 @@ destroy_entry(StructEntry *entry)
 }
 
 static StructEntry **
-find_bucket(StructTable *table, guint hash, const gchar *path, guint8 path_len)
+find_bucket(StructTable *table, CoilPath *path)
 {
     g_return_val_if_fail(table, NULL);
     g_return_val_if_fail(path, NULL);
-    g_return_val_if_fail(*path == '@', NULL);
-    g_return_val_if_fail(path_len > 0, NULL);
 
     StructEntry *entry, **bucket;
-    guint idx = hash & table->max;
+    guint idx = path->hash & table->max;
 
-    for (bucket = &table->bucket[idx], entry = *bucket;
-         entry; bucket = &entry->next, entry = *bucket) {
-        const CoilPath *p = entry->path;
-/* XXX: refactor */
-        if (entry->hash == hash && p->path_len == path_len &&
-            memcmp(p->path, path, path_len) == 0) {
+    for (bucket = &table->bucket[idx], entry = *bucket; entry;
+            bucket = &entry->next, entry = *bucket) {
+        if (coil_path_equal(entry->path, path)) {
             break;
         }
     }
@@ -254,32 +244,32 @@ find_bucket_with_entry(StructTable *table, StructEntry *entry)
     g_return_val_if_fail(entry, NULL);
 
     StructEntry *e, **bucket;
-    guint idx = entry->hash & table->max; /* XXX: refactor */
+    guint idx = entry->path->hash & table->max; /* XXX: refactor */
 
-    for (bucket = &table->bucket[idx], e = *bucket;
-         e; bucket = &e->next, e = *bucket) {
-        if (e == entry)
+    for (bucket = &table->bucket[idx], e = *bucket; e;
+            bucket = &e->next, e = *bucket) {
+        if (e == entry) {
             break;
+        }
     }
     return bucket;
 }
 
 static void
-struct_table_calibrate(StructTable *table)
+table_recalibrate(StructTable *table)
 {
     g_return_if_fail(table);
 
     if (table->size > table->max) {
-        struct_table_grow(table);
+        table_grow(table);
     }
     else if (table->size <= table->max >> 1 && table->size > DEFAULT_MAX) {
-        struct_table_shrink(table);
+        table_shrink(table);
     }
 }
 
 StructEntry *
-struct_table_insert(StructTable *table, guint hash,
-    CoilPath *path, GValue *value)
+struct_table_insert(StructTable *table, CoilPath *path, GValue *value)
 {
     g_return_val_if_fail(table, NULL);
     g_return_val_if_fail(path, NULL);
@@ -287,8 +277,7 @@ struct_table_insert(StructTable *table, guint hash,
 
     StructEntry *entry, **bucket;
 
-    bucket = find_bucket(table, hash, path->path, path->path_len);
-
+    bucket = find_bucket(table, path);
     if (*bucket == NULL) {
         *bucket = alloc_entry(table);
     }
@@ -296,12 +285,11 @@ struct_table_insert(StructTable *table, guint hash,
         clear_entry(*bucket);
     }
     entry = *bucket;
-    entry->hash = hash; /* XXX: refactor */
     entry->path = path;
     entry->value = value;
 
     table->size++;
-    struct_table_calibrate(table);
+    table_recalibrate(table);
     return entry;
 }
 
@@ -315,8 +303,7 @@ struct_table_insert_entry(StructTable *table, StructEntry *entry)
 
     StructEntry **bucket;
 
-    bucket = find_bucket(table, entry->hash,
-        entry->path->path, entry->path->path_len);
+    bucket = find_bucket(table, entry->path);
 
     entry->next = NULL;
     *bucket = entry;
@@ -324,15 +311,12 @@ struct_table_insert_entry(StructTable *table, StructEntry *entry)
 }
 
 StructEntry *
-struct_table_lookup(StructTable *table, guint hash,
-    const gchar *path, guint8 path_len)
+struct_table_lookup(StructTable *table, CoilPath *path)
 {
-  g_return_val_if_fail(table, NULL);
-  g_return_val_if_fail(path, NULL);
-  g_return_val_if_fail(*path == '@', NULL);
-  g_return_val_if_fail(path_len > 0, NULL);
+    g_return_val_if_fail(table, NULL);
+    g_return_val_if_fail(path, NULL);
 
-  return *find_bucket(table, hash, path, path_len);
+    return *find_bucket(table, path);
 }
 
 static StructEntry *
@@ -353,17 +337,12 @@ remove_bucket_entry(StructTable *table, StructEntry **bucket)
 }
 
 StructEntry *
-struct_table_remove(StructTable *table, guint hash,
-    const gchar *path, guint8 path_len)
+struct_table_remove(StructTable *table, CoilPath *path)
 {
     g_return_val_if_fail(table, NULL);
     g_return_val_if_fail(path, NULL);
-    g_return_val_if_fail(*path == '@', NULL);
-    g_return_val_if_fail(path_len > 0, NULL);
 
-    StructEntry **bucket;
-
-    bucket = find_bucket(table, hash, path, path_len);
+    StructEntry **bucket = find_bucket(table, path);
 
     return remove_bucket_entry(table, bucket);
 }
@@ -375,19 +354,18 @@ struct_table_remove_entry(StructTable *table, StructEntry *entry)
     g_return_val_if_fail(entry, NULL);
 
     StructEntry **bucket = find_bucket_with_entry(table, entry);
+
     return remove_bucket_entry(table, bucket);
 }
 
 void
-struct_table_delete(StructTable *table, guint hash,
-    const gchar *path, guint8 path_len)
+struct_table_delete(StructTable *table, CoilPath *path)
 {
     g_return_if_fail(table);
     g_return_if_fail(path);
-    g_return_if_fail(*path == '@');
-    g_return_if_fail(path_len);
 
-    StructEntry *entry = struct_table_remove(table, hash, path, path_len);
+    StructEntry *entry = struct_table_remove(table, path);
+
     destroy_entry(entry);
 }
 
@@ -412,8 +390,8 @@ struct_table_destroy(StructTable *table)
 
     /* clear entries in all buckets */
     if (table->size > 0) {
-        for (n = table->max, bucket = &table->bucket[n];
-             n-- > 0; bucket = &table->bucket[n]) {
+        for (n = table->max, bucket = &table->bucket[n]; n-- > 0;
+                bucket = &table->bucket[n]) {
             for (entry = *bucket; entry; entry = next) {
                 next = entry->next;
                 destroy_entry(entry);
