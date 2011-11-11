@@ -229,6 +229,9 @@ coil_path_equal(CoilPath *a, CoilPath *b)
     g_return_val_if_fail(a, FALSE);
     g_return_val_if_fail(b, FALSE);
 
+    if (a->hash != b->hash) {
+        return FALSE;
+    }
     if (a == b || a->str == b->str ||
         a->flags & b->flags & COIL_PATH_IS_ROOT) {
         return TRUE;
