@@ -17,19 +17,97 @@ CoilPath _coil_root_path = {
     (guint8)COIL_ROOT_PATH_LEN,
     (gchar *)NULL,
     (guint8)0,
-    0,
-    (COIL_STATIC_PATH |
-     COIL_PATH_IS_ROOT |
-     COIL_PATH_IS_ABSOLUTE),
+    1,
+    (COIL_STATIC_PATH | COIL_PATH_IS_ABSOLUTE),
     1,
 };
 
 /* TODO: proper error handling */
 
+/* IMPLEMENTATION NOTES:
+ *
+ * TODO: Discuss reference counting
+ * TODO: NUL-terminate all strings
+ */
+
+#define HASH_BYTE(hash, byte) hash = (hash * 33 + (byte))
+
+static inline guint
+hash_bytes(guint hash, const guchar *byte, guint n)
+{
+    g_return_val_if_fail(byte, 0);
+    g_return_val_if_fail(*byte, 0);
+    g_return_val_if_fail(n > 0, 0);
+
+    do {
+        HASH_BYTE(hash, *byte++);
+    } while (--n > 0);
+
+    return hash;
+}
+
+static inline guint
+hash_absolute(const gchar *path, guint8 path_len)
+{
+    g_return_val_if_fail(path, 0);
+    g_return_val_if_fail(*path == '@', 0); /* must be absolute */
+    g_return_val_if_fail(path_len > 0, 0);
+
+    path += COIL_ROOT_PATH_LEN;
+    path_len -= COIL_ROOT_PATH_LEN;
+
+    if (path_len > 0) {
+        return hash_bytes(1, (guchar *)path, path_len);
+    }
+    return 0;
+}
+
+static inline guint
+hash_relative(guint container_hash, const gchar *path, guint8 path_len)
+{
+    g_return_val_if_fail(path, 0);
+    g_return_val_if_fail(*path, 0);
+    g_return_val_if_fail(*path != '@', 0);
+    g_return_val_if_fail(path_len > 0, 0);
+
+    if (path[0] != COIL_PATH_DELIM) {
+        HASH_BYTE(container_hash, COIL_PATH_DELIM);
+    }
+    return hash_bytes(container_hash, (guchar *)path, path_len);
+}
+
+guint
+coil_path_get_hash(CoilPath *path)
+{
+    g_return_val_if_fail(path, 0);
+
+    if (path->hash == 0) {
+        path->hash = hash_absolute(path->str, path->len);
+    }
+    return path->hash;
+}
+
+static inline gboolean
+compare_hash(CoilPath *a, CoilPath *b)
+{
+    /* check if both are absolute */
+    if (!(a->flags & b->flags & COIL_PATH_IS_ABSOLUTE)) {
+        /* a or b is a relative path and comparing them is meaningless */
+        return FALSE;
+    }
+    if (a->hash == 0) {
+        a->hash = hash_absolute(a->str, a->len);
+    }
+    if (b->hash == 0) {
+        b->hash = hash_absolute(b->str, b->len);
+    }
+    return a->hash == b->hash;
+}
+
 static CoilPath *
 path_alloc(void)
 {
-    CoilPath *path = g_new0(CoilPath, 1);
+    CoilPath *path = g_slice_new0(CoilPath);
     path->ref_count = 1;
     return path;
 }
@@ -54,7 +132,7 @@ coil_path_get_type(void)
 
     if (G_UNLIKELY(!type_id)) {
         type_id = g_boxed_type_register_static(g_intern_static_string("CoilPath"),
-                (GBoxedCopyFunc)coil_path_copy,
+                (GBoxedCopyFunc)coil_path_ref,
                 (GBoxedFreeFunc)coil_path_unref);
 
         g_value_register_transform_func(type_id, G_TYPE_STRING, pathval_to_strval);
@@ -110,546 +188,625 @@ key_length_error(const gchar *key, guint key_len, GError **error)
             (gint)(COIL_PATH_LEN - COIL_ROOT_PATH_LEN - 1));
 }
 
+static const char valid_path_chars[128] = {
+    /* 0x0-0x13  */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /* 0x14-0x27 */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /* 0x28-0x2C */0,0,0,0,0,
+
+    /* [-.] */
+    /* 0x2D-0x2E */1,1,
+
+    /* 0x2F      */0,
+
+    /* [0-9] */
+    /* 0x30-0x39 */1,1,1,1,1,1,1,1,1,
+
+    /* 0x3A-0x3F */0,0,0,0,0,0,
+
+    /* [@A-Z] */
+    /* 0x40-0x5A */1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+
+    /* 0x5B-0x5E */0,0,0,0,
+
+    /* [_]       */1,
+    /* 0x60      */0,
+    /* [a-z]     */1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    /* 0x7B      */0,0,0,0,0
+};
+
+/*
+ * coil_path_take_string_with_keyx:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @key: a nul-terminated key string
+ * @keylen: the length of @key
+ * @flags: any of #CoilPathFlags
+ * @Returns: a new #CoilPath object
+ *
+ * Creates a new #CoilPath object
+ */
 COIL_API(CoilPath *)
-coil_path_take_strings(gchar *path, guint8 path_len, gchar *key, guint8 key_len,
-                       CoilPathFlags flags)
-
+coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
+        guint flags)
 {
-    g_return_val_if_fail(path, NULL);
-    g_return_val_if_fail(*path, NULL);
-    g_return_val_if_fail(path_len > 0, NULL);
-    g_return_val_if_fail(path_len <= COIL_PATH_LEN, NULL);
-    g_return_val_if_fail((key && key_len) || !(key || key_len), NULL);
-    g_return_val_if_fail((!(flags & COIL_PATH_IS_ROOT)
-                || (flags & COIL_PATH_IS_ABSOLUTE && flags & COIL_PATH_IS_ROOT)), NULL);
-    g_return_val_if_fail(key || !(flags & COIL_STATIC_KEY), NULL);
+    g_return_val_if_fail(str != NULL, NULL);
+    g_return_val_if_fail(len > 0, NULL);
 
-    CoilPath *p = path_alloc();
-    p->str = path;
-    p->len = path_len ? path_len : strlen(path);
-    p->flags = flags;
+    CoilPath *path;
 
-    if (!(flags & COIL_PATH_IS_BACKREF)
-            && G_LIKELY(path_len > 2) /* check for backref */
-            && path[0] == COIL_PATH_DELIM
-            && path[1] == COIL_PATH_DELIM)
-        p->flags |= COIL_PATH_IS_BACKREF;
-    else if (flags & COIL_PATH_IS_ROOT
-            || (path_len == COIL_ROOT_PATH_LEN /* check for root */
-                && (path == (const gchar *)&COIL_ROOT_PATH
-                    || strncasecmp(path, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0))) {
-        p->flags |= COIL_PATH_IS_ROOT | COIL_PATH_IS_ABSOLUTE;
-        p->flags &= ~COIL_STATIC_KEY;
-        p->key = NULL;
-        p->key_len = 0;
-        return p;
-    }
-    else if (flags & COIL_PATH_IS_ABSOLUTE
-            || path[0] == COIL_SPECIAL_CHAR) {
-        p->flags |= COIL_PATH_IS_ABSOLUTE;
-        if (key == NULL) {
-            p->key = memrchr(p->str + COIL_ROOT_PATH_LEN,
-                    COIL_PATH_DELIM,
-                    p->len - COIL_ROOT_PATH_LEN);
-            p->key_len = p->len - (++p->key - p->str);
-            p->flags |= COIL_STATIC_KEY;
-            return p;
+    if (len == COIL_ROOT_PATH_LEN && keylen == 0 &&
+            memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+        if (!(flags & COIL_STATIC_PATH)) {
+            g_free(str);
         }
-        goto have_key;
+        if (!(flags & COIL_STATIC_KEY)) {
+            g_free(key);
+        }
+        coil_path_ref(CoilRootPath);
+        return CoilRootPath;
     }
-
-    if (key) {
-have_key:
-        p->key = key;
-        p->key_len = key_len;
+    if (str[0] == '@') {
+        if (!(flags & COIL_PATH_IS_ABSOLUTE) &&
+                memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+            flags |= COIL_PATH_IS_ABSOLUTE;
+        }
     }
-    else {
-        p->key = memrchr(path, COIL_PATH_DELIM, path_len);
-        if (p->key == NULL) {
-            g_assert(!(p->flags & COIL_PATH_IS_ABSOLUTE));
-            p->key = p->str;
-            p->key_len = p->len;
+    else if (!(flags & COIL_PATH_IS_BACKREF) && str[0] == '.') {
+        if (str[1] == '.') {
+            flags |= COIL_PATH_IS_BACKREF;
         }
         else {
-            p->key_len = p->len - (++p->key - p->str);
+            /* path string begins with . */
+            memmove(str, str + 1, len - 1);
+        }
+    }
+    if (key == NULL) {
+        flags |= COIL_STATIC_KEY;
+        key = memrchr(str, '.', len);
+        if (key) {
+            key++;
+            keylen = len - (key - str);
         }
     }
 
-    if (p->key >= p->str && p->key <= p->str + p->len) {
-        p->flags |= COIL_STATIC_KEY;
-    }
+    path = path_alloc();
+    path->str = str;
+    path->len = len;
+    path->key = key;
+    path->key_len = keylen;
+    path->hash = 0;
+    path->flags = flags;
 
-    g_assert(p->key);
-    g_assert(p->key_len);
-    return p;
+    return path;
 }
 
+/* coil_path_take_string_with_key:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @key: a nul-terminated key string
+ * @keylen: the length of @key
+ *
+ * Creates a new #CoilPath object
+ */
+COIL_API(CoilPath *)
+coil_path_take_string_with_key(gchar *str, guint len, gchar *key, guint keylen)
+{
+    return coil_path_take_string_with_keyx(str, len, key, keylen, 0);
+}
+
+/*
+ * coil_path_take_string:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @Returns: a new #CoilPath object
+ *
+ * Creates a new #CoilPath object
+ */
+COIL_API(CoilPath *)
+coil_path_take_string(gchar *str, guint len)
+{
+    return coil_path_take_string_with_keyx(str, len, NULL, 0, 0);
+}
+
+/* coil_path_take_stringx:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @flags: flags from #CoilPathFlags
+ * @Returns: a new #CoilPath object
+ *
+ * Creates a new #CoilPath object
+ */
+COIL_API(CoilPath *)
+coil_path_take_stringx(gchar *str, guint len, guint flags)
+{
+    return coil_path_take_string_with_keyx(str, len, NULL, 0, flags);
+}
+
+/* coil_path_new_with_key:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @key: a nul-terminated key string
+ * @keylen: the length of @key
+ * @Returns: a new #CoilPath object
+ *
+ * Returns a new #CoilPath object
+ */
+COIL_API(CoilPath *)
+coil_path_new_with_key(const gchar *str, guint len,
+        const gchar *key, guint keylen, GError **error)
+{
+    g_return_val_if_fail(str, NULL);
+    g_return_val_if_fail(len > 0, NULL);
+
+    if (len == COIL_ROOT_PATH_LEN && keylen == 0 &&
+            memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+        coil_path_ref(CoilRootPath);
+        return CoilRootPath;
+    }
+    if (!coil_check_path(str, len, error)) {
+        return NULL;
+    }
+    if (key) {
+        if (!coil_check_key(key, keylen, error)) {
+            return NULL;
+        }
+        key = g_strndup(key, keylen);
+    }
+    if (str[0] == COIL_PATH_DELIM && str[1] != COIL_PATH_DELIM) {
+        /** ignore single leading . for relative path */
+        str = g_strndup(str + 1, len - 1);
+    }
+    else {
+        str = g_strndup(str, len);
+    }
+    return coil_path_take_string_with_key((char *)str, len, (char *)key, keylen);
+}
+
+/*
+ * coil_path_new_len:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @Returns: a new #CoilPath object
+ *
+ * Creates a new #CoilPath object
+ */
 COIL_API(CoilPath *)
 coil_path_new_len(const gchar *str, guint len, GError **error)
 {
-    g_return_val_if_fail(str || *str, NULL);
+    g_return_val_if_fail(str, NULL);
     g_return_val_if_fail(len > 0, NULL);
 
-    if (!coil_check_path(str, len, error))
-        return NULL;
-
-    if (str[0] == COIL_PATH_DELIM && str[1] != COIL_PATH_DELIM) {
-        /** ignore single leading . for relative path */
-        str++;
-        len--;
-    }
-    str = g_strndup(str, len);
-    return coil_path_take_strings((gchar *)str, len, NULL, 0, 0);
+    return coil_path_new_with_key(str, len, NULL, 0, error);
 }
 
+/*
+ * coil_path_new:
+ * @str: a nul-terminated path string
+ * @Returns: a new #CoilPath object
+ *
+ * Creates a new #CoilPath object
+ */
 COIL_API(CoilPath *)
 coil_path_new(const gchar *str, GError **error)
 {
-    return coil_path_new_len(str, strlen(str), error);
+    g_return_val_if_fail(str, NULL);
+
+    return coil_path_new_with_key(str, strlen(str), NULL, 0, error);
 }
 
-COIL_API(CoilPath *)
-coil_path_copy(CoilPath *p)
-{
-    g_return_val_if_fail(p, NULL);
-
-    CoilPath *copy = path_alloc();
-
-    copy->str = g_strndup(p->str, p->len);
-    copy->len = p->len;
-    copy->key = &copy->str[p->len - p->key_len];
-    copy->key_len = p->key_len;
-    copy->flags = (p->flags & ~COIL_STATIC_PATH) | COIL_STATIC_KEY;
-    return copy;
-}
-
+/*
+ * coil_path_equal:
+ * @a: a #CoilPath object
+ * @b: a #CoilPath object
+ * @Returns: %TRUE if @a and @b are equal
+ *
+ * Compares two paths @a and @b for equality.
+ */
 COIL_API(gboolean)
 coil_path_equal(CoilPath *a, CoilPath *b)
 {
     g_return_val_if_fail(a, FALSE);
     g_return_val_if_fail(b, FALSE);
 
-    if (a->hash != b->hash) {
+    if (!compare_hash(a, b)) {
         return FALSE;
     }
-    if (a == b || a->str == b->str ||
-        a->flags & b->flags & COIL_PATH_IS_ROOT) {
+    if (a == b || a->str == b->str) {
         return TRUE;
     }
-    if (a->len != b->len ||
-        a->key_len != b->key_len ||
-        /* check same relativity */
-        (a->flags ^ b->flags) & COIL_PATH_IS_ABSOLUTE) {
+    if (a->len != b->len || a->key_len != b->key_len) {
         return FALSE;
+    }
+    /* check if one path is relative and the other is absolute */
+    if ((a->flags ^ b->flags) & COIL_PATH_IS_ABSOLUTE) {
+        return FALSE;
+    }
+    /* check if both are absolute */
+    if ((a->flags & b->flags) & COIL_PATH_IS_ABSOLUTE) {
+        return memcmp(a->str + COIL_ROOT_PATH_LEN,
+                b->str + COIL_ROOT_PATH_LEN,
+                b->len - COIL_ROOT_PATH_LEN) == 0;
     }
     return memcmp(a->str, b->str, b->len) == 0;
 }
 
+/*
+ * coil_path_compare:
+ * @a: a #CoilPath object
+ * @b: a #CoilPath object
+ * @Returns: 0 if @a and @b are equal, 1 if @a is greater and -1 otherwise
+ *
+ * Compares two paths @a and @b.
+ */
 COIL_API(gint)
 coil_path_compare(CoilPath *a, CoilPath *b)
 {
     g_return_val_if_fail(a, -1);
     g_return_val_if_fail(b, -1);
 
-    if (a == b || a->str == b->str ||
-        a->flags & b->flags & COIL_PATH_IS_ROOT) {
+    if (a == b || a->str == b->str) {
         return 0;
     }
     if (a->len != b->len) {
         return (a->len > b->len) ? 1 : -1;
     }
+    if (a->key_len != b->key_len) {
+        return (a->key_len > b->key_len) ? 1 : -1;
+    }
+    if ((a->flags & b->flags) & COIL_PATH_IS_ABSOLUTE) {
+        return memcmp(a->str + COIL_ROOT_PATH_LEN,
+                b->str + COIL_ROOT_PATH_LEN,
+                b->len - COIL_ROOT_PATH_LEN);
+    }
     return memcmp(a->str, b->str, b->len);
 }
 
+/*
+ * coil_path_free:
+ * @path: a #CoilPath object
+ *
+ * Frees all memory associated with @path
+ */
 COIL_API(void)
-coil_path_free(CoilPath *p)
+coil_path_free(CoilPath *path)
 {
-    g_return_if_fail(p);
+    g_return_if_fail(path);
 
-    CoilPathFlags flags = ~p->flags;
+    CoilPathFlags iflags = ~path->flags;
 
-    if (flags & COIL_STATIC_KEY)
-        g_free(p->key);
-
-    if (flags & COIL_STATIC_PATH)
-        g_free(p->str);
-
-    g_free(p);
+    if (iflags & COIL_STATIC_KEY) {
+        g_free(path->key);
+    }
+    if (iflags & COIL_STATIC_PATH) {
+        g_free(path->str);
+    }
+    /* try to be nice if others still have a reference */
+    if (g_atomic_int_get(&path->ref_count) > 1) {
+        memset(path, 0, sizeof(*path));
+        return;
+    }
+    g_slice_free(CoilPath, path);
 }
 
+/*
+ * coil_path_ref:
+ * @path: a #CoilPath object
+ * @Returns: a new reference to @path
+ *
+ * Increments the reference count of @path
+ */
 COIL_API(CoilPath *)
-coil_path_ref(CoilPath *p)
+coil_path_ref(CoilPath *path)
 {
-    g_return_val_if_fail(p, NULL);
+    g_return_val_if_fail(path, NULL);
 
-    g_atomic_int_inc(&p->ref_count);
-    return p;
+    g_atomic_int_inc(&path->ref_count);
+    return path;
 }
 
+/* coil_path_unref:
+ * @path: a #CoilPath object
+ *
+ * Decrements the reference count of @path
+ */
 COIL_API(void)
-coil_path_unref(CoilPath *p)
+coil_path_unref(CoilPath *path)
 {
-    g_return_if_fail(p);
+    g_return_if_fail(path);
 
-    if (g_atomic_int_dec_and_test(&p->ref_count)) {
-        coil_path_free(p);
+    if (g_atomic_int_dec_and_test(&path->ref_count)) {
+        coil_path_free(path);
     }
 }
 
+/* coil_path_join:
+ * @a: a #CoilPath object
+ * @b: a #CoilPath object
+ *
+ * Returns a new #CoilPath using the container from @a and
+ * the key from @b.
+ */
 COIL_API(CoilPath *)
-coil_path_concat(CoilPath *container, CoilPath *key, GError **error)
+coil_path_join(CoilPath *a, CoilPath *b, GError **error)
 {
-    g_return_val_if_fail(container, NULL);
-    g_return_val_if_fail(key, NULL);
+    g_return_val_if_fail(a, NULL);
+    g_return_val_if_fail(b, NULL);
 
-    gchar *p;
-    CoilPath *path;
-    guint path_len = container->len + key->key_len + 1;
+    guint len = a->len - b->key_len - 1;
 
-    if (path_len > COIL_PATH_LEN) {
-        p = g_strjoin(COIL_PATH_DELIM_S, container->str, key->key, NULL);
-        path_length_error(p, path_len, error);
+    return coil_path_new_with_key(a->str, len, b->key, b->key_len, error);
+}
+
+/*
+ * coil_path_concat:
+ * @a: a #CoilPath object
+ * @b: a #CoilPath object
+ * @Returns: a new #CoilPath object
+ *
+ * Returns a new #CoilPath object with @a and @b concatenated.
+ */
+COIL_API(CoilPath *)
+coil_path_concat(CoilPath *a, CoilPath *b, GError **error)
+{
+    g_return_val_if_fail(a, NULL);
+    g_return_val_if_fail(b, NULL);
+    g_return_val_if_fail(COIL_PATH_IS_RELATIVE(b), NULL);
+
+    gchar *str, *p;
+    guint len;
+    CoilPath *res;
+
+    len = a->len + b->len + 1;
+    if (len > COIL_PATH_LEN) {
+        p = g_strjoin(".", a->str, b->str, NULL);
+        path_length_error(p, len, error);
         g_free(p);
         return NULL;
     }
 
-    path = path_alloc();
-    path->len = path_len;
-    path->str = g_new(gchar, path_len + 1);
-
-    p = mempcpy(path->str, container->str, container->len);
+    str = g_new(gchar, len + 1);
+    p = mempcpy(str, a->str, a->len);
     *p++ = COIL_PATH_DELIM;
-    path->key = p;
-    path->key_len = key->key_len;
-    p = mempcpy(p, key->key, key->key_len);
+    p = mempcpy(p, b->str, b->len);
     *p = '\0';
 
-    path->flags = (container->flags & COIL_PATH_IS_ABSOLUTE) | COIL_STATIC_KEY;
-
-    return path;
-}
-
-COIL_API(CoilPath *)
-coil_build_path_valist(GError **error, const gchar *first_key, va_list args)
-{
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
-
-    gchar *buffer, *p;
-    const gchar *key = first_key;
-    guint path_len = 0, key_len = 0, n = 64;
-
-    p = buffer = (gchar *)g_malloc(n);
-
-    do {
-        key_len = strlen(key);
-        path_len += key_len + 1;
-        if (path_len >= n) {
-            buffer = (gchar *)g_realloc(buffer, 2 * n);
-            p = &buffer[path_len - key_len + 1];
-        }
-        p = (gchar *)mempcpy(p, key, key_len);
-        *p++ = COIL_PATH_DELIM;
-        key = va_arg(args, gchar *);
-    } while (key);
-
-    buffer[--path_len] = '\0';
-
-    if (!coil_check_path(buffer, path_len, error)) {
-        g_free(buffer);
-        return NULL;
+    res = coil_path_take_string(str, len);
+/*    if (COIL_PATH_IS_ABSOLUTE(a) && a->hash > 0) {
+        res->hash = hash_relative(a->hash, b->str, b->len);
     }
-
-    key = &buffer[path_len - key_len];
-
-    return coil_path_take_strings(buffer, path_len,
-            (gchar *)key, (guint8)key_len,
-            COIL_STATIC_KEY);
+*/
+    return res;
 }
 
-COIL_API(CoilPath *)
-coil_build_path(GError **error, const gchar *first_key, ...)
-{
-    g_return_val_if_fail(first_key, NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
-
-    CoilPath *result;
-    va_list args;
-
-    va_start(args, first_key);
-    result = coil_build_path_valist(error, first_key, args);
-    va_end(args);
-
-    return result;
- }
-
+/*
+ * coil_validate_path_len:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @Returns: %TRUE if @str is a valid path string
+ *
+ * Returns %TRUE if @str is a valid path string
+ */
 COIL_API(gboolean)
-coil_validate_path_len(const gchar *path, guint path_len)
+coil_validate_path_len(const gchar *str, guint len)
 {
     static GRegex *path_regex = NULL;
 
-    g_return_val_if_fail(path != NULL, FALSE);
+    g_return_val_if_fail(str != NULL, FALSE);
 
     if (G_UNLIKELY(!path_regex)) {
         path_regex = g_regex_new("^"COIL_PATH_REGEX"$",
                 G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY, NULL);
     }
-    return g_regex_match_full(path_regex, path, path_len,
-            0, 0, NULL, NULL);
+    return g_regex_match_full(path_regex, str, len, 0, 0, NULL, NULL);
 }
 
+/*
+ * coil_validate_path:
+ * @str: a nul-terminated path string
+ * @Returns: %TRUE if @str is a valid path string
+ *
+ * Returns %TRUE if @str is a valid path string
+ */
 COIL_API(gboolean)
-coil_validate_path(const gchar *path)
+coil_validate_path(const gchar *str)
 {
-    return coil_validate_path_len(path, strlen(path));
+    return coil_validate_path_len(str, strlen(str));
 }
 
+/*
+ * coil_validate_key_len:
+ * @str: a nul-termianted key string
+ * @len: the length of @str
+ * @Returns: %TRUE if @str is a valid key
+ *
+ * Returns %TRUE if @str is a valid key
+ */
 COIL_API(gboolean)
-coil_validate_key_len(const gchar *key, guint key_len)
+coil_validate_key_len(const gchar *str, guint len)
 {
     static GRegex *key_regex = NULL;
 
-    g_return_val_if_fail(key, FALSE);
+    g_return_val_if_fail(str, FALSE);
 
     if (G_UNLIKELY(!key_regex)) {
         key_regex = g_regex_new("^"COIL_KEY_REGEX"$",
                 G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY, NULL);
     }
-    return g_regex_match_full(key_regex, key, key_len,
-            0, 0, NULL, NULL);
+    return g_regex_match_full(key_regex, str, len, 0, 0, NULL, NULL);
 }
 
+/*
+ * coil_validate_key:
+ * @str: a nul-terminated key string
+ * @Returns: %TRUE if @str is a valid key
+ *
+ * Returns %TRUE if @str is a valid key
+ */
 COIL_API(gboolean)
-coil_validate_key(const gchar *key)
+coil_validate_key(const gchar *str)
 {
-    return coil_validate_key_len(key, strlen(key));
+    return coil_validate_key_len(str, strlen(str));
 }
 
-
+/*
+ * coil_check_key:
+ * @str: a nul-terminated key string
+ * @len: the length of @str
+ * @Returns: %FALSE with an error set if @str is an invalid key
+ *
+ * Returns %FALSE with an error set if @str is an invalid key.
+ */
 COIL_API(gboolean)
-coil_check_key(const gchar *key, guint key_len, GError **error)
+coil_check_key(const gchar *str, guint len, GError **error)
 {
-    g_return_val_if_fail(key, FALSE);
-    g_return_val_if_fail(key_len, FALSE);
+    g_return_val_if_fail(str, FALSE);
+    g_return_val_if_fail(len, FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-    if (key_len > (COIL_PATH_LEN - COIL_ROOT_PATH_LEN - 1)) {
-        key_length_error(key, key_len, error);
+    if (len > (COIL_PATH_LEN - COIL_ROOT_PATH_LEN - 1)) {
+        key_length_error(str, len, error);
         return FALSE;
     }
-    if (!coil_validate_key_len(key, key_len)) {
+    if (!coil_validate_key_len(str, len)) {
         g_set_error(error, COIL_ERROR, COIL_ERROR_KEY,
                 "The key '%.*s' is invalid or contains invalid characters",
-                key_len, key);
+                len, str);
         return FALSE;
     }
     return TRUE;
 }
 
+/*
+ * coil_check_path:
+ * @str: a nul-terminated path string
+ * @len: the length of @str
+ * @Returns: %FALSE with an error set if @str is an invalid path.
+ *
+ * Returns %FALSE with an error set if @str is an invalid path.
+ */
 COIL_API(gboolean)
-coil_check_path(const gchar *path, guint path_len, GError **error)
+coil_check_path(const gchar *str, guint len, GError **error)
 {
-    g_return_val_if_fail(path, FALSE);
-    g_return_val_if_fail(path_len, FALSE);
+    g_return_val_if_fail(str, FALSE);
+    g_return_val_if_fail(len, FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
-
-    if (path_len > COIL_PATH_LEN) {
-        path_length_error(path, path_len, error);
-        return FALSE;
-    }
-    if (!coil_validate_path_len(path, path_len)) {
-        g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
-                "The path '%.*s' is invalid or contains invalid characters.",
-                path_len, path);
-        return FALSE;
-    }
-    return TRUE;
-}
-
-COIL_API(gboolean)
-coil_path_change_container(CoilPath **path_ptr,
-        CoilPath *container, GError **error)
-{
-    g_return_val_if_fail(path_ptr && *path_ptr, FALSE);
-    g_return_val_if_fail(container, FALSE);
-    g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(container), FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
-
-    CoilPath *path;
-    guint len;
-    gchar *p;
-
-    path = *path_ptr;
-    len = container->len + path->key_len + 1;
 
     if (len > COIL_PATH_LEN) {
-        if (error) {
-            /* quickly make a path to show in the error message */
-            p = g_strjoin(".", container->str, path->key, NULL);
-            path_length_error(p, len, error);
-            g_free(p);
-        }
+        path_length_error(str, len, error);
         return FALSE;
     }
-
-    g_return_val_if_fail(path != container, FALSE);
-    g_return_val_if_fail(!COIL_PATH_IS_ROOT(path), FALSE);
-    g_return_val_if_fail(!COIL_PATH_IS_BACKREF(path), FALSE);
-    g_return_val_if_fail(path->key && path->key_len, FALSE);
-
-    if (path->ref_count > 1 || path->flags & COIL_STATIC_PATH) {
-        CoilPath *old = path;
-
-        path = path_alloc();
-        path->str = g_new(gchar, len + 1);
-
-        p = mempcpy(path->str, container->str, container->len);
-        *p++ = COIL_PATH_DELIM;
-
-        path->key = p;
-        path->key_len = old->key_len;
-
-        p = mempcpy(p, old->key, old->key_len);
-        *p = '\0';
-
-        coil_path_unref(old);
-        *path_ptr = path;
+    if (!coil_validate_path_len(str, len)) {
+        g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
+                "The str '%.*s' is invalid or contains invalid characters.",
+                len, str);
+        return FALSE;
     }
-    else {
-        if (len > path->len) {
-            path->str = g_realloc(path->str, len + 1);
-        }
-        if (path->flags & COIL_STATIC_KEY) {
-            p = path->str + container->len;
-            path->key = (gchar *)memmove(p + 1, path->key, path->key_len);
-            *p = COIL_PATH_DELIM;
-            memcpy(path->str, container->str, container->len);
-        }
-        else {
-            gchar *key;
-
-            p = mempcpy(path->str, container->str, container->len);
-            *p++ = COIL_PATH_DELIM;
-            key = p;
-            p = mempcpy(p, path->key, path->key_len);
-            *p = '\0';
-
-            g_free(path->key);
-            path->key = key;
-        }
-    }
-    path->str[len] = '\0';
-    path->len = len;
-    path->hash = hash_relative_path(container->hash,
-            path->str + container->len, path->len - container->len);
-    path->flags |= COIL_PATH_IS_ABSOLUTE | COIL_STATIC_KEY;
     return TRUE;
 }
 
+/* coil_path_resolve:
+ * @path: a #CoilPath object
+ * @container: a #CoilPath object
+ *
+ * Returns a new #CoilPath object using @container as the starting point to
+ * resolve relative path @path.
+ */
 COIL_API(CoilPath *)
 coil_path_resolve(CoilPath *path, CoilPath *container, GError **error)
 {
-    g_return_val_if_fail(path && path->str && path->len, NULL);
-    g_return_val_if_fail(container && container->str && container->len, NULL);
+    g_return_val_if_fail(path, NULL);
+    g_return_val_if_fail(container, NULL);
     g_return_val_if_fail(path != container, NULL);
     g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-    CoilPath *res;
-    const gchar *suffix, *end;
-    gchar *p;
-    guint hash = 0, container_len, suffix_len, path_len;
+    gchar *suffix, *end, *str, *p;
+    guint container_len, suffix_len, path_len;
 
-    if (COIL_PATH_IS_ABSOLUTE(path)) {
-        return coil_path_ref((CoilPath *)path);
-    }
     if (COIL_PATH_IS_RELATIVE(container)) {
         g_error("Error resolving path '%s', "
                 "Prefix path argument '%s', must be an absolute path.",
                 path->str, container->str);
     }
-
+    if (COIL_PATH_IS_ABSOLUTE(path)) {
+        return coil_path_ref(path);
+    }
+    if (!COIL_PATH_IS_BACKREF(path)) {
+        return coil_path_concat(container, path, error);
+    }
     suffix = path->str;
     end = container->str + container->len;
-
-    if (*suffix == COIL_PATH_DELIM) {
-        while (*++suffix == COIL_PATH_DELIM) {
-            while (*--end != COIL_PATH_DELIM) {
-                if (G_UNLIKELY(end < container->str)) {
-                    coil_path_error(error, path,
-                            "reference passed root while resolving "
-                            "against '%s'.", container->str);
-                    return NULL;
-                }
+    while (*++suffix == COIL_PATH_DELIM) {
+        while (*--end != COIL_PATH_DELIM) {
+            if (G_UNLIKELY(end < container->str)) {
+                coil_path_error(error, path,
+                        "reference passed root while resolving "
+                        "against '%s'.", container->str);
+                return NULL;
             }
         }
-        container_len = end - container->str;
-        suffix_len = path->len - (suffix - path->str);
-        path_len = (suffix_len) ? container_len + suffix_len + 1 : container_len;
     }
-    else {
-        container_len = container->len;
-        suffix_len = path->len;
-        path_len = container_len + suffix_len + 1;
-        hash = hash_relative_path(container->hash, suffix, suffix_len);
-    }
+    container_len = end - container->str;
+    suffix_len = path->len - (suffix - path->str);
+    path_len = (suffix_len) ? container_len + suffix_len + 1 : container_len;
 
     if (G_UNLIKELY(path_len > COIL_PATH_LEN)) {
-        p = g_strjoin(COIL_PATH_DELIM_S, container->str, suffix, NULL);
+        gchar *p = g_strjoin(COIL_PATH_DELIM_S, container->str, suffix, NULL);
         path_length_error(p, path_len, error);
         g_free(p);
         return NULL;
     }
-    else if (G_UNLIKELY(path_len == 0)) {
-        coil_path_error(error, path,
-                "references must contain at least one key "
-                "ie. '..a'. Where as just '%c' are not valid.",
-                COIL_PATH_DELIM);
-        return NULL;
-    }
-    if (path_len == COIL_ROOT_PATH_LEN) {
+    g_assert(path_len > 0);
+    if (path_len == COIL_ROOT_PATH_LEN && suffix_len == 0 &&
+            memcmp(container->str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
         return coil_path_ref(CoilRootPath);
     }
 
-    res = path_alloc();
-    res->str = g_new(gchar, path_len + 1);
-
-    p = mempcpy(res->str, container->str, container_len);
+    str = g_new(gchar, path_len + 1);
+    p = mempcpy(str, container->str, container_len);
     *p++ = COIL_PATH_DELIM;
-    memcpy(p, suffix, suffix_len);
+    p = mempcpy(p, suffix, suffix_len);
+    *p = '\0';
 
-    res->key = &res->str[path_len - path->key_len];
-    res->str[path_len] = 0;
-    res->len = path_len;
-    res->key_len = path->key_len;
-    res->flags = COIL_PATH_IS_ABSOLUTE | COIL_STATIC_KEY;
-
-    if (hash)
-        res->hash = hash;
-    else
-        res->hash = hash_absolute_path(res->str, res->len);
-
-    return res;
+    return coil_path_take_string_with_keyx(str, path_len,
+            &str[path_len - path->key_len], path->key_len,
+            COIL_STATIC_KEY | COIL_PATH_IS_ABSOLUTE);
 }
 
+/*
+ * coil_path_resolve_inplace:
+ * @path: a pointer to a #CoilPath object
+ * @container: a #CoilPath object
+ *
+ * Resolves a @path inplace using @container as the starting point.
+ * See: #coil_path_resolve
+ */
 COIL_API(gboolean)
-coil_path_resolve_into(CoilPath **path, CoilPath *context, GError **error)
+coil_path_resolve_inplace(CoilPath **path, CoilPath *container, GError **error)
 {
     g_return_val_if_fail(path || *path, FALSE);
-    g_return_val_if_fail(context, FALSE);
+    g_return_val_if_fail(container, FALSE);
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
-    CoilPath *abspath = coil_path_resolve(*path, context, error);
-    if (abspath == NULL)
-        return FALSE;
+    CoilPath *abspath;
 
+    abspath = coil_path_resolve(*path, container, error);
+    if (abspath == NULL) {
+        return FALSE;
+    }
     coil_path_unref(*path);
     *path = abspath;
-
     return TRUE;
 }
 
-COIL_API(CoilPath *) /* new reference */
-coil_path_relativize(CoilPath *target, /* absolute path */
-                     CoilPath *container) /* absolute path */
+/*
+ * coil_path_relativize:
+ * @target: an #CoilPath object that contains an absolute path
+ * @container: a #CoilPath object that contains an absolute path
+ *
+ * Returns a new relative path to @target starting from @container
+ */
+COIL_API(CoilPath *)
+coil_path_relativize(CoilPath *target, CoilPath *container)
 {
     g_return_val_if_fail(target, NULL);
     g_return_val_if_fail(container, NULL);
@@ -661,7 +818,7 @@ coil_path_relativize(CoilPath *target, /* absolute path */
     const gchar *delim, *prefix, *path;
 
     if (COIL_PATH_IS_RELATIVE(target) || COIL_PATH_IS_ROOT(target)) {
-        return coil_path_ref((CoilPath *)target);
+        return coil_path_ref(target);
     }
     relative = path_alloc();
     /* both paths are absolute, start checking after @root */
@@ -718,6 +875,7 @@ backref:
     return relative;
 }
 
+/* XXX: maybe remove */
 COIL_API(gboolean)
 coil_path_has_container(CoilPath *path, CoilPath *container,
                         gboolean strict)
@@ -740,6 +898,16 @@ coil_path_has_container(CoilPath *path, CoilPath *container,
         memcmp(path->str, container->str, container->len) == 0;
 }
 
+/*
+ * coil_path_pop:
+ * @path: a #CoilPath object
+ * @i: the number of keys to pop. can be negative.
+ * @Returns: a new #CoilPath object
+ *
+ * Returns a new #CoilPath object with @i keys from the beginning of @path
+ * if @i is positive. Otherwise returns a new #CoilPath with @i keys
+ * removed from the end of @path.
+ */
 COIL_API(CoilPath *)
 coil_path_pop(CoilPath *path, int i)
 {
@@ -748,6 +916,9 @@ coil_path_pop(CoilPath *path, int i)
     char *p;
 
     if (i >= 0) {
+        if (COIL_PATH_IS_ABSOLUTE(path) && i == 0) {
+            return coil_path_ref(CoilRootPath);
+        }
         do {
             p = memchr(path->str, COIL_PATH_DELIM, path->len);
             if (p == NULL) {
@@ -757,6 +928,15 @@ coil_path_pop(CoilPath *path, int i)
         } while (--i > 0);
     }
     else {
+        if (i == -1) {
+            if (COIL_PATH_IS_RELATIVE(path)) {
+                return coil_path_new_len(path->key, path->key_len, NULL);
+            }
+            else {
+                return coil_path_new_len(path->str,
+                        path->len - path->key_len - 1, NULL);
+            }
+        }
         while (i++ < 0) {
             p = memrchr(path->str, COIL_PATH_DELIM, path->len);
             if (p == NULL) {
@@ -766,5 +946,19 @@ coil_path_pop(CoilPath *path, int i)
         }
     }
 
-    return coil_path_new_len(path->str, p - path->str);
+    return coil_path_new_len(path->str, p - path->str, NULL);
+}
+
+COIL_API(gboolean)
+coil_path_pop_inplace(CoilPath **path, int i)
+{
+    g_return_val_if_fail(path != NULL && *path != NULL, FALSE);
+
+    CoilPath *res = coil_path_pop(*path, i);
+    if (res == NULL) {
+        return FALSE;
+    }
+    coil_path_unref(*path);
+    *path = res;
+    return TRUE;
 }

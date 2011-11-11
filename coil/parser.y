@@ -13,6 +13,7 @@
 #include "path.h"
 #include "list.h"
 #include "struct.h"
+#include "struct-private.h"
 #include "include.h"
 #include "link.h"
 #include "expression.h"
@@ -55,7 +56,7 @@ static void
 collect_parse_errors(GError     **error,
                      CoilParser  *const parser,
                      gboolean     number_errors)
-    {
+{
     g_return_if_fail(parser);
     g_return_if_fail(error == NULL || *error == NULL);
 
@@ -107,7 +108,7 @@ handle_undefined_prototypes(CoilParser *parser)
         CoilObject *prototype = COIL_OBJECT(prototypes->data);
 
         if (!coil_struct_is_prototype(prototype->container)) {
-            coil_struct_expand(prototype->container, &parser->error);
+            coil_object_expand(prototype->container, NULL, FALSE, &parser->error);
         }
         if (G_UNLIKELY(parser->error)) {
             parser_handle_error(parser);
@@ -135,8 +136,8 @@ handle_undefined_prototypes(CoilParser *parser)
             lp->data = prototype->path;
             /* cast the prototype to an empty struct
                to allow continue despite errors */
-            CoilStructFunc apply_fn = (CoilStructFunc)make_prototype_final;
-            coil_struct_foreach_ancestor(prototype, TRUE, apply_fn, NULL);
+            coil_struct_foreach_ancestor(prototype, TRUE,
+                (CoilStructFunc)finalize_prototype, NULL);
         }
 
         /* sort by path and build error message */
@@ -169,12 +170,12 @@ static gboolean
 parser_push_container(CoilParser *parser)
 {
     CoilObject *new, *container = PEEK_CONTAINER(parser);
-    const CoilPath *path = parser->path;
 
-    new = coil_struct_create_containers_fast(container, path->str, path->len,
-                                             FALSE, FALSE, &parser->error);
-    if (new == NULL)
+    new = _coil_create_containers(container, parser->path,
+            FALSE, FALSE, &parser->error);
+    if (new == NULL) {
         return FALSE;
+    }
 
     coil_object_set(new, "accumulate", TRUE, NULL);
     PUSH_CONTAINER(parser, new);
@@ -252,7 +253,7 @@ parser_make_path_from_string(CoilParser *parser,
         return NULL;
     }
 
-    path = coil_path_take_strings(gstring->str, gstring->len, NULL, 0, 0);
+    path = coil_path_take_string(gstring->str, gstring->len);
     g_string_free(gstring, FALSE);
     return path;
 }
@@ -389,8 +390,10 @@ deletion
 
         if (!coil_struct_mark_deleted_path(container, $2,
                 FALSE, &YYCTX->error)) {
+            coil_path_unref($2);
             YYERROR;
         }
+        coil_path_unref($2);
     }
 ;
 
@@ -404,7 +407,9 @@ assignment_path
 
         if (YYCTX->path) {
             coil_path_unref(YYCTX->path);
+            YYCTX->path = NULL;
         }
+
         /* resolve path to prevent doing this more than once in other places */
         YYCTX->path = coil_path_resolve($1, container->path, &YYCTX->error);
         coil_path_unref($1);
@@ -422,9 +427,11 @@ assignment_value
 
         if (!coil_struct_insert_path(container, YYCTX->path, $1,
                 FALSE, &YYCTX->error)) {
+            coil_path_unref(YYCTX->path);
             YYCTX->path = NULL;
             YYERROR;
         }
+        coil_path_unref(YYCTX->path);
         YYCTX->path = NULL;
     }
 ;

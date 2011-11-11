@@ -32,12 +32,6 @@ struct _StructEntry
 
 G_BEGIN_DECLS
 
-guint
-hash_relative_path(guint container_hash, const gchar *path, guint8 path_len);
-
-guint
-hash_absolute_path(const gchar *path, guint8 path_len);
-
 StructTable *
 struct_table_new_sized(gsize size);
 

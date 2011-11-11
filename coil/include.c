@@ -385,7 +385,7 @@ process_import(CoilObject *o, GValue *import, GError **error)
         goto err;
 
     /* lookup the path in the namespace */
-    value = coil_struct_lookup_path(namespace, path, FALSE, &internal_error);
+    value = coil_struct_lookupx(namespace, path, FALSE, &internal_error);
     if (value == NULL) {
         if (internal_error == NULL) {
             coil_include_error(error, o,

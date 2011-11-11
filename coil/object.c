@@ -224,15 +224,15 @@ coil_object_set_property(GObject *object,
             }
             break;
         case PROP_LOCATION: {
-            /* TODO(jcon): refactor */
-            CoilLocation *loc;
+            CoilLocation *loc = (CoilLocation *)g_value_get_pointer(value);
             if (self->location.filepath) {
                 g_free(self->location.filepath);
             }
-            loc = (CoilLocation *)g_value_get_pointer(value);
             if (loc) {
                 self->location = *((CoilLocation *)loc);
-                self->location.filepath = g_strdup(loc->filepath);
+                if (loc->filepath) {
+                    self->location.filepath = g_strdup(loc->filepath);
+                }
             }
             break;
         }
@@ -400,16 +400,29 @@ coil_object_class_init(CoilObjectClass *klass)
      */
     g_object_class_install_property(gobject_class, PROP_CONTAINER,
             g_param_spec_object("container",
-                "The container of this struct.",
-                "set/get the container of this struct.",
+                "The container of the object.",
+                "set/get the container of this object.",
                 COIL_TYPE_STRUCT,
-                G_PARAM_CONSTRUCT |
-                G_PARAM_READWRITE));
+                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+
+    g_object_class_install_property(gobject_class, PROP_ROOT,
+            g_param_spec_object("root",
+                "The root of this object.",
+                "set/get the container of this object.",
+                COIL_TYPE_STRUCT,
+                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
 
     g_object_class_install_property(gobject_class, PROP_LOCATION,
             g_param_spec_pointer("location",
                 "Line, column, file of this instance.",
                 "get/set the location.",
-                G_PARAM_READWRITE));
+                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+
+    g_object_class_install_property(gobject_class, PROP_PATH,
+            g_param_spec_boxed("path",
+                "The path of the object",
+                "set/get the path of this object",
+                COIL_TYPE_PATH,
+                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
 }
 

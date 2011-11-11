@@ -171,13 +171,13 @@ coil_value_build_string(const GValue *value,
     g_return_if_fail(format);
     g_return_if_fail(error == NULL || *error == NULL);
 
-    const GType type;
+    GType type;
+
     if (format->options & FORCE_EXPAND &&
-        G_VALUE_HOLDS(value, COIL_TYPE_EXPANDABLE) &&
+        G_VALUE_HOLDS(value, COIL_TYPE_OBJECT) &&
         !coil_expand_value(value, &value, TRUE, error)) {
         return;
     }
-
     type = G_VALUE_TYPE(value);
     if (G_TYPE_IS_FUNDAMENTAL(type)) {
         if (type == G_TYPE_BOOLEAN) {
@@ -199,7 +199,7 @@ coil_value_build_string(const GValue *value,
         }
         goto transform;
     }
-    if (g_type_is_a(type, COIL_TYPE_EXPANDABLE)) {
+    if (g_type_is_a(type, COIL_TYPE_OBJECT)) {
         CoilObject *object = COIL_OBJECT(g_value_get_object(value));
         coil_object_build_string(object, buffer, format, error);
         return;
@@ -217,7 +217,7 @@ coil_value_build_string(const GValue *value,
         }
         if (type == COIL_TYPE_PATH) {
             const CoilPath *path = (CoilPath *)g_value_get_boxed(value);
-            g_string_append_len(buffer, path->path, path->path_len);
+            g_string_append_len(buffer, path->str, path->len);
             return;
         }
     }
@@ -407,7 +407,7 @@ value_compare_as_fundamental(const GValue *v1, const GValue *v2, GError **error)
             if (t1 == COIL_TYPE_NONE) {
                 return 0;
             }
-            if (g_type_is_a(t1, COIL_TYPE_EXPANDABLE)) {
+            if (g_type_is_a(t1, COIL_TYPE_OBJECT)) {
                 GObject *o1 = g_value_get_object(v1);
                 GObject *o2 = g_value_get_object(v2);
                 return !(o1 == o2 || coil_object_equals(o1, o2, error));
@@ -460,8 +460,8 @@ value_compare_as_string(const GValue *v1, const GValue *v2, GError **error)
     }
     else if (g_value_type_transformable(t1, G_TYPE_STRING) &&
         g_value_type_transformable(t2, G_TYPE_STRING)) {
-        s1 = g_strdup_value_contents(v1);
-        s2 = g_strdup_value_contents(v2);
+        gchar *s1 = g_strdup_value_contents(v1);
+        gchar *s2 = g_strdup_value_contents(v2);
         result = strcmp(s1, s2);
         g_free(s1);
         g_free(s2);
@@ -492,11 +492,11 @@ start:
         return value_compare_as_fundamental(v1, v2, error);
 
     if (!expanded) {
-        if (g_type_is_a(t1, COIL_TYPE_EXPANDABLE) &&
+        if (g_type_is_a(t1, COIL_TYPE_OBJECT) &&
                 !coil_expand_value(v1, &v1, TRUE, error)) {
             return -1;
         }
-        if (g_type_is_a(t2, COIL_TYPE_EXPANDABLE) &&
+        if (g_type_is_a(t2, COIL_TYPE_OBJECT) &&
                 !coil_expand_value(v2, &v2, TRUE, error)) {
             return -1;
         }

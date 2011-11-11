@@ -25,16 +25,17 @@ GQuark coil_error_quark(void)
 static char *
 location_prefix(CoilLocation *location)
 {
-    int line = location->first_line;
-    const char *filepath = location->filepath;
+    if (location) {
+        int line = location->first_line;
+        const char *filepath = location->filepath;
 
-    if (line > 0 && filepath != NULL)
-        return g_strdup_printf("line %d in file %s", line, filepath);
-    else if (line > 0)
-        return g_strdup_printf("line %d", line);
-    else if (filepath != NULL)
-        return g_strdup_printf("file %s", filepath);
-
+        if (line > 0 && filepath != NULL)
+            return g_strdup_printf("line %d in file %s: ", line, filepath);
+        else if (line > 0)
+            return g_strdup_printf("line %d: ", line);
+        else if (filepath != NULL)
+            return g_strdup_printf("file %s: ", filepath);
+    }
     return g_strndup("", 0);
 }
 

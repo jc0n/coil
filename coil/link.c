@@ -14,30 +14,11 @@
 
 G_DEFINE_TYPE(CoilLink, coil_link, COIL_TYPE_OBJECT);
 
-#define COIL_LINK_GET_PRIVATE(lnk) \
-  (G_TYPE_INSTANCE_GET_PRIVATE ((lnk), COIL_TYPE_LINK, CoilLinkPrivate))
-
-struct _CoilLinkPrivate
-{
-    CoilPath   *path;
-};
-
 typedef enum
 {
     PROP_0,
-    PROP_PATH,
     PROP_TARGET_PATH,
 } LinkProperties;
-
-const CoilPath *
-coil_link_get_path(const CoilLink *self)
-{
-    g_return_val_if_fail(COIL_IS_LINK(self), NULL);
-
-    CoilLinkPrivate *const priv = self->priv;
-
-    return priv->path;
-}
 
 static gboolean
 link_is_expanded(CoilObject *link)
@@ -56,10 +37,10 @@ link_expand(CoilObject *o, const GValue **return_value, GError **error)
     const GValue *value;
     GError *internal_error = NULL;
 
-    if (!coil_path_resolve_into(&self->target_path, container->path, error)) {
+    if (!coil_path_resolve_inplace(&self->target_path, container->path, error)) {
         goto error;
     }
-    value = coil_struct_lookup_path(container, self->target_path,
+    value = coil_struct_lookupx(container, self->target_path,
             FALSE, &internal_error);
 
     if (G_UNLIKELY(value == NULL)) {
@@ -113,7 +94,7 @@ link_copy(CoilObject *obj, const gchar *first_property_name,
 
             path = coil_path_relativize(target_path, old_container->path);
             coil_object_set(copy, "target_path", path, NULL);
-            coil_path_unref(target_path);
+            coil_path_unref(path);
         }
     }
 #endif
@@ -216,14 +197,10 @@ coil_link_new_valist(const gchar *first_property_name,
 {
     CoilObject *object;
     CoilLink *self;
-    CoilLinkPrivate *priv;
 
     object = COIL_OBJECT(g_object_new_valist(COIL_TYPE_LINK,
                 first_property_name, properties));
     self = COIL_LINK(object);
-    priv = self->priv;
-
-    g_assert(priv);
 
     if (self->target_path == NULL) {
         g_error("Link must be constructed with a path.");
@@ -238,14 +215,11 @@ coil_link_new_valist(const gchar *first_property_name,
 static void
 coil_link_finalize(GObject *object)
 {
-    CoilLink        *const self = COIL_LINK(object);
-    CoilLinkPrivate *const priv = self->priv;
+    CoilLink *self = COIL_LINK(object);
 
-    if (self->target_path)
+    if (self->target_path) {
         coil_path_unref(self->target_path);
-
-    if (priv->path)
-        coil_path_unref(priv->path);
+    }
 
     G_OBJECT_CLASS(coil_link_parent_class)->finalize(object);
 }
@@ -256,19 +230,13 @@ coil_link_set_property(GObject      *object,
                        const GValue *value,
                        GParamSpec   *pspec)
 {
-    CoilLink        *const self = COIL_LINK(object);
-    CoilLinkPrivate *const priv = self->priv;
+    CoilLink *self = COIL_LINK(object);
 
     switch (property_id) {
         case PROP_TARGET_PATH:
             if (self->target_path)
                 coil_path_unref(self->target_path);
             self->target_path = g_value_dup_boxed(value);
-            break;
-        case PROP_PATH:
-            if (priv->path)
-                coil_path_unref(priv->path);
-            priv->path = g_value_dup_boxed(value);
             break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
@@ -282,15 +250,11 @@ coil_link_get_property(GObject    *object,
                          GValue     *value,
                          GParamSpec *pspec)
 {
-    CoilLink        *const self = COIL_LINK(object);
-    CoilLinkPrivate *const priv = self->priv;
+    CoilLink *self = COIL_LINK(object);
 
     switch (property_id) {
         case PROP_TARGET_PATH:
             g_value_set_boxed(value, self->target_path);
-            break;
-        case PROP_PATH:
-            g_value_set_boxed(value, priv->path);
             break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
@@ -301,16 +265,13 @@ coil_link_get_property(GObject    *object,
 static void
 coil_link_init(CoilLink *self)
 {
-    self->priv = COIL_LINK_GET_PRIVATE(self);
 }
 
 static void
 coil_link_class_init(CoilLinkClass *klass)
 {
-    GObjectClass        *gobject_class;
+    GObjectClass *gobject_class;
     CoilObjectClass *object_class;
-
-    g_type_class_add_private(klass, sizeof(CoilLinkPrivate));
 
     gobject_class = G_OBJECT_CLASS(klass);
     object_class = COIL_OBJECT_CLASS(klass);
@@ -333,16 +294,7 @@ coil_link_class_init(CoilLinkClass *klass)
                 G_PARAM_READWRITE |
                 G_PARAM_CONSTRUCT));
 
-    g_object_class_install_property(gobject_class, PROP_PATH,
-            g_param_spec_boxed("path",
-                "path of the link.",
-                "set/get the path of the link.",
-                COIL_TYPE_PATH,
-                G_PARAM_READWRITE |
-                G_PARAM_CONSTRUCT));
-
-    g_value_register_transform_func(COIL_TYPE_LINK,
-            G_TYPE_STRING,
+    g_value_register_transform_func(COIL_TYPE_LINK, G_TYPE_STRING,
             linkval_to_stringval);
 }
 

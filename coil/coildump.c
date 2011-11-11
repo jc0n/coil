@@ -263,27 +263,25 @@ parse_options(int    *argc,
     g_option_context_free(option_context);
 }
 
-static CoilStruct *
+static CoilObject *
 parse_attributes(GError **error)
 {
     g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-    gchar      *buf;
-    CoilStruct *result = NULL;
+    gchar *buf;
+    CoilObject *res = NULL;
 
     if (attributes) {
         buf = g_strjoinv(" ", attributes);
-        result = coil_parse_string(buf, error);
+        res = coil_parse_string(buf, error);
         g_free(buf);
     }
-    return result;
+    return res;
 }
 
 static void
-print_blocks(CoilStruct       *root,
-             GString          *buffer,
-             CoilStringFormat *format,
-             GError          **error)
+print_blocks(CoilObject *root, GString *buffer,
+        CoilStringFormat *format, GError **error)
 {
     g_return_if_fail(COIL_IS_STRUCT(root));
     g_return_if_fail(buffer);
@@ -291,16 +289,16 @@ print_blocks(CoilStruct       *root,
     g_return_if_fail(error == NULL || *error == NULL);
 
     GError *internal_error = NULL;
-    gint    i = 0;
+    gint i = 0;
 
     if (blocks == NULL)
         return;
 
     for (i = 0; blocks[i]; i++) {
         const GValue *value;
-        CoilStruct   *block;
-        const gchar  *path;
-        guint         len;
+        CoilObject *block;
+        const gchar *path;
+        guint len;
 
         g_strstrip(blocks[i]);
 
@@ -312,7 +310,6 @@ print_blocks(CoilStruct       *root,
             g_propagate_error(error, internal_error);
             return;
         }
-
         if (value) {
             if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
                 g_set_error(error, COIL_ERROR, COIL_ERROR_VALUE,
@@ -321,8 +318,8 @@ print_blocks(CoilStruct       *root,
                         path, G_VALUE_TYPE_NAME(value));
                 return;
             }
-            block = COIL_STRUCT(g_value_dup_object(value));
-            coil_struct_build_string(block, buffer, format, &internal_error);
+            block = COIL_OBJECT(g_value_dup_object(value));
+            coil_object_build_string(block, buffer, format, &internal_error);
             if (G_UNLIKELY(internal_error)) {
                 g_object_unref(block);
                 g_propagate_error(error, internal_error);
@@ -334,10 +331,8 @@ print_blocks(CoilStruct       *root,
 }
 
 static void
-print_paths(CoilStruct       *root,
-            GString          *buffer,
-            CoilStringFormat *format,
-            GError          **error)
+print_paths(CoilObject *root, GString *buffer,
+        CoilStringFormat *format, GError **error)
 {
     g_return_if_fail(COIL_IS_STRUCT(root));
     g_return_if_fail(buffer);
@@ -345,13 +340,13 @@ print_paths(CoilStruct       *root,
     g_return_if_fail(error == NULL || *error == NULL);
 
     GError *internal_error = NULL;
-    gint    i = 0;
+    gint i = 0;
 
     if (paths) {
         for (i = 0; paths[i]; i++) {
             const GValue *value;
-            const gchar  *path;
-            guint         len;
+            const gchar *path;
+            guint len;
 
             g_strstrip(paths[i]);
             path = paths[i];
@@ -380,10 +375,8 @@ error:
 }
 
 static void
-print_struct(CoilStruct       *node,
-             GString          *buffer,
-             CoilStringFormat *format,
-             GError          **error)
+print_struct(CoilObject *node, GString *buffer,
+        CoilStringFormat *format, GError **error)
 {
     g_return_if_fail(COIL_IS_STRUCT(node));
     g_return_if_fail(buffer);
@@ -403,7 +396,7 @@ print_struct(CoilStruct       *node,
         goto error;
 
     if (!blocks && !paths) {
-        coil_struct_build_string(node, buffer, format, &internal_error);
+        coil_object_build_string(node, buffer, format, &internal_error);
         if (G_UNLIKELY(internal_error))
             goto error;
     }
@@ -526,11 +519,11 @@ static void
 print_files(void)
 {
     CoilStringFormat format;
-    CoilStruct      *attrs, **nodes;
-    gboolean         overwrite = !no_clobber_attributes;
-    GString         *buffer = g_string_sized_new(8192);
-    GError          *error = NULL;
-    guint            i, nnodes;
+    CoilObject *attrs, **nodes;
+    gboolean overwrite = !no_clobber_attributes;
+    GString *buffer = g_string_sized_new(8192);
+    GError *error = NULL;
+    guint i, nnodes;
 
     init_string_format(&format);
     attrs = parse_attributes(&error);
@@ -539,7 +532,7 @@ print_files(void)
         goto error;
 
     nnodes = g_strv_length(files);
-    nodes = g_new0(CoilStruct *, nnodes);
+    nodes = g_new0(CoilObject *, nnodes);
 
     for (i = 0; i < nnodes; i++) {
         if (strcmp(files[i], "-") == 0)
@@ -560,16 +553,16 @@ print_files(void)
         }
     }
     if (merge_files) {
-        CoilStruct *root = coil_struct_new(NULL, NULL);
+        CoilObject *root = coil_struct_new(NULL, NULL);
         for (i = 0; i < nnodes; i++) {
             if (nodes[i] && !coil_struct_merge(nodes[i], root, &error)) {
-                g_object_unref(root);
+                coil_object_unref(root);
                 goto error;
             }
         }
         if (attrs != NULL &&
             !coil_struct_merge_full(attrs, root, overwrite, FALSE, &error)) {
-            g_object_unref(root);
+            coil_object_unref(root);
             goto error;
         }
         if (expand_all && !coil_struct_expand_items(root, TRUE, &error)) {
@@ -601,9 +594,7 @@ print_files(void)
                 continue;
 
             tree = coil_struct_dependency_tree(nodes[i],
-                    1, COIL_TYPE_INCLUDE,
-                    &error);
-
+                    1, COIL_TYPE_INCLUDE, &error);
             if (G_UNLIKELY(error)) {
                 g_node_destroy(tree);
                 goto error;
@@ -613,7 +604,7 @@ print_files(void)
         }
     }
     if (attrs) {
-        g_object_unref(attrs);
+        coil_object_unref(attrs);
     }
 
 #define FREE_NODES(array, n) \
@@ -629,7 +620,7 @@ print_files(void)
 
 error:
     if (attrs) {
-        g_object_unref(attrs);
+        coil_object_unref(attrs);
     }
     FREE_NODES(nodes, nnodes);
     if (error) {

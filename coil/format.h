@@ -9,7 +9,7 @@
 
 typedef struct _CoilStringFormat CoilStringFormat;
 
-#include "struct.h"
+#include "object.h"
 
 typedef enum
 {
@@ -37,14 +37,12 @@ struct _CoilStringFormat
 {
     CoilStringFormatOptions options;
 
-    guint8                  block_indent;
-    guint8                  brace_indent;
+    guint8 block_indent;
+    guint8 brace_indent;
+    guint multiline_len;
+    guint indent_level;
 
-    guint                   multiline_len;
-
-    guint                   indent_level;
-
-    CoilStruct             *context;
+    CoilObject *context;
 };
 
 extern CoilStringFormat default_string_format;

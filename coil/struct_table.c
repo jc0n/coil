@@ -9,60 +9,9 @@
 #include <string.h>
 
 #include "struct.h"
+#include "struct_table.h"
 
 #define DEFAULT_MAX 255 // max number of buckets (2^n - 1)
-
-#define HASH_BYTE(hash, byte) hash = (hash * 33 + (byte))
-
-static inline guint
-hash_bytes(guint hash, const guchar *byte, guint n)
-{
-    g_return_val_if_fail(byte, 0);
-    g_return_val_if_fail(*byte, 0);
-    g_return_val_if_fail(n > 0, 0);
-
-    do {
-        HASH_BYTE(hash, *byte++);
-    } while (--n > 0);
-
-    return hash;
-}
-
-inline guint
-hash_absolute_path(const gchar *path, guint8 path_len)
-{
-    g_return_val_if_fail(path, 0);
-    g_return_val_if_fail(*path == '@', 0); /* must be absolute */
-    g_return_val_if_fail(path_len > 0, 0);
-
-    path += COIL_ROOT_PATH_LEN;
-    path_len -= COIL_ROOT_PATH_LEN;
-
-    if (path_len > 0) {
-        return hash_bytes(0, (guchar *)path, path_len);
-    }
-    return 0;
-}
-
-inline guint
-hash_relative_path(guint container_hash, const gchar *path, guint8 path_len)
-{
-    g_return_val_if_fail(path, 0);
-    g_return_val_if_fail(*path, 0);
-    g_return_val_if_fail(*path != '@', 0);
-    g_return_val_if_fail(path_len > 0, 0);
-
-    if (path[0] != COIL_PATH_DELIM) {
-        HASH_BYTE(container_hash, COIL_PATH_DELIM);
-    }
-    return hash_bytes(container_hash, (guchar *)path, path_len);
-}
-
-inline guint
-hash_path(CoilPath *path)
-{
-    return hash_absolute_path(path->str, path->len);
-}
 
 /**
  * Compute next highest power of 2 minus 1
@@ -70,7 +19,7 @@ hash_path(CoilPath *path)
  * Satisfies requirement for table max size to be 2^n - 1
  */
 static guint
-normalize_size(guint size)
+nearest_binpow(guint size)
 {
     g_return_val_if_fail(size > 0, 0);
 
@@ -94,7 +43,7 @@ struct_table_new_sized(gsize size)
     StructTable *table;
 
     table = g_new(StructTable, 1);
-    table->max = normalize_size(size); /* max always (2^n)-1 */
+    table->max = nearest_binpow(size); /* max always (2^n)-1 */
     table->bucket = g_new0(StructEntry *, table->max + 1);
     table->ref_count = 1;
     table->size = 0;
@@ -113,7 +62,7 @@ do_resize(StructTable *table, guint max)
 {
     g_return_if_fail(table);
     g_return_if_fail(max > 0);
-    g_return_if_fail(max == normalize_size(max));
+    g_return_if_fail(max == nearest_binpow(max));
 
     guint n;
     StructEntry *entry, *next, **old, **new;
@@ -126,7 +75,11 @@ do_resize(StructTable *table, guint max)
         for (n = table->max, old = &table->bucket[n];
              n-- > 0; old = &table->bucket[n]) {
             for (entry = *old; entry; entry = next) {
-                guint idx = entry->path->hash & max; /* XXX: refactor */
+                guint idx, hash;
+
+                hash = coil_path_get_hash(entry->path);
+                idx = hash & max;
+
                 next = entry->next;
                 entry->next = new[idx];
                 new[idx] = entry;
@@ -152,7 +105,7 @@ struct_table_resize(StructTable *table, guint size)
     g_return_if_fail(table);
     g_return_if_fail(size > 0);
 
-    guint max = normalize_size(size);
+    guint max = nearest_binpow(size);
     do_resize(table, max);
 }
 
@@ -226,7 +179,10 @@ find_bucket(StructTable *table, CoilPath *path)
     g_return_val_if_fail(path, NULL);
 
     StructEntry *entry, **bucket;
-    guint idx = path->hash & table->max;
+    guint hash, idx;
+
+    hash = coil_path_get_hash(path);
+    idx = hash & table->max;
 
     for (bucket = &table->bucket[idx], entry = *bucket; entry;
             bucket = &entry->next, entry = *bucket) {
@@ -244,7 +200,10 @@ find_bucket_with_entry(StructTable *table, StructEntry *entry)
     g_return_val_if_fail(entry, NULL);
 
     StructEntry *e, **bucket;
-    guint idx = entry->path->hash & table->max; /* XXX: refactor */
+    guint idx, hash;
+
+    hash = coil_path_get_hash(entry->path);
+    idx = hash & table->max;
 
     for (bucket = &table->bucket[idx], e = *bucket; e;
             bucket = &e->next, e = *bucket) {
@@ -268,6 +227,7 @@ table_recalibrate(StructTable *table)
     }
 }
 
+/* XXX: steals value (this should change) */
 StructEntry *
 struct_table_insert(StructTable *table, CoilPath *path, GValue *value)
 {
@@ -285,7 +245,7 @@ struct_table_insert(StructTable *table, CoilPath *path, GValue *value)
         clear_entry(*bucket);
     }
     entry = *bucket;
-    entry->path = path;
+    entry->path = coil_path_ref(path);
     entry->value = value;
 
     table->size++;
@@ -298,7 +258,6 @@ struct_table_insert_entry(StructTable *table, StructEntry *entry)
 {
     g_return_if_fail(table);
     g_return_if_fail(entry);
-    g_return_if_fail(entry->hash);
     g_return_if_fail(entry->path);
 
     StructEntry **bucket;

@@ -7,7 +7,6 @@
 #define __COIL_OBJECT_H
 
 #include "path.h"
-#include "value.h"
 
 #define COIL_TYPE_OBJECT          \
         (coil_object_get_type())
@@ -36,6 +35,8 @@
 typedef struct _CoilObject         CoilObject;
 typedef struct _CoilObjectClass    CoilObjectClass;
 typedef struct _CoilObjectPrivate  CoilObjectPrivate;
+
+#include "value.h"
 
 struct _CoilObject
 {
@@ -67,6 +68,7 @@ struct _CoilObjectClass
     void  (*build_string) (CoilObject *self, GString *buffer,
             CoilStringFormat *format, GError **error);
 };
+
 
 G_BEGIN_DECLS
 

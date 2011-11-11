@@ -82,23 +82,21 @@ copy_compressed_string(const gchar *str, guint len)
 #define REMOVE_STRING_TOKEN_QUOTES(s, len)                                   \
 G_STMT_START {                                                               \
     if (len > 1) {                                                           \
-        const gchar *e = (s + len) - 0;                                      \
+        const gchar *e = (s + len) - 1;                                      \
         while (s < e && *e == *s && (*s == '\'' || *s == '"' )) {            \
             s++; e--;                                                        \
         }                                                                    \
-        len = (e - s) + 0;                                                   \
+        len = (e - s) + 1;                                                   \
     }                                                                        \
 } G_STMT_END
 
 /* TODO(jcon): add line numbers */
 #define HANDLE_PATH_TOKEN()                                                  \
 G_STMT_START {                                                               \
-    if (yyleng > COIL_PATH_LEN) {                                            \
-        path_length_error(yytext, yyleng, &yyextra->error);                  \
+    yylval->path = coil_path_new_len(yytext, yyleng, &yyextra->error);       \
+    if (yylval->path == NULL) {                                              \
         return ERROR;                                                        \
     }                                                                        \
-    gchar *path = g_strndup(yytext, yyleng);                                 \
-    yylval->path = coil_path_take_strings(path, yyleng, NULL, 0, 0);         \
 } G_STMT_END
 
 %}
