@@ -93,10 +93,12 @@ G_STMT_START {                                                               \
 /* TODO(jcon): add line numbers */
 #define HANDLE_PATH_TOKEN()                                                  \
 G_STMT_START {                                                               \
-    yylval->path = coil_path_new_len(yytext, yyleng, &yyextra->error);       \
-    if (yylval->path == NULL) {                                              \
+    /* tokenizer will only create valid paths except for length */           \
+    if (yyleng > COIL_PATH_LEN) {                                            \
+        path_length_error(yytext, yyleng, &yyextra->error);                  \
         return ERROR;                                                        \
     }                                                                        \
+    yylval->path = coil_path_take_string(g_strndup(yytext, yyleng), yyleng); \
 } G_STMT_END
 
 %}
