@@ -22,4 +22,13 @@ void *
 mempcpy(void *dst, const unsigned char *src, size_t n);
 #endif
 
+enum {
+    TRUNCATE_LEFT,
+    TRUNCATE_RIGHT,
+    TRUNCATE_CENTER
+};
+
+char *
+strtrunc(const char *delim, gint mode, guint max, const char *str, guint len);
+
 #endif
