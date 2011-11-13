@@ -234,6 +234,8 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
 
     CoilPath *path;
 
+    g_assert(len <= COIL_PATH_LEN);
+
     if (len == COIL_ROOT_PATH_LEN && keylen == 0 &&
             memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
         if (!(flags & COIL_STATIC_PATH)) {
@@ -523,7 +525,7 @@ coil_path_unref(CoilPath *path)
  * @a: a #CoilPath object
  * @b: a #CoilPath object
  *
- * Returns a new #CoilPath using the container from @a and
+ * Returns a new #CoilPath using all of @a as the container and
  * the key from @b.
  */
 COIL_API(CoilPath *)
@@ -532,9 +534,32 @@ coil_path_join(CoilPath *a, CoilPath *b, GError **error)
     g_return_val_if_fail(a, NULL);
     g_return_val_if_fail(b, NULL);
 
-    guint len = a->len - b->key_len - 1;
+    CoilPath *res;
+    gchar *p, *str, *key;
+    guint len = a->len + b->key_len + 1;
 
-    return coil_path_new_with_key(a->str, len, b->key, b->key_len, error);
+    str = g_new(gchar, len + 1);
+    p = mempcpy(str, a->str, a->len);
+    *p++ = COIL_PATH_DELIM;
+    key = p;
+    p = mempcpy(p, b->key, b->key_len);
+    *p = '\0';
+
+    if (len > COIL_PATH_LEN) {
+        path_length_error(str, len, error);
+        g_free(str);
+        return NULL;
+    }
+
+    /* XXX: it might be a good idea to only allow key to point into path */
+    res = coil_path_take_string_with_keyx(str, len, key,
+            b->key_len, COIL_STATIC_KEY);
+/*
+    if (res && a->hash) {
+        res->hash = hash_relative(a->hash, b->key, b->key_len);
+    }
+*/
+    return res;
 }
 
 /*
@@ -557,18 +582,17 @@ coil_path_concat(CoilPath *a, CoilPath *b, GError **error)
     CoilPath *res;
 
     len = a->len + b->len + 1;
-    if (len > COIL_PATH_LEN) {
-        p = g_strjoin(".", a->str, b->str, NULL);
-        path_length_error(p, len, error);
-        g_free(p);
-        return NULL;
-    }
-
     str = g_new(gchar, len + 1);
     p = mempcpy(str, a->str, a->len);
     *p++ = COIL_PATH_DELIM;
     p = mempcpy(p, b->str, b->len);
     *p = '\0';
+
+    if (len > COIL_PATH_LEN) {
+        path_length_error(str, len, error);
+        g_free(str);
+        return NULL;
+    }
 
     res = coil_path_take_string(str, len);
 /*    if (COIL_PATH_IS_ABSOLUTE(a) && a->hash > 0) {
@@ -697,7 +721,7 @@ coil_check_path(const gchar *str, guint len, GError **error)
     }
     if (!coil_validate_path_len(str, len)) {
         g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
-                "The str '%.*s' is invalid or contains invalid characters.",
+                "The path '%.*s' is invalid or contains invalid characters.",
                 len, str);
         return FALSE;
     }
@@ -749,12 +773,6 @@ coil_path_resolve(CoilPath *path, CoilPath *container, GError **error)
     suffix_len = path->len - (suffix - path->str);
     path_len = (suffix_len) ? container_len + suffix_len + 1 : container_len;
 
-    if (G_UNLIKELY(path_len > COIL_PATH_LEN)) {
-        gchar *p = g_strjoin(COIL_PATH_DELIM_S, container->str, suffix, NULL);
-        path_length_error(p, path_len, error);
-        g_free(p);
-        return NULL;
-    }
     g_assert(path_len > 0);
     if (path_len == COIL_ROOT_PATH_LEN && suffix_len == 0 &&
             memcmp(container->str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
@@ -766,6 +784,12 @@ coil_path_resolve(CoilPath *path, CoilPath *container, GError **error)
     *p++ = COIL_PATH_DELIM;
     p = mempcpy(p, suffix, suffix_len);
     *p = '\0';
+
+    if (path_len > COIL_PATH_LEN) {
+        path_length_error(str, path_len, error);
+        g_free(str);
+        return NULL;
+    }
 
     return coil_path_take_string_with_keyx(str, path_len,
             &str[path_len - path->key_len], path->key_len,

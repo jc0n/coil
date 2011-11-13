@@ -222,7 +222,7 @@ change_container(CoilObject *object, CoilObject *container,
         }
         if (path == NULL) {
             /* no path specified, build a new one */
-            path = coil_path_concat(container->path,
+            path = coil_path_join(container->path,
                     object->path, &internal_error);
             if (path == NULL) {
                 goto error;
@@ -245,7 +245,7 @@ change_container(CoilObject *object, CoilObject *container,
 
         struct_table_remove_entry(old_table, entry);
 
-        path = coil_path_concat(object->path, entry->path, &internal_error);
+        path = coil_path_join(object->path, entry->path, &internal_error);
         if (path == NULL) {
             goto error;
         }
@@ -1256,7 +1256,7 @@ merge_item(CoilObject *self, CoilPath *item_path, const GValue *item_value,
     GValue *value;
     GError *internal_error = NULL;
 
-    path = coil_path_concat(self->path, itempath, &internal_error);
+    path = coil_path_join(self->path, item_path, &internal_error);
     if (path == NULL) {
         goto error;
     }
