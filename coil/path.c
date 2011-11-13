@@ -513,11 +513,10 @@ coil_path_join(CoilPath *a, CoilPath *b, GError **error)
     /* XXX: it might be a good idea to only allow key to point into path */
     res = coil_path_take_string_with_keyx(str, len, key,
             b->key_len, COIL_STATIC_KEY);
-/*
+
     if (res && a->hash) {
         res->hash = hash_relative(a->hash, b->key, b->key_len);
     }
-*/
     return res;
 }
 
@@ -554,10 +553,9 @@ coil_path_concat(CoilPath *a, CoilPath *b, GError **error)
     }
 
     res = coil_path_take_string(str, len);
-/*    if (COIL_PATH_IS_ABSOLUTE(a) && a->hash > 0) {
+    if (res && a->hash) {
         res->hash = hash_relative(a->hash, b->str, b->len);
     }
-*/
     return res;
 }
 
