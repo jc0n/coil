@@ -404,26 +404,26 @@ coil_object_class_init(CoilObjectClass *klass)
                 "The container of the object.",
                 "set/get the container of this object.",
                 COIL_TYPE_STRUCT,
-                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     g_object_class_install_property(gobject_class, PROP_ROOT,
             g_param_spec_object("root",
                 "The root of this object.",
                 "set/get the container of this object.",
                 COIL_TYPE_STRUCT,
-                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     g_object_class_install_property(gobject_class, PROP_LOCATION,
             g_param_spec_pointer("location",
                 "Line, column, file of this instance.",
                 "get/set the location.",
-                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     g_object_class_install_property(gobject_class, PROP_PATH,
             g_param_spec_boxed("path",
                 "The path of the object",
                 "set/get the path of this object",
                 COIL_TYPE_PATH,
-                G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 

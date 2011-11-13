@@ -58,7 +58,6 @@ typedef enum
 {
     PROP_0,
     /* */
-    PROP_HASH,
     PROP_IS_PROTOTYPE,
     PROP_IS_ACCUMULATING,
 } StructProperties;
@@ -2312,13 +2311,13 @@ coil_struct_class_init(CoilStructClass *klass)
             g_param_spec_boolean("is-prototype",
                 "Is Prototype",
                 "If struct is referenced but not defined.",
-                FALSE, G_PARAM_READWRITE));
+                FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     g_object_class_install_property(gobject_class, PROP_IS_ACCUMULATING,
             g_param_spec_boolean("accumulate",
                 "Accumulate",
                 "If container is in an accumulating state.",
-                FALSE, G_PARAM_READWRITE));
+                FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     struct_signals[CREATE] =
         g_signal_newv("create",
