@@ -170,34 +170,6 @@ path_length_error(const gchar *path, guint path_len, GError **error)
     g_free(temp);
 }
 
-#if 0
-static const char valid_path_chars[128] = {
-    /* 0x0-0x13  */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /* 0x14-0x27 */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /* 0x28-0x2C */0,0,0,0,0,
-
-    /* [-.] */
-    /* 0x2D-0x2E */1,1,
-
-    /* 0x2F      */0,
-
-    /* [0-9] */
-    /* 0x30-0x39 */1,1,1,1,1,1,1,1,1,
-
-    /* 0x3A-0x3F */0,0,0,0,0,0,
-
-    /* [@A-Z] */
-    /* 0x40-0x5A */1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-
-    /* 0x5B-0x5E */0,0,0,0,
-
-    /* [_]       */1,
-    /* 0x60      */0,
-    /* [a-z]     */1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    /* 0x7B      */0,0,0,0,0
-};
-#endif
-
 /*
  * coil_path_take_string_with_keyx:
  * @str: a nul-terminated path string
@@ -233,7 +205,7 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
     }
     if (str[0] == '@') {
         if (!(flags & COIL_PATH_IS_ABSOLUTE) &&
-                memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+                str4cmp(str + 1, 'r', 'o', 'o', 't')) {
             flags |= COIL_PATH_IS_ABSOLUTE;
         }
     }
@@ -322,8 +294,7 @@ coil_path_new_len(const gchar *str, guint len, GError **error)
     g_return_val_if_fail(str, NULL);
     g_return_val_if_fail(len > 0, NULL);
 
-    if (len == COIL_ROOT_PATH_LEN &&
-            memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+    if (len == COIL_ROOT_PATH_LEN && str5cmp(str, '@', 'r', 'o', 'o', 't')) {
         coil_path_ref(CoilRootPath);
         return CoilRootPath;
     }
@@ -559,6 +530,25 @@ coil_path_concat(CoilPath *a, CoilPath *b, GError **error)
     return res;
 }
 
+static const char valid_path_chars[128] = {
+    /* 0x0-0x13  */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /* 0x14-0x27 */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /* 0x28-0x2C */0,0,0,0,0,
+    /* [-.] */
+    /* 0x2D-0x2E */1,1,
+    /* 0x2F      */0,
+    /* [0-9] */
+    /* 0x30-0x39 */1,1,1,1,1,1,1,1,1,1,
+    /* 0x3A-0x3F */0,0,0,0,0,0,
+    /* [@A-Z] */
+    /* 0x40-0x5A */1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    /* 0x5B-0x5E */0,0,0,0,
+    /* [_]       */1,
+    /* 0x60      */0,
+    /* [a-z]     */1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    /* 0x7B      */0,0,0,0,0
+};
+
 /*
  * coil_validate_path_len:
  * @str: a nul-terminated path string
@@ -570,15 +560,47 @@ coil_path_concat(CoilPath *a, CoilPath *b, GError **error)
 COIL_API(gboolean)
 coil_validate_path_len(const gchar *str, guint len)
 {
-    static GRegex *path_regex = NULL;
-
     g_return_val_if_fail(str != NULL, FALSE);
 
-    if (G_UNLIKELY(!path_regex)) {
-        path_regex = g_regex_new("^"COIL_PATH_REGEX"$",
-                G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY, NULL);
+    if (len == 0) {
+        return FALSE;
     }
-    return g_regex_match_full(path_regex, str, len, 0, 0, NULL, NULL);
+    if (*str == '@') {
+        if (len < 5) {
+            return FALSE;
+        }
+        if (str4cmp(str + 1, 'r', 'o', 'o', 't')) {
+            str += 5;
+            len -= 5;
+        }
+        if (len == 0) {
+            return TRUE;
+        }
+    }
+    else {
+        while (len > 0 && *str == '.') {
+            str++; len--;
+        }
+        while (len > 0 && *str == '-') {
+            str++; len--;
+        }
+        if (len == 0) {
+            return FALSE;
+        }
+    }
+    do {
+        switch (*str) {
+            case '@': return FALSE; break;
+            case '.': if (len != 1 && str[1] == '.') return FALSE; break;
+            case '-': if (len != 1 && str[1] == '-') return FALSE; break;
+            default:
+                if (!valid_path_chars[(uint8_t)(*str & 0x7f)])
+                    return FALSE;
+                break;
+        }
+        str++;
+    } while (--len > 0);
+    return TRUE;
 }
 
 /*
