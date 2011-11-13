@@ -6,9 +6,6 @@
 
 
 #include "common.h"
-#include "strings_extra.h"
-
-#include <string.h>
 
 #if !HAVE_MEMCHR
 void *

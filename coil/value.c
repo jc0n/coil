@@ -3,10 +3,7 @@
  *
  * Author: John O'Connor
  */
-#include "string.h"
-
 #include "common.h"
-
 #include "list.h"
 #include "struct.h"
 #include "value.h"

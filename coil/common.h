@@ -22,6 +22,9 @@
 #include "glib-object.h"
 #include "error.h"
 
+#include <string.h>
+#include "strings_extra.h"
+
 #define COIL_API(rtype) rtype
 #define COIL_STATIC_STRLEN(str) str,(sizeof(str)-1)
 

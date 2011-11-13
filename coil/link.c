@@ -5,8 +5,6 @@
  */
 #include "common.h"
 
-#include <string.h>
-
 #include "struct.h"
 #include "path.h"
 #include "value.h"

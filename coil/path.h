@@ -6,9 +6,6 @@
 #ifndef __COIL_PATH_H
 #define __COIL_PATH_H
 
-#include <stdarg.h>
-#include <stdint.h>
-
 typedef enum {
     COIL_STATIC_PATH         = 1 << 0,
     COIL_STATIC_KEY          = 1 << 1,

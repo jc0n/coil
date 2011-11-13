@@ -4,10 +4,10 @@
  * Author: John O'Connor
  */
 
-#include "coil.h"
-
 #include <stdlib.h>
 #include <string.h>
+
+#include "coil.h"
 
 static gchar **attributes = NULL;
 static gchar **blocks = NULL;

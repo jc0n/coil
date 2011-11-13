@@ -4,14 +4,11 @@
  * Author: John O'Connor
  */
 
-#include <string.h>
-
 #include "common.h"
 #include "marshal.h"
 #include "struct.h"
 #include "struct_table.h"
 #include "struct-private.h"
-
 #include "link.h"
 #include "include.h"
 

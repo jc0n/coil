@@ -6,8 +6,6 @@
 
 #include "common.h"
 
-#include <string.h>
-
 #include "struct.h"
 #include "object.h"
 #include "expression.h"

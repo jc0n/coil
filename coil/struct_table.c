@@ -6,8 +6,6 @@
 
 #include "common.h"
 
-#include <string.h>
-
 #include "struct.h"
 #include "struct_table.h"
 

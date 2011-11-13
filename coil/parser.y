@@ -5,10 +5,10 @@
  * Author: John O'Connor
  */
 
-#include <stdio.h>
-#include <string.h>
 
 #include "common.h"
+
+#include <stdio.h>
 
 #include "path.h"
 #include "list.h"

@@ -6,9 +6,9 @@
 
 #include "common.h"
 
-#include <string.h>
+#include <stdarg.h>
+#include <stdint.h>
 
-#include "strings_extra.h"
 #include "error.h"
 #include "path.h"
 

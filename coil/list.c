@@ -6,11 +6,8 @@
 
 #include "common.h"
 
-#include <string.h>
-
 #include "list.h"
 #include "value.h"
-
 
 COIL_API(void)
 coil_list_build_string(CoilList *list,
