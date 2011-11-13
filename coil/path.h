@@ -133,15 +133,6 @@ gboolean
 coil_validate_path(const gchar *path);
 
 gboolean
-coil_validate_key_len(const gchar *key, guint key_len);
-
-gboolean
-coil_validate_key(const gchar *key);
-
-gboolean
-coil_check_key(const gchar *key, guint key_len, GError **error);
-
-gboolean
 coil_check_path(const gchar *path, guint path_len, GError **error);
 
 CoilPath *

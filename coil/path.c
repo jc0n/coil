@@ -113,7 +113,7 @@ path_alloc(void)
 }
 
 static void
-pathval_to_strval(const GValue *src, GValue *dst)
+path_to_string(const GValue *src, GValue *dst)
 {
     g_return_if_fail(G_IS_VALUE(src));
     g_return_if_fail(G_IS_VALUE(dst));
@@ -135,7 +135,7 @@ coil_path_get_type(void)
                 (GBoxedCopyFunc)coil_path_ref,
                 (GBoxedFreeFunc)coil_path_unref);
 
-        g_value_register_transform_func(type_id, G_TYPE_STRING, pathval_to_strval);
+        g_value_register_transform_func(type_id, G_TYPE_STRING, path_to_string);
     }
     return type_id;
 }
@@ -149,45 +149,28 @@ coil_path_list_free(GList *list)
     }
 }
 
+static char *
+shorten_path(const char *path, guint path_len)
+{
+    return strtrunc("...", TRUNCATE_CENTER, COIL_PATH_LEN, path, path_len);
+}
+
 void
 path_length_error(const gchar *path, guint path_len, GError **error)
 {
     g_return_if_fail(path && *path);
     g_return_if_fail(error == NULL || *error == NULL);
 
-    gchar prefix[16], suffix[16];
+    char *temp = shorten_path(path, path_len);
 
-    memcpy(prefix, path, 15);
-    prefix[15] = '\0';
+    coil_set_error(error, COIL_ERROR_PATH, NULL,
+            "Length %d of path <%s> is too long. Max length is %d",
+            path_len, temp, COIL_PATH_LEN);
 
-    memcpy(suffix, path + path_len - 15, 15);
-    suffix[15] = '\0';
-
-    g_set_error(error, COIL_ERROR, COIL_ERROR_PATH,
-            "Length of path %s...%s too long (%d). Max path length is %d",
-            prefix, suffix, path_len, COIL_PATH_LEN);
+    g_free(temp);
 }
 
-void
-key_length_error(const gchar *key, guint key_len, GError **error)
-{
-    g_return_if_fail(key && *key);
-    g_return_if_fail(error == NULL || *error == NULL);
-
-    gchar prefix[16], suffix[16];
-
-    memcpy(prefix, key, 15);
-    prefix[15] = '\0';
-
-    memcpy(suffix, &key[key_len] - 15, 15);
-    suffix[15] = '\0';
-
-    g_set_error(error, COIL_ERROR, COIL_ERROR_KEY,
-            "Length of key %s...%s too long (%d). Max key length is %d",
-            prefix, suffix, key_len,
-            (gint)(COIL_PATH_LEN - COIL_ROOT_PATH_LEN - 1));
-}
-
+#if 0
 static const char valid_path_chars[128] = {
     /* 0x0-0x13  */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     /* 0x14-0x27 */0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -213,6 +196,7 @@ static const char valid_path_chars[128] = {
     /* [a-z]     */1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
     /* 0x7B      */0,0,0,0,0
 };
+#endif
 
 /*
  * coil_path_take_string_with_keyx:
@@ -324,46 +308,6 @@ coil_path_take_stringx(gchar *str, guint len, guint flags)
     return coil_path_take_string_with_keyx(str, len, NULL, 0, flags);
 }
 
-/* coil_path_new_with_key:
- * @str: a nul-terminated path string
- * @len: the length of @str
- * @key: a nul-terminated key string
- * @keylen: the length of @key
- * @Returns: a new #CoilPath object
- *
- * Returns a new #CoilPath object
- */
-COIL_API(CoilPath *)
-coil_path_new_with_key(const gchar *str, guint len,
-        const gchar *key, guint keylen, GError **error)
-{
-    g_return_val_if_fail(str, NULL);
-    g_return_val_if_fail(len > 0, NULL);
-
-    if (len == COIL_ROOT_PATH_LEN && keylen == 0 &&
-            memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
-        coil_path_ref(CoilRootPath);
-        return CoilRootPath;
-    }
-    if (!coil_check_path(str, len, error)) {
-        return NULL;
-    }
-    if (key) {
-        if (!coil_check_key(key, keylen, error)) {
-            return NULL;
-        }
-        key = g_strndup(key, keylen);
-    }
-    if (str[0] == COIL_PATH_DELIM && str[1] != COIL_PATH_DELIM) {
-        /** ignore single leading . for relative path */
-        str = g_strndup(str + 1, len - 1);
-    }
-    else {
-        str = g_strndup(str, len);
-    }
-    return coil_path_take_string_with_key((char *)str, len, (char *)key, keylen);
-}
-
 /*
  * coil_path_new_len:
  * @str: a nul-terminated path string
@@ -378,7 +322,22 @@ coil_path_new_len(const gchar *str, guint len, GError **error)
     g_return_val_if_fail(str, NULL);
     g_return_val_if_fail(len > 0, NULL);
 
-    return coil_path_new_with_key(str, len, NULL, 0, error);
+    if (len == COIL_ROOT_PATH_LEN &&
+            memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+        coil_path_ref(CoilRootPath);
+        return CoilRootPath;
+    }
+    if (!coil_check_path(str, len, error)) {
+        return NULL;
+    }
+    if (str[0] == COIL_PATH_DELIM && str[1] != COIL_PATH_DELIM) {
+        /** ignore single leading . for relative path */
+        str = g_strndup(str + 1, len - 1);
+    }
+    else {
+        str = g_strndup(str, len);
+    }
+    return coil_path_take_string_with_key((char *)str, len, NULL, 0);
 }
 
 /*
@@ -393,7 +352,7 @@ coil_path_new(const gchar *str, GError **error)
 {
     g_return_val_if_fail(str, NULL);
 
-    return coil_path_new_with_key(str, strlen(str), NULL, 0, error);
+    return coil_path_new_len(str, strlen(str), error);
 }
 
 /*
@@ -635,69 +594,6 @@ COIL_API(gboolean)
 coil_validate_path(const gchar *str)
 {
     return coil_validate_path_len(str, strlen(str));
-}
-
-/*
- * coil_validate_key_len:
- * @str: a nul-termianted key string
- * @len: the length of @str
- * @Returns: %TRUE if @str is a valid key
- *
- * Returns %TRUE if @str is a valid key
- */
-COIL_API(gboolean)
-coil_validate_key_len(const gchar *str, guint len)
-{
-    static GRegex *key_regex = NULL;
-
-    g_return_val_if_fail(str, FALSE);
-
-    if (G_UNLIKELY(!key_regex)) {
-        key_regex = g_regex_new("^"COIL_KEY_REGEX"$",
-                G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY, NULL);
-    }
-    return g_regex_match_full(key_regex, str, len, 0, 0, NULL, NULL);
-}
-
-/*
- * coil_validate_key:
- * @str: a nul-terminated key string
- * @Returns: %TRUE if @str is a valid key
- *
- * Returns %TRUE if @str is a valid key
- */
-COIL_API(gboolean)
-coil_validate_key(const gchar *str)
-{
-    return coil_validate_key_len(str, strlen(str));
-}
-
-/*
- * coil_check_key:
- * @str: a nul-terminated key string
- * @len: the length of @str
- * @Returns: %FALSE with an error set if @str is an invalid key
- *
- * Returns %FALSE with an error set if @str is an invalid key.
- */
-COIL_API(gboolean)
-coil_check_key(const gchar *str, guint len, GError **error)
-{
-    g_return_val_if_fail(str, FALSE);
-    g_return_val_if_fail(len, FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
-
-    if (len > (COIL_PATH_LEN - COIL_ROOT_PATH_LEN - 1)) {
-        key_length_error(str, len, error);
-        return FALSE;
-    }
-    if (!coil_validate_key_len(str, len)) {
-        g_set_error(error, COIL_ERROR, COIL_ERROR_KEY,
-                "The key '%.*s' is invalid or contains invalid characters",
-                len, str);
-        return FALSE;
-    }
-    return TRUE;
 }
 
 /*
