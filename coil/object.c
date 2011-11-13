@@ -303,7 +303,8 @@ coil_object_set(CoilObject *object, const char *first_property_name, ...)
 inline guint
 coil_object_get_refcount(CoilObject *object)
 {
-    return G_OBJECT(object)->ref_count;
+    GObject *gobject = G_OBJECT(object);
+    return g_atomic_int_get(&gobject->ref_count);
 }
 
 static void
