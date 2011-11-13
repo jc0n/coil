@@ -53,7 +53,7 @@ coil_error_new_valist(int code, CoilLocation *location,
     real_format = g_strconcat(pfx, format, NULL);
     g_free(pfx);
 
-    err = g_error_new(COIL_ERROR, code, real_format, args);
+    err = g_error_new_valist(COIL_ERROR, code, real_format, args);
 
     g_free(real_format);
 
@@ -129,7 +129,7 @@ coil_struct_error(GError **error, CoilObject *self, const char *format, ...)
     char *real_format;
     va_list args;
 
-    real_format = g_strdup_printf("<%s>: %s", obj->path->str, format);
+    real_format = g_strdup_printf("Struct<%s>: %s", obj->path->str, format);
 
     va_start(args, format);
     coil_set_error_valist(error, COIL_ERROR_STRUCT,

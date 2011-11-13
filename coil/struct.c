@@ -938,23 +938,23 @@ check_parent_sanity(CoilObject *self, CoilObject *parent, GError **error)
         return FALSE;
     }
     if (G_UNLIKELY(coil_struct_is_root(self))) {
-        coil_struct_error(error, self, "@root cannot extend anything.");
+        coil_struct_error(error, self, "cannot inherit from other structs.");
         return FALSE;
     }
     if (G_UNLIKELY(coil_struct_is_root(parent))) {
-        coil_struct_error(error, self, "@root cannot be extended.");
+        coil_struct_error(error, self, "cannot be extended.");
         return FALSE;
     }
     if (G_UNLIKELY(coil_struct_is_ancestor(parent, self))) {
-        coil_struct_error(error, self, "cannot extend parent containers.");
+        coil_struct_error(error, self, "cannot inherit from parent containers.");
         return FALSE;
     }
     if (G_UNLIKELY(coil_struct_is_descendent(parent, self))) {
-        coil_struct_error(error, self, "cannot extend children.");
+        coil_struct_error(error, self, "cannot inherit from children.");
         return FALSE;
     }
     if (G_UNLIKELY(self->root != parent->root)) {
-        coil_struct_error(error, self, "cannot extend structs in disjoint roots.");
+        coil_struct_error(error, self, "cannot inherit outside of root.");
         return FALSE;
     }
     return TRUE;
