@@ -192,28 +192,27 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
 
     g_assert(len <= COIL_PATH_LEN);
 
-    if (len == COIL_ROOT_PATH_LEN && keylen == 0 &&
-            memcmp(str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+    if (len == 5 && keylen == 0 && str5cmp(str, '@', 'r', 'o', 'o', 't')) {
         if (!(flags & COIL_STATIC_PATH)) {
             g_free(str);
         }
         if (!(flags & COIL_STATIC_KEY)) {
             g_free(key);
         }
-        coil_path_ref(CoilRootPath);
-        return CoilRootPath;
+        return coil_path_ref(CoilRootPath);
     }
+
     if (str[0] == '@') {
         if (!(flags & COIL_PATH_IS_ABSOLUTE) &&
                 str4cmp(str + 1, 'r', 'o', 'o', 't')) {
             flags |= COIL_PATH_IS_ABSOLUTE;
         }
     }
-    else if (!(flags & COIL_PATH_IS_BACKREF) && str[0] == '.') {
-        if (str[1] == '.') {
+    else if (!(flags & COIL_PATH_IS_BACKREF)) {
+        if (str2cmp(str, '.', '.')) {
             flags |= COIL_PATH_IS_BACKREF;
         }
-        else {
+        else if (*str == '.') {
             /* path string begins with . */
             memmove(str, str + 1, len - 1);
         }
@@ -226,7 +225,6 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
             flags |= COIL_STATIC_KEY;
         }
     }
-
     path = path_alloc();
     path->str = str;
     path->len = len;
@@ -234,7 +232,6 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
     path->key_len = keylen;
     path->hash = 0;
     path->flags = flags;
-
     return path;
 }
 
@@ -295,8 +292,7 @@ coil_path_new_len(const gchar *str, guint len, GError **error)
     g_return_val_if_fail(len > 0, NULL);
 
     if (len == COIL_ROOT_PATH_LEN && str5cmp(str, '@', 'r', 'o', 'o', 't')) {
-        coil_path_ref(CoilRootPath);
-        return CoilRootPath;
+        return coil_path_ref(CoilRootPath);
     }
     if (!coil_check_path(str, len, error)) {
         return NULL;
@@ -690,8 +686,8 @@ coil_path_resolve(CoilPath *path, CoilPath *container, GError **error)
     path_len = (suffix_len) ? container_len + suffix_len + 1 : container_len;
 
     g_assert(path_len > 0);
-    if (path_len == COIL_ROOT_PATH_LEN && suffix_len == 0 &&
-            memcmp(container->str, COIL_ROOT_PATH, COIL_ROOT_PATH_LEN) == 0) {
+    if (path_len == 5 && suffix_len == 0 &&
+            str5cmp(container->str, '@', 'r', 'o', 'o', 't')) {
         return coil_path_ref(CoilRootPath);
     }
 
