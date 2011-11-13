@@ -261,11 +261,11 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
         }
     }
     if (key == NULL) {
-        flags |= COIL_STATIC_KEY;
         key = memrchr(str, '.', len);
         if (key) {
             key++;
             keylen = len - (key - str);
+            flags |= COIL_STATIC_KEY;
         }
     }
 
