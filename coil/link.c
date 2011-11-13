@@ -37,9 +37,6 @@ link_expand(CoilObject *o, const GValue **return_value, GError **error)
     const GValue *value;
     GError *internal_error = NULL;
 
-    if (!coil_path_resolve_inplace(&self->target_path, container->path, error)) {
-        goto error;
-    }
     value = coil_struct_lookupx(container, self->target_path,
             FALSE, &internal_error);
 
@@ -234,8 +231,9 @@ coil_link_set_property(GObject      *object,
 
     switch (property_id) {
         case PROP_TARGET_PATH:
-            if (self->target_path)
+            if (self->target_path) {
                 coil_path_unref(self->target_path);
+            }
             self->target_path = g_value_dup_boxed(value);
             break;
         default:
@@ -291,8 +289,7 @@ coil_link_class_init(CoilLinkClass *klass)
                 "The path the link points to.",
                 "set/get the path the link points to.",
                 COIL_TYPE_PATH,
-                G_PARAM_READWRITE |
-                G_PARAM_CONSTRUCT));
+                G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 
     g_value_register_transform_func(COIL_TYPE_LINK, G_TYPE_STRING,
             linkval_to_stringval);
