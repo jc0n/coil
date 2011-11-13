@@ -848,11 +848,13 @@ coil_path_pop(CoilPath *path, int i)
     else {
         if (i == -1) {
             if (COIL_PATH_IS_RELATIVE(path)) {
-                return coil_path_new_len(path->key, path->key_len, NULL);
+                char *str = g_strndup(path->key, path->key_len);
+                return coil_path_take_string(str, path->key_len);
             }
             else {
-                return coil_path_new_len(path->str,
-                        path->len - path->key_len - 1, NULL);
+                guint len = path->len - path->key_len - 1;
+                char *str = g_strndup(path->str, len);
+                return coil_path_take_string(str, len);
             }
         }
         while (i++ < 0) {
@@ -863,7 +865,6 @@ coil_path_pop(CoilPath *path, int i)
             }
         }
     }
-
     return coil_path_new_len(path->str, p - path->str, NULL);
 }
 
