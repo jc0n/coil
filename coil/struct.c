@@ -552,7 +552,8 @@ override_entry(CoilObject *o, StructEntry *entry, CoilPath *path,
 static gboolean
 insert_internal(CoilObject *self, CoilPath *path,
                 GValue *value, /* steals */
-                gboolean replace, GError **error)
+                gboolean replace, gboolean check_exists,
+                GError **error)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
     g_return_val_if_fail(path, FALSE);
@@ -561,7 +562,7 @@ insert_internal(CoilObject *self, CoilPath *path,
     g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
     CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
-    StructEntry *entry;
+    StructEntry *entry = NULL;
     GError *internal_error = NULL;
     gboolean value_is_struct = FALSE;
 
@@ -581,7 +582,9 @@ insert_internal(CoilObject *self, CoilPath *path,
     }
 
     /* XXX: add option to skip this lookup */
-    entry = struct_table_lookup(priv->table, path);
+    if (check_exists) {
+        entry = struct_table_lookup(priv->table, path);
+    }
     if (entry == NULL) {
         entry = struct_table_insert(priv->table, path, value);
         g_queue_push_tail(&priv->entries, entry);
@@ -648,7 +651,7 @@ struct_alloc(CoilObject *container, CoilPath *path, gboolean prototype)
     priv->table = struct_table_ref(COIL_STRUCT(container)->priv->table);
 
     coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
-    if (!insert_internal(container, self->path, value, TRUE, NULL)) {
+    if (!insert_internal(container, self->path, value, TRUE, FALSE, NULL)) {
         coil_object_unref(self);
         return NULL;
     }
@@ -769,7 +772,7 @@ coil_struct_insert_path(CoilObject *self, CoilPath *path,
         goto error;
     }
     coil_path_unref(path);
-    return insert_internal(container, path, value, replace, error);
+    return insert_internal(container, path, value, replace, TRUE, error);
 
 error:
     if (path) {
@@ -1356,7 +1359,7 @@ merge_item(CoilObject *self, CoilPath *item_path, const GValue *item_value,
         value = coil_value_copy(item_value);
     }
 
-    if (!insert_internal(self, path, value, TRUE, error)) {
+    if (!insert_internal(self, path, value, TRUE, entry == NULL, error)) {
         goto error;
     }
     coil_path_unref(path);
@@ -2214,7 +2217,7 @@ coil_struct_new_valist(const gchar *first_property_name,
         }
         /* XXX: add self to the tree now */
         coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
-        if (!insert_internal(container, self->path, value, TRUE, error)) {
+        if (!insert_internal(container, self->path, value, TRUE, FALSE, error)) {
             goto error;
         }
     }
