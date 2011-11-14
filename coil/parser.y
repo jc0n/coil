@@ -177,7 +177,7 @@ parser_push_container(CoilParser *parser)
         return FALSE;
     }
 
-    coil_object_set(new, "accumulate", TRUE, NULL);
+    coil_struct_set_accumulate(new, TRUE);
     PUSH_CONTAINER(parser, new);
     return TRUE;
 }
@@ -187,7 +187,7 @@ parser_pop_container(CoilParser *parser)
 {
     CoilObject *container = POP_CONTAINER(parser);
 
-    coil_object_set(container, "accumulate", FALSE, NULL);
+    coil_struct_set_accumulate(container, FALSE);
     coil_object_unref(container);
 }
 

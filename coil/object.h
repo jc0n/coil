@@ -54,6 +54,9 @@ struct _CoilObjectClass
 {
     GObjectClass parent_class;
 
+    void (*set_path) (CoilObject *self, CoilPath *path);
+    void (*set_container) (CoilObject *self, CoilObject *container);
+
     /* Abstract Methods */
     CoilObject *(*copy) (CoilObject *self, const gchar *first_property_name,
             va_list properties, GError **error);
@@ -82,6 +85,12 @@ coil_object_get(CoilObject *object, const char *first_property_name, ...)
 void
 coil_object_set(CoilObject *object, const char *first_property_name, ...)
     G_GNUC_NULL_TERMINATED;
+
+void
+coil_object_set_container(CoilObject *object, CoilObject *container);
+
+void
+coil_object_set_path(CoilObject *object, CoilPath *path);
 
 guint
 coil_object_get_refcount(CoilObject *object);

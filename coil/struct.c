@@ -56,8 +56,10 @@ typedef enum
     PROP_0,
     /* */
     PROP_IS_PROTOTYPE,
-    PROP_IS_ACCUMULATING,
+    PROP_LAST,
 } StructProperties;
+
+static GParamSpec *properties[PROP_LAST];
 
 typedef enum
 {
@@ -144,11 +146,8 @@ become_root_struct(CoilObject *self)
     GValue *value;
     StructEntry *entry;
 
-    coil_object_set(self,
-        "container", NULL,
-        "path", CoilRootPath,
-        "root", self,
-        NULL);
+    coil_object_set_container(self, NULL);
+    coil_object_set_path(self, CoilRootPath);
 
     if (priv->table) {
         struct_table_unref(priv->table);
@@ -225,7 +224,8 @@ change_container(CoilObject *object, CoilObject *container,
                 goto error;
             }
         }
-        coil_object_set(object, "path", path, "container", container, NULL);
+        coil_object_set_path(object, path);
+        coil_object_set_container(object, container);
         priv->table = struct_table_ref(COIL_STRUCT(container)->priv->table);
     }
     else {
@@ -259,10 +259,8 @@ change_container(CoilObject *object, CoilObject *container,
                 goto error;
             }
             else {
-                coil_object_set(entryobj,
-                        "container", object,
-                        "path", entry->path,
-                        NULL);
+                coil_object_set_path(entryobj, entry->path);
+                coil_object_set_container(entryobj, object);
             }
         }
     }
@@ -463,13 +461,34 @@ coil_struct_foreach_ancestor(CoilObject *o,
     }
 }
 
+void
+coil_struct_set_prototype(CoilObject *self, gboolean prototype)
+{
+    CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
+
+    priv->is_prototype = prototype;
+#if GLIB_MAJOR_VERSION >= 2 && GLIB_MINOR_VERSION >= 6
+    g_object_notify_by_pspec(G_OBJECT(self), properties[PROP_IS_PROTOTYPE]);
+#else
+    g_object_notify(G_OBJECT(self), properties[PROP_IS_PROTOTYPE]->name);
+#endif
+}
+
+void
+coil_struct_set_accumulate(CoilObject *self, gboolean accumulate)
+{
+    CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
+
+    priv->is_accumulating = accumulate;
+}
+
 gboolean
 finalize_prototype(CoilObject *self, gpointer unused)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
 
     if (coil_struct_is_prototype(self)) {
-        coil_object_set(self, "is-prototype", FALSE, NULL);
+        coil_struct_set_prototype(self, FALSE);
         return TRUE;
     }
     return FALSE;
@@ -595,7 +614,7 @@ insert_internal(CoilObject *self, CoilPath *path,
 
     if (G_VALUE_HOLDS(value, COIL_TYPE_OBJECT)) {
         CoilObject *valueobj = COIL_OBJECT(g_value_get_object(value));
-        coil_object_set(valueobj, "container", self, NULL);
+        coil_object_set_container(valueobj, self);
     }
     coil_struct_foreach_ancestor(self, TRUE, finalize_prototype, NULL);
     return TRUE;
@@ -621,9 +640,10 @@ struct_alloc(CoilObject *container, CoilPath *path, gboolean prototype)
     CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
     GValue *value;
 
-    self->root = container->root;
     self->container = container;
+    self->root = container->root;
     self->path = coil_path_ref(path);
+
     priv->is_prototype = prototype;
     priv->table = struct_table_ref(COIL_STRUCT(container)->priv->table);
 
@@ -1031,7 +1051,7 @@ coil_struct_add_dependency(CoilObject *self, CoilObject *dep, GError **error)
     priv->version++;
 #endif
     if (coil_struct_is_prototype(self)) {
-        coil_object_set(self, "is-prototype", FALSE, NULL);
+        coil_struct_set_prototype(self, FALSE);
     }
     return TRUE;
 }
@@ -1368,15 +1388,15 @@ coil_struct_merge_full(CoilObject *src, CoilObject *dst,
     if (!struct_expand(src, error)) {
         return FALSE;
     }
-    coil_object_set(dst, "accumulate", TRUE, NULL);
+    coil_struct_set_accumulate(dst, TRUE);
     coil_struct_iter_init(&it, src);
     while (coil_struct_iter_next(&it, &path, &value)) {
         if (!merge_item(dst, path, value, overwrite, force_expand, error)) {
-            coil_object_set(dst, "accumulate", FALSE, NULL);
+            coil_struct_set_accumulate(dst, FALSE);
             return FALSE;
         }
     }
-    coil_object_set(dst, "accumulate", FALSE, NULL);
+    coil_struct_set_accumulate(dst, FALSE);
     return TRUE;
 }
 
@@ -1460,8 +1480,7 @@ do_expand(CoilObject *self, const GValue **return_value, GError **error)
     /* Since we waited to expand we're not really changing anything
      * (theoretically). */
     /* TODO(jcon): remove this  -- handle in merge */
-    coil_object_set(self, "accumulate", TRUE, NULL);
-
+    priv->is_accumulating = TRUE;
     if (priv->expand_ptr == NULL) {
         list = g_queue_peek_head_link(&priv->dependencies);
     }
@@ -1473,7 +1492,7 @@ do_expand(CoilObject *self, const GValue **return_value, GError **error)
         dependency = COIL_OBJECT(list->data);
         priv->expand_ptr = list;
         if (!expand_dependency(self, dependency, error)) {
-            coil_object_set(self, "accumulate", FALSE, NULL);
+            priv->is_accumulating = FALSE;
             return FALSE;
         }
         list = g_list_next(list);
@@ -1482,7 +1501,7 @@ do_expand(CoilObject *self, const GValue **return_value, GError **error)
     priv->version++;
 #endif
     /* resume reporting modifications -- particularly to dependents */
-    coil_object_set(self, "accumulate", FALSE, NULL);
+    priv->is_accumulating = FALSE;
     return TRUE;
 }
 
@@ -2188,8 +2207,8 @@ coil_struct_new_valist(const gchar *first_property_name,
             goto error;
         }
         /* TODO XXX: change_container() should probably fire as notify when "container"
-         * changes */
-        coil_object_set(self, "container", container, NULL);
+         * changes, except here because we already know the container */
+        self->container = container;
         if (!coil_path_resolve_inplace(&self->path, container->path, error)) {
             goto error;
         }
@@ -2258,9 +2277,6 @@ coil_struct_set_property(GObject *object, guint property_id,
         case PROP_IS_PROTOTYPE:
             priv->is_prototype = g_value_get_boolean(value);
             break;
-        case PROP_IS_ACCUMULATING:
-            priv->is_accumulating = g_value_get_boolean(value);
-            break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
             break;
@@ -2281,9 +2297,6 @@ coil_struct_get_property(GObject *object, guint property_id,
     switch (property_id) {
         case PROP_IS_PROTOTYPE:
             g_value_set_boolean(value, priv->is_prototype);
-            break;
-        case PROP_IS_ACCUMULATING:
-            g_value_set_boolean(value, priv->is_accumulating);
             break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
@@ -2318,18 +2331,13 @@ coil_struct_class_init(CoilStructClass *klass)
     object_class->equals = coil_struct_equals;
     object_class->build_string = do_build_string;
 
-    /* setup param specifications */
-    g_object_class_install_property(gobject_class, PROP_IS_PROTOTYPE,
-            g_param_spec_boolean("is-prototype",
-                "Is Prototype",
-                "If struct is referenced but not defined.",
-                FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+    properties[PROP_IS_PROTOTYPE] = g_param_spec_boolean("is-prototype",
+            "Is Prototype",
+            "TRUE if struct is referenced but not defined.",
+            FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
-    g_object_class_install_property(gobject_class, PROP_IS_ACCUMULATING,
-            g_param_spec_boolean("accumulate",
-                "Accumulate",
-                "If container is in an accumulating state.",
-                FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+    g_object_class_install_property(gobject_class, PROP_IS_PROTOTYPE,
+            properties[PROP_IS_PROTOTYPE]);
 
     struct_signals[CREATE] =
         g_signal_newv("create",

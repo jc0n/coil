@@ -26,7 +26,11 @@ typedef enum
     PROP_LOCATION,
     PROP_PATH,
     PROP_ROOT,
+    PROP_LAST,
 } CoilObjectProperties;
+
+static GParamSpec *properties[PROP_LAST];
+
 
 COIL_API(void)
 coil_object_build_string(CoilObject   *self,
@@ -298,6 +302,51 @@ coil_object_set(CoilObject *object, const char *first_property_name, ...)
     va_end(args);
 }
 
+void
+coil_object_set_container(CoilObject *object, CoilObject *container)
+{
+    g_return_if_fail(object);
+
+    CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(object);
+
+    if (klass->set_container != NULL) {
+        klass->set_container(object, container);
+    }
+    object->container = container;
+    if (object->container) {
+        object->root = object->container->root;
+    }
+    else {
+        object->root = object;
+    }
+#if GLIB_MAJOR_VERSION >= 2 && GLIB_MINOR_VERSION >= 6
+    g_object_notify_by_pspec(G_OBJECT(object), properties[PROP_CONTAINER]);
+    g_object_notify_by_pspec(G_OBJECT(object), properties[PROP_ROOT]);
+#else
+    g_object_notify(G_OBJECT(object), properties[PROP_CONTAINER]->name);
+    g_object_notify(G_OBJECT(object), properties[PROP_ROOT]->name);
+#endif
+}
+
+void
+coil_object_set_path(CoilObject *object, CoilPath *path)
+{
+    g_return_if_fail(object);
+    g_return_if_fail(path);
+
+    CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(object);
+
+    if (klass->set_path != NULL) {
+        klass->set_path(object, path);
+    }
+    object->path = path;
+#if GLIB_MAJOR_VERSION >= 2 && GLIB_MINOR_VERSION >= 6
+    g_object_notify_by_pspec(G_OBJECT(object), properties[PROP_PATH]);
+#else
+    g_object_notify(G_OBJECT(object), properties[PROP_PATH]->name);
+#endif
+}
+
 inline guint
 coil_object_get_refcount(CoilObject *object)
 {
@@ -397,31 +446,36 @@ coil_object_class_init(CoilObjectClass *klass)
     /*
      * Properties
      */
+    properties[PROP_CONTAINER] = g_param_spec_object("container",
+            "The container of the object.",
+            "set/get the container of this object.",
+            COIL_TYPE_STRUCT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+    properties[PROP_ROOT] = g_param_spec_object("root",
+            "The root of this object.",
+            "set/get the container of this object.",
+            COIL_TYPE_STRUCT, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+
+    properties[PROP_PATH] = g_param_spec_boxed("path",
+            "The path of the object",
+            "set/get the path of this object",
+            COIL_TYPE_PATH, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+    properties[PROP_LOCATION] = g_param_spec_pointer("location",
+            "Line, column, file of this instance.",
+            "get/set the location.",
+            G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
     g_object_class_install_property(gobject_class, PROP_CONTAINER,
-            g_param_spec_object("container",
-                "The container of the object.",
-                "set/get the container of this object.",
-                COIL_TYPE_STRUCT,
-                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+            properties[PROP_CONTAINER]);
 
     g_object_class_install_property(gobject_class, PROP_ROOT,
-            g_param_spec_object("root",
-                "The root of this object.",
-                "set/get the container of this object.",
-                COIL_TYPE_STRUCT,
-                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+            properties[PROP_ROOT]);
 
     g_object_class_install_property(gobject_class, PROP_LOCATION,
-            g_param_spec_pointer("location",
-                "Line, column, file of this instance.",
-                "get/set the location.",
-                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+            properties[PROP_LOCATION]);
 
     g_object_class_install_property(gobject_class, PROP_PATH,
-            g_param_spec_boxed("path",
-                "The path of the object",
-                "set/get the path of this object",
-                COIL_TYPE_PATH,
-                G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+            properties[PROP_PATH]);
 }
 

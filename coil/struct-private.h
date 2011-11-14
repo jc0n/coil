@@ -6,6 +6,12 @@
 #ifndef _COIL_STRUCT_PRIVATE
 #define _COIL_STRUCT_PRIVATE
 
+void
+coil_struct_set_prototype(CoilObject *self, gboolean prototype);
+
+void
+coil_struct_set_accumulate(CoilObject *self, gboolean accumulate);
+
 gboolean
 finalize_prototype(CoilObject *self, gpointer unused);
 
