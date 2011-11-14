@@ -610,6 +610,34 @@ error:
     return FALSE;
 }
 
+/* light weight struct allocator without all the extra checks */
+static CoilObject *
+struct_alloc(CoilObject *container, CoilPath *path, gboolean prototype)
+{
+    g_return_val_if_fail(container, NULL);
+    g_return_val_if_fail(path, NULL);
+
+    CoilObject *self = COIL_OBJECT(g_object_new(COIL_TYPE_STRUCT, NULL));
+    CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
+    GValue *value;
+
+    self->root = container->root;
+    self->container = container;
+    self->path = coil_path_ref(path);
+    priv->is_prototype = prototype;
+    priv->table = struct_table_ref(COIL_STRUCT(container)->priv->table);
+
+    coil_value_init(value, COIL_TYPE_STRUCT, set_object, self);
+    if (!insert_internal(container, self->path, value, TRUE, NULL)) {
+        coil_object_unref(self);
+        return NULL;
+    }
+    g_signal_emit(self, struct_signals[CREATE],
+            prototype ? coil_struct_prototype_quark() : 0);
+
+    return self;
+}
+
 /* Leave this private, but available to parser */
 CoilObject *
 _coil_create_containers(CoilObject *self, CoilPath *path,
@@ -673,14 +701,7 @@ _coil_create_containers(CoilObject *self, CoilPath *path,
         guint n = missing->len;
         while (n-- > 0) {
             container_path = (CoilPath *)g_ptr_array_index(missing, n);
-            container = coil_struct_new(error,
-                    "container", container,
-                    "path", container_path,
-                    "is-prototype", prototype,
-                    NULL);
-            if (container == NULL) {
-                goto err;
-            }
+            container = struct_alloc(container, container_path, prototype);
         }
     }
     g_ptr_array_free(missing, TRUE);
@@ -1281,13 +1302,7 @@ merge_item(CoilObject *self, CoilPath *item_path, const GValue *item_value,
     }
     if (G_VALUE_HOLDS(item_value, COIL_TYPE_STRUCT)) {
         src = COIL_OBJECT(g_value_get_object(item_value));
-        dst = coil_struct_new(&internal_error,
-                "container", self,
-                "path", path,
-                NULL);
-        if (dst == NULL) {
-            goto error;
-        }
+        dst = struct_alloc(self, path, FALSE);
         if (!coil_struct_merge_full(src, dst, overwrite, force_expand,
                     &internal_error)) {
             goto error;
