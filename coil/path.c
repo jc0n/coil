@@ -12,6 +12,16 @@
 #include "error.h"
 #include "path.h"
 
+typedef struct _CoilRealPath {
+    gchar *str;
+    guint8 len;
+    gchar *key;
+    guint8 key_len;
+    guint hash;
+    CoilPathFlags flags;
+    volatile gint ref_count;
+} CoilRealPath;
+
 CoilPath _coil_root_path = {
     (gchar *)COIL_ROOT_PATH,
     (guint8)COIL_ROOT_PATH_LEN,
@@ -19,7 +29,6 @@ CoilPath _coil_root_path = {
     (guint8)0,
     1,
     (COIL_STATIC_PATH | COIL_PATH_IS_ABSOLUTE),
-    1,
 };
 
 /* TODO: proper error handling */
@@ -81,33 +90,38 @@ coil_path_get_hash(CoilPath *path)
 {
     g_return_val_if_fail(path, 0);
 
-    if (path->hash == 0) {
-        path->hash = hash_absolute(path->str, path->len);
+    CoilRealPath *rpath = (CoilRealPath *)path;
+
+    if (rpath->hash == 0) {
+        rpath->hash = hash_absolute(path->str, path->len);
     }
-    return path->hash;
+    return rpath->hash;
 }
 
 static inline gboolean
 compare_hash(CoilPath *a, CoilPath *b)
 {
+    CoilRealPath *ra = (CoilRealPath *)a;
+    CoilRealPath *rb = (CoilRealPath *)b;
+
     /* check if both are absolute */
     if (!(a->flags & b->flags & COIL_PATH_IS_ABSOLUTE)) {
         /* a or b is a relative path and comparing them is meaningless */
         return FALSE;
     }
-    if (a->hash == 0) {
-        a->hash = hash_absolute(a->str, a->len);
+    if (ra->hash == 0) {
+        ra->hash = hash_absolute(a->str, a->len);
     }
-    if (b->hash == 0) {
-        b->hash = hash_absolute(b->str, b->len);
+    if (rb->hash == 0) {
+        rb->hash = hash_absolute(b->str, b->len);
     }
-    return a->hash == b->hash;
+    return ra->hash == rb->hash;
 }
 
-static CoilPath *
+static CoilRealPath *
 path_alloc(void)
 {
-    CoilPath *path = g_slice_new0(CoilPath);
+    CoilRealPath *path = g_slice_new0(CoilRealPath);
     path->ref_count = 1;
     return path;
 }
@@ -188,7 +202,7 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
     g_return_val_if_fail(str != NULL, NULL);
     g_return_val_if_fail(len > 0, NULL);
 
-    CoilPath *path;
+    CoilRealPath *path;
 
     g_assert(len <= COIL_PATH_LEN);
 
@@ -232,7 +246,7 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
     path->key_len = keylen;
     path->hash = 0;
     path->flags = flags;
-    return path;
+    return (CoilPath *)path;
 }
 
 /* coil_path_take_string_with_key:
@@ -400,20 +414,21 @@ coil_path_free(CoilPath *path)
 {
     g_return_if_fail(path);
 
+    CoilRealPath *rpath = (CoilRealPath *)path;
     CoilPathFlags iflags = ~path->flags;
 
     if (iflags & COIL_STATIC_KEY) {
-        g_free(path->key);
+        g_free(rpath->key);
     }
     if (iflags & COIL_STATIC_PATH) {
-        g_free(path->str);
+        g_free(rpath->str);
     }
     /* try to be nice if others still have a reference */
-    if (g_atomic_int_get(&path->ref_count) > 1) {
-        memset(path, 0, sizeof(*path));
+    if (g_atomic_int_get(&rpath->ref_count) > 1) {
+        memset(rpath, 0, sizeof(*rpath));
         return;
     }
-    g_slice_free(CoilPath, path);
+    g_slice_free(CoilRealPath, rpath);
 }
 
 /*
@@ -428,7 +443,9 @@ coil_path_ref(CoilPath *path)
 {
     g_return_val_if_fail(path, NULL);
 
-    g_atomic_int_inc(&path->ref_count);
+    CoilRealPath *rpath = (CoilRealPath *)path;
+
+    g_atomic_int_inc(&rpath->ref_count);
     return path;
 }
 
@@ -442,7 +459,9 @@ coil_path_unref(CoilPath *path)
 {
     g_return_if_fail(path);
 
-    if (g_atomic_int_dec_and_test(&path->ref_count)) {
+    CoilRealPath *rpath = (CoilRealPath *)path;
+
+    if (g_atomic_int_dec_and_test(&rpath->ref_count)) {
         coil_path_free(path);
     }
 }
@@ -460,7 +479,7 @@ coil_path_join(CoilPath *a, CoilPath *b, GError **error)
     g_return_val_if_fail(a, NULL);
     g_return_val_if_fail(b, NULL);
 
-    CoilPath *res;
+    CoilRealPath *res;
     gchar *p, *str, *key;
     guint len = a->len + b->key_len + 1;
 
@@ -478,13 +497,13 @@ coil_path_join(CoilPath *a, CoilPath *b, GError **error)
     }
 
     /* XXX: it might be a good idea to only allow key to point into path */
-    res = coil_path_take_string_with_keyx(str, len, key,
+    res = (CoilRealPath *)coil_path_take_string_with_keyx(str, len, key,
             b->key_len, COIL_STATIC_KEY);
 
     if (res && a->hash) {
         res->hash = hash_relative(a->hash, b->key, b->key_len);
     }
-    return res;
+    return (CoilPath *)res;
 }
 
 /*
@@ -504,7 +523,7 @@ coil_path_concat(CoilPath *a, CoilPath *b, GError **error)
 
     gchar *str, *p;
     guint len;
-    CoilPath *res;
+    CoilRealPath *res;
 
     len = a->len + b->len + 1;
     str = g_new(gchar, len + 1);
@@ -519,11 +538,11 @@ coil_path_concat(CoilPath *a, CoilPath *b, GError **error)
         return NULL;
     }
 
-    res = coil_path_take_string(str, len);
+    res = (CoilRealPath *)coil_path_take_string(str, len);
     if (res && a->hash) {
         res->hash = hash_relative(a->hash, b->str, b->len);
     }
-    return res;
+    return (CoilPath *)res;
 }
 
 static const char valid_path_chars[128] = {
@@ -655,7 +674,8 @@ coil_path_resolve(CoilPath *path, CoilPath *container, GError **error)
     g_return_val_if_fail(path != container, NULL);
     g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
-    gchar *suffix, *end, *str, *p;
+    gchar *str, *p;
+    const gchar *suffix, *end;
     guint container_len, suffix_len, path_len;
 
     if (COIL_PATH_IS_RELATIVE(container)) {
@@ -749,7 +769,7 @@ coil_path_relativize(CoilPath *target, CoilPath *container)
     g_return_val_if_fail(!COIL_PATH_IS_ROOT(target), NULL);
     g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(container), NULL);
 
-    CoilPath *relative;
+    CoilRealPath *relative;
     guint8 prefix_len, tail_len, num_dots = 2;
     const gchar *delim, *prefix, *path;
 
@@ -808,7 +828,7 @@ backref:
     relative->key_len = target->key_len;
     relative->str[relative->len] = 0;
     relative->flags = COIL_STATIC_KEY;
-    return relative;
+    return (CoilPath *)relative;
 }
 
 /* XXX: maybe remove */

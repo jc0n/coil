@@ -16,13 +16,12 @@ typedef enum {
 
 typedef struct _CoilPath
 {
-    gchar *str;
-    guint8 len;
-    gchar *key;
-    guint8 key_len;
-    guint hash; /* private */
-    CoilPathFlags flags; /* private */
-    volatile gint ref_count; /* private */
+    const gchar *str;
+    const guint8 len;
+    const gchar *key;
+    const guint8 key_len;
+    const guint hash; /* private */
+    const CoilPathFlags flags; /* private */
 } CoilPath;
 
 extern CoilPath _coil_root_path;

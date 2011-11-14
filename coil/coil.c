@@ -36,6 +36,7 @@ coil_init(void)
     //  g_type_init_with_debug_flags(G_TYPE_DEBUG_SIGNALS);
 
     coil_none_object = g_object_new(COIL_TYPE_NONE, NULL);
+    coil_path_ref(CoilRootPath);
     init_called = TRUE;
 }
 
