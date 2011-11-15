@@ -103,7 +103,7 @@ do_lookup(CoilObject *self, CoilPath *path, gboolean expand_value,
         gboolean expand_container);
 
 static void
-do_build_string(CoilObject *self, GString *buffer, CoilStringFormat *format);
+struct_build_string(CoilObject *self, GString *buffer, CoilStringFormat *format);
 
 #if COIL_STRICT_CONTEXT
 #define STRUCT_MERGE_STRICT(s, d) \
@@ -1418,7 +1418,7 @@ expand_dependency(CoilObject *self, CoilObject *dependency)
 }
 
 static gboolean
-do_expand(CoilObject *self, const GValue **return_value)
+struct_expand_internal(CoilObject *self, const GValue **return_value)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
 
@@ -1817,7 +1817,7 @@ coil_struct_get_size(CoilObject *self)
     return COIL_STRUCT(self)->priv->size;
 }
 
-/* Only call from do_build_string() */
+/* Only call from struct_build_string() */
 static void
 build_flat_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
 {
@@ -1836,7 +1836,7 @@ build_flat_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
     while (coil_struct_iter_next(&it, &path, &value)) {
         if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
             CoilObject *node = COIL_OBJECT(g_value_get_object(value));
-            do_build_string(node, buffer, format);
+            struct_build_string(node, buffer, format);
         }
         else {
             g_string_append_printf(buffer, "%s: ", path->str + path_offset);
@@ -1849,7 +1849,7 @@ build_flat_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
     }
 }
 
-/* Only call from do_build_string() */
+/* Only call from struct_build_string() */
 static void
 build_scoped_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
 {
@@ -1924,7 +1924,7 @@ build_scoped_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
 }
 
 static void
-do_build_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
+struct_build_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
 {
     g_return_if_fail(COIL_IS_STRUCT(self));
     g_return_if_fail(buffer);
@@ -1950,7 +1950,7 @@ do_build_string(CoilObject *self, GString *buffer, CoilStringFormat *format)
 }
 
 COIL_API(CoilObject *)
-do_copy_valist(CoilObject *self, const gchar *first_property_name,
+struct_copy_valist(CoilObject *self, const gchar *first_property_name,
         va_list properties)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(self), NULL);
@@ -2241,11 +2241,11 @@ coil_struct_class_init(CoilStructClass *klass)
 
     /* override object methods */
     CoilObjectClass *object_class = COIL_OBJECT_CLASS(klass);
-    object_class->copy = do_copy_valist;
+    object_class->copy = struct_copy_valist;
     object_class->is_expanded = struct_needs_expand;
-    object_class->expand = do_expand;
+    object_class->expand = struct_expand_internal;
     object_class->equals = coil_struct_equals;
-    object_class->build_string = do_build_string;
+    object_class->build_string = struct_build_string;
 
     properties[PROP_IS_PROTOTYPE] = g_param_spec_boolean("is-prototype",
             "Is Prototype",
