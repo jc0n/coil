@@ -78,6 +78,7 @@ coil_struct_is_ancestor(CoilObject *ancestor, CoilObject *descendent);
 gboolean
 coil_struct_is_descendent(CoilObject *descendent, CoilObject *ancestor);
 
+/* TODO: replace with generic traverse routine */
 void
 coil_struct_foreach_ancestor(CoilObject *self,
                              gboolean include_self,
@@ -118,6 +119,8 @@ coil_struct_merge(CoilObject *src, CoilObject *dst);
 gboolean
 coil_struct_expand_items(CoilObject *self, gboolean recursive);
 
+/* XXX: maybe rename this back to lookup_path,
+ * either way it needs to maintain the same scheme as the others */
 const GValue *
 coil_struct_lookupx(CoilObject *self, CoilPath *path,
         gboolean expand_value);

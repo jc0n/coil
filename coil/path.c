@@ -163,6 +163,7 @@ coil_path_list_free(GList *list)
     }
 }
 
+/* XXX: make private */
 void
 path_length_error(const gchar *path, guint len)
 {
