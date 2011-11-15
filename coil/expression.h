@@ -8,19 +8,19 @@
 #define COIL_EXPR_H
 
 #define COIL_TYPE_EXPR \
-  (coil_expr_get_type())
+    (coil_expr_get_type())
 
 #define COIL_EXPR(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj), COIL_TYPE_EXPR, CoilExpr))
+    (G_TYPE_CHECK_INSTANCE_CAST((obj), COIL_TYPE_EXPR, CoilExpr))
 
 #define COIL_IS_EXPR(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj), COIL_TYPE_EXPR))
+    (G_TYPE_CHECK_INSTANCE_TYPE((obj), COIL_TYPE_EXPR))
 
 #define COIL_EXPR_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass), COIL_TYPE_EXPR))
+    (G_TYPE_CHECK_CLASS_TYPE((klass), COIL_TYPE_EXPR))
 
 #define COIL_EXPR_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_EXPR, CoilExprClass))
+    (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_EXPR, CoilExprClass))
 
 typedef struct _CoilExpr        CoilExpr;
 typedef struct _CoilExprClass   CoilExprClass;
