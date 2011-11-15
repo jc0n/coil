@@ -5,7 +5,6 @@
  */
 %option reentrant
 %option noyywrap
-%option bison-bridge
 %option bison-locations
 %option never-interactive
 
@@ -101,9 +100,6 @@ NONE (?i:"none")
 INCLUDE (?i:(("@file"|"@include")[s]?))
 EXTEND (?i:"@extend"[s]?)
 PACKAGE (?i:"@package")
-
-/* module token */
-MODULE ("@"[a-zA-Z]+)
 
 /* keys and paths */
 ROOT "@root"
@@ -216,18 +212,6 @@ STRING_EXPRESSION ({EXPR0}|{EXPR1}|{EXPR2}|{EXPR3})
     yylval->gstring = copy_compressed_string(str, len);
 
     return STRING_LITERAL;
-}
-
-{MODULE} {
-    // to be implemented later
-    /* TODO: check that module exists in module table */
-    if (/*XXX: found module in lookup table */FALSE)
-    {
-        yylval->gstring = g_string_new_len(yytext + 1, yyleng - 2);
-        return MODULE_SYM;
-    }
-    else
-        yymore();
 }
 
 "~" { return '~'; }

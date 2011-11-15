@@ -163,12 +163,6 @@ coil_path_list_free(GList *list)
     }
 }
 
-static char *
-shorten_path(const char *path, guint path_len)
-{
-    return strtrunc("...", TRUNCATE_CENTER, COIL_PATH_LEN, path, path_len);
-}
-
 void
 path_length_error(const gchar *path, guint len)
 {

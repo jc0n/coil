@@ -586,19 +586,6 @@ include_build_string(CoilObject *self, GString *buffer, CoilStringFormat *format
     g_value_array_free(args);
 }
 
-static gchar *
-include_to_string(CoilObject *self, CoilStringFormat *format)
-{
-    g_return_val_if_fail(COIL_IS_INCLUDE(self), NULL);
-
-    GString *buffer;
-
-    buffer = g_string_sized_new(128);
-    include_build_string(self, buffer, format);
-
-    return g_string_free(buffer, FALSE);
-}
-
 static void
 coil_include_dispose(GObject *object)
 {

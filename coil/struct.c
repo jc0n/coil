@@ -5,7 +5,6 @@
  */
 
 #include "common.h"
-#include "marshal.h"
 #include "struct.h"
 #include "struct_table.h"
 #include "struct-private.h"
@@ -23,10 +22,9 @@ struct _CoilStructPrivate
 
     GQueue entries;
     GQueue dependencies;
-    GList *expand_ptr; /* XXX: REFACTOR consider removing */
+    GList *unexpanded;
 
     guint size;
-    guint hash;
 
 #if COIL_DEBUG
     guint version;
@@ -355,7 +353,7 @@ struct_needs_expand(CoilObject *o)
     if (g_queue_is_empty(&priv->dependencies)) {
         return FALSE;
     }
-    return priv->expand_ptr != NULL;
+    return priv->unexpanded != NULL;
 }
 
 static gboolean
@@ -1431,22 +1429,17 @@ struct_expand_internal(CoilObject *self, const GValue **return_value)
     if (struct_needs_expand(self)) {
         return TRUE;
     }
-    /* Since we waited to expand we're not really changing anything
-     * (theoretically). */
-    /* TODO(jcon): remove this  -- handle in merge */
-    priv->is_accumulating = TRUE;
-    if (priv->expand_ptr == NULL) {
+    if (priv->unexpanded == NULL) {
         list = g_queue_peek_head_link(&priv->dependencies);
     }
     else {
-        list = g_list_next(priv->expand_ptr);
+        list = g_list_next(priv->unexpanded);
     }
 
     while (list) {
         dependency = COIL_OBJECT(list->data);
-        priv->expand_ptr = list;
+        priv->unexpanded = list;
         if (!expand_dependency(self, dependency)) {
-            priv->is_accumulating = FALSE;
             return FALSE;
         }
         list = g_list_next(list);
@@ -1454,8 +1447,6 @@ struct_expand_internal(CoilObject *self, const GValue **return_value)
 #if COIL_DEBUG
     priv->version++;
 #endif
-    /* resume reporting modifications -- particularly to dependents */
-    priv->is_accumulating = FALSE;
     return TRUE;
 }
 

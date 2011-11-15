@@ -10,7 +10,6 @@
 #include "common.h"
 #include "error.h"
 #include "list.h"
-#include "marshal.h"
 #include "parser_defs.h"
 #include "struct.h"
 #include "include.h"

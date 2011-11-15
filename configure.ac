@@ -45,7 +45,6 @@ AC_CONFIG_FILES([
     coil/Makefile
     tests/Makefile
     tests/functional/Makefile
-    tests/benchmark/Makefile
 ])
 
 AC_CONFIG_SRCDIR([coil/struct.c])
