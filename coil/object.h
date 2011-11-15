@@ -59,17 +59,16 @@ struct _CoilObjectClass
 
     /* Abstract Methods */
     CoilObject *(*copy) (CoilObject *self, const gchar *first_property_name,
-            va_list properties, GError **error);
+            va_list properties);
 
     gboolean (*is_expanded) (CoilObject *self);
 
-    gboolean (*expand) (CoilObject *self, const GValue **return_value,
-            GError **error);
+    gboolean (*expand) (CoilObject *self, const GValue **return_value);
 
-    gint (*equals) (CoilObject *self, CoilObject *other, GError **error);
+    gint (*equals) (CoilObject *self, CoilObject *other);
 
     void  (*build_string) (CoilObject *self, GString *buffer,
-            CoilStringFormat *format, GError **error);
+            CoilStringFormat *format);
 };
 
 
@@ -96,32 +95,18 @@ guint
 coil_object_get_refcount(CoilObject *object);
 
 CoilObject *
-coil_object_copy(gconstpointer     object,
-                     GError          **error,
-                     const gchar      *first_property_name,
-                     ...) G_GNUC_NULL_TERMINATED;
+coil_object_copy(CoilObject *object, const gchar *first_property_name, ...)
+    G_GNUC_NULL_TERMINATED;
 
 void
-coil_object_build_string(CoilObject   *self,
-                             GString *const    buffer,
-                             CoilStringFormat *format,
-                             GError          **error);
+coil_object_build_string(CoilObject *self, GString *buffer,
+        CoilStringFormat *format);
 
 gchar *
-coil_object_to_string(CoilObject   *self,
-                          CoilStringFormat *format,
-                          GError          **error);
+coil_object_to_string(CoilObject *self, CoilStringFormat *format);
 
 gboolean
-coil_object_equals(gconstpointer  e1,
-                       gconstpointer  e2,
-                       GError       **error);
-
- /* TODO(jcon): consider removing */
-gboolean
-coil_object_value_equals(const GValue  *v1,
-                             const GValue  *v2,
-                             GError       **error);
+coil_object_equals(CoilObject *a, CoilObject *b);
 
  /* TODO(jcon): consider removing */
 gboolean
@@ -129,15 +114,13 @@ coil_is_expanded(CoilObject *self);
 
  /* const object pointer */
 gboolean
-coil_expand_value(const GValue  *value,
-                  const GValue **return_value,
-                  gboolean       recursive,
-                  GError       **error);
+coil_expand_value(const GValue *value, const GValue **return_value,
+        gboolean recursive);
 
 /* replaced with coil_object_expand */
 gboolean
 coil_expand(CoilObject *object, const GValue **return_value,
-        gboolean recursive, GError **error);
+        gboolean recursive);
 
 
 /* TODO(jcon)
@@ -149,8 +132,7 @@ coil_object_expand(CoilObject *object, gboolean recurse);
 gboolean
 coil_object_expand(CoilObject *object,
                    const GValue **return_value,
-                   gboolean recursive,
-                   GError **error);
+                   gboolean recursive);
 */
 
 

@@ -33,82 +33,48 @@ static GParamSpec *properties[PROP_LAST];
 
 
 COIL_API(void)
-coil_object_build_string(CoilObject   *self,
-                             GString          *const buffer,
-                             CoilStringFormat *format,
-                             GError          **error)
+coil_object_build_string(CoilObject *self, GString *buffer,
+        CoilStringFormat *format)
 {
     g_return_if_fail(COIL_IS_OBJECT(self));
-    g_return_if_fail(error == NULL || *error == NULL);
     g_return_if_fail(format);
 
     CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(self);
-    return klass->build_string(self, buffer, format, error);
+    return klass->build_string(self, buffer, format);
 }
 
 COIL_API(gchar *)
-coil_object_to_string(CoilObject   *self,
-        CoilStringFormat *format,
-        GError          **error)
+coil_object_to_string(CoilObject *self, CoilStringFormat *format)
 {
     g_return_val_if_fail(COIL_IS_OBJECT(self), NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
     g_return_val_if_fail(format, NULL);
 
     GString *buffer = g_string_sized_new(128);
-    coil_object_build_string(self, buffer, format, error);
+    coil_object_build_string(self, buffer, format);
 
     return g_string_free(buffer, FALSE);
 }
 
 COIL_API(gboolean)
-coil_object_equals(gconstpointer  e1,
-                       gconstpointer  e2,
-                       GError       **error) /* no need */
+coil_object_equals(CoilObject *a, CoilObject *b)
 {
-    g_return_val_if_fail(COIL_IS_OBJECT(e1), FALSE);
-    g_return_val_if_fail(COIL_IS_OBJECT(e2), FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
+    g_return_val_if_fail(COIL_IS_OBJECT(a), FALSE);
+    g_return_val_if_fail(COIL_IS_OBJECT(b), FALSE);
 
-    if (e1 == e2)
-        return TRUE;
-
-    if (G_OBJECT_TYPE(e1) != G_OBJECT_TYPE(e2))
-        return FALSE;
-
-    CoilObject      *x1, *x2;
     CoilObjectClass *klass;
 
-    x1 = COIL_OBJECT(e1);
-    x2 = COIL_OBJECT(e2);
-    klass = COIL_OBJECT_GET_CLASS(x1);
+    if (a == b)
+        return TRUE;
 
-    return klass->equals(x1, x2, error);
-}
-
-COIL_API(gboolean)
-coil_object_value_equals(const GValue  *v1,
-                             const GValue  *v2,
-                             GError       **error) /* no need */
-{
-    g_return_val_if_fail(G_IS_VALUE(v1), FALSE);
-    g_return_val_if_fail(G_IS_VALUE(v2), FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
-
-    const CoilObject *x1, *x2;
-
-    if (!(G_VALUE_HOLDS(v1, COIL_TYPE_OBJECT)
-                && G_VALUE_HOLDS(v2, COIL_TYPE_OBJECT)))
+    if (G_OBJECT_TYPE(a) != G_OBJECT_TYPE(b))
         return FALSE;
 
-    x1 = COIL_OBJECT(g_value_get_object(v1));
-    x2 = COIL_OBJECT(g_value_get_object(v2));
-
-    return coil_object_equals(x1, x2, error);
+    klass = COIL_OBJECT_GET_CLASS(a);
+    return klass->equals(a, b);
 }
 
 COIL_API(gboolean)
-coil_is_expanded(CoilObject *self) /* const object pointer */
+coil_is_expanded(CoilObject *self)
 {
     g_return_val_if_fail(COIL_IS_OBJECT(self), FALSE);
 
@@ -117,17 +83,14 @@ coil_is_expanded(CoilObject *self) /* const object pointer */
 }
 
 COIL_API(gboolean)
-coil_expand(CoilObject *object, const GValue **value_ptr,
-        gboolean recursive, GError **error)
+coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
 {
     g_return_val_if_fail(COIL_IS_OBJECT(object), FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
     CoilObject *self = COIL_OBJECT(object);
     CoilObjectPrivate *priv = self->priv;
     CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(self);
     const GValue *return_value = NULL;
-    GError *internal_error = NULL;
 
     /* TODO(jcon): notify container of expansion */
 
@@ -140,19 +103,18 @@ coil_expand(CoilObject *object, const GValue **value_ptr,
         else {
             container = self->container;
         }
-        coil_struct_error(&internal_error, container,
-                "Cycle detected during expansion");
+        coil_struct_error(container, "Cycle detected during expansion");
         goto error;
     }
 
-    if (!klass->expand(self, &return_value, error))
+    if (!klass->expand(self, &return_value))
         goto error;
 
     if (recursive && return_value /* want to expand return value */
             && (value_ptr == NULL /* caller doesnt care about return value */
                 || return_value != *value_ptr) /* prevent expand cycle on same value */
             && G_VALUE_HOLDS(return_value, COIL_TYPE_OBJECT) /* must be object */
-            && !coil_expand_value(return_value, &return_value, TRUE, error))
+            && !coil_expand_value(return_value, &return_value, TRUE))
         goto error;
 
     g_static_mutex_unlock(&priv->expand_lock);
@@ -163,48 +125,38 @@ coil_expand(CoilObject *object, const GValue **value_ptr,
     return TRUE;
 
 error:
-    if (value_ptr)
+    if (value_ptr) {
         *value_ptr = NULL;
-
-    if (internal_error)
-        g_propagate_error(error, internal_error);
-
+    }
     g_static_mutex_unlock(&priv->expand_lock);
     return FALSE;
 }
 
 COIL_API(gboolean)
-coil_expand_value(const GValue  *value,
-                  const GValue **return_value,
-                  gboolean       recursive,
-                  GError       **error)
+coil_expand_value(const GValue *value, const GValue **return_value,
+        gboolean recursive)
 {
     g_return_val_if_fail(G_IS_VALUE(value), FALSE);
     g_return_val_if_fail(G_VALUE_HOLDS(value, COIL_TYPE_OBJECT), FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
     CoilObject *object = COIL_OBJECT(g_value_get_object(value));
 
-    return coil_expand(object, return_value, recursive, error);
+    return coil_expand(object, return_value, recursive);
 }
 
 COIL_API(CoilObject *)
-coil_object_copy(gconstpointer     object,
-                     GError          **error,
-                     const gchar      *first_property_name,
-                     ...)
+coil_object_copy(CoilObject *object, const gchar *first_property_name, ...)
 {
     g_return_val_if_fail(COIL_IS_OBJECT(object), NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
     va_list properties;
 
-    CoilObject      *exp = COIL_OBJECT(object);
+    CoilObject *exp = COIL_OBJECT(object);
     CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(exp);
-    CoilObject      *result;
+    CoilObject *result;
 
     va_start(properties, first_property_name);
-    result = klass->copy(exp, first_property_name, properties, error);
+    result = klass->copy(exp, first_property_name, properties);
     va_end(properties);
 
     return result;
@@ -366,10 +318,8 @@ coil_object_init(CoilObject *self)
 }
 
 static CoilObject *
-_object_copy(CoilObject * self,
-             const gchar *first_property_name,
-             va_list properties,
-             GError **error)
+_object_copy(CoilObject *self, const gchar *first_property_name,
+        va_list properties)
 {
     g_error("Bad implementation of object->copy() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -387,7 +337,7 @@ _object_is_expanded(CoilObject * self)
 }
 
 static gboolean
-_object_expand(CoilObject * self, const GValue **return_value, GError **error)
+_object_expand(CoilObject *self, const GValue **return_value)
 {
     g_error("Bad implementation of object->expand() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -396,7 +346,7 @@ _object_expand(CoilObject * self, const GValue **return_value, GError **error)
 }
 
 static gint
-_object_equals(CoilObject * self, CoilObject * other, GError **error)
+_object_equals(CoilObject * self, CoilObject * other)
 {
     g_error("Bad implementation of object->equals() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
@@ -405,10 +355,8 @@ _object_equals(CoilObject * self, CoilObject * other, GError **error)
 }
 
 static void
-_object_build_string(CoilObject * self,
-                     GString *buffer,
-                     CoilStringFormat *format,
-                     GError **error)
+_object_build_string(CoilObject *self, GString *buffer,
+        CoilStringFormat *format)
 {
     g_error("Bad implementation of object->build_string() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));

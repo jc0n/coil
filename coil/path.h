@@ -58,7 +58,7 @@ extern CoilPath _coil_root_path;
 G_BEGIN_DECLS
 
 void
-path_length_error(const gchar *path, guint path_len, GError **error);
+path_length_error(const gchar *path, guint path_len);
 
 GType
 coil_path_get_type(void) G_GNUC_CONST;
@@ -84,10 +84,10 @@ coil_path_take_stringx(gchar *str, guint len, guint flags);
 
 
 CoilPath *
-coil_path_new_len(const gchar *str, guint len, GError **error);
+coil_path_new_len(const gchar *str, guint len);
 
 CoilPath *
-coil_path_new(const gchar *str, GError **error);
+coil_path_new(const gchar *str);
 
 gboolean
 coil_path_equal(CoilPath *a, CoilPath *b);
@@ -105,11 +105,11 @@ void
 coil_path_unref(CoilPath *p);
 
 CoilPath *
-coil_path_join(CoilPath *container, CoilPath *key, GError **error)
+coil_path_join(CoilPath *container, CoilPath *key)
     G_GNUC_WARN_UNUSED_RESULT;
 
 CoilPath *
-coil_path_concat(CoilPath *a, CoilPath *b, GError **err);
+coil_path_concat(CoilPath *a, CoilPath *b);
 
 gboolean
 coil_validate_path_len(const gchar *str, guint len);
@@ -118,14 +118,14 @@ gboolean
 coil_validate_path(const gchar *path);
 
 gboolean
-coil_check_path(const gchar *path, guint path_len, GError **error);
+coil_check_path(const gchar *path, guint path_len);
 
 CoilPath *
-coil_path_resolve(CoilPath *path, CoilPath *context, GError **error)
+coil_path_resolve(CoilPath *path, CoilPath *context)
     G_GNUC_WARN_UNUSED_RESULT;
 
 gboolean
-coil_path_resolve_inplace(CoilPath **path, CoilPath *context, GError **error);
+coil_path_resolve_inplace(CoilPath **path, CoilPath *context);
 
 CoilPath *
 coil_path_relativize(CoilPath *path, CoilPath *base)

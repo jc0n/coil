@@ -15,15 +15,10 @@
 G_BEGIN_DECLS
 
 void
-coil_list_build_string(CoilList *list,
-                       GString *const buffer,
-                       CoilStringFormat *format,
-                       GError **error);
+coil_list_build_string(CoilList *list, GString *buffer, CoilStringFormat *format);
 
 gchar *
-coil_list_to_string(CoilList *list,
-                    CoilStringFormat *format,
-                    GError **error);
+coil_list_to_string(CoilList *list, CoilStringFormat *format);
 
 G_END_DECLS
 

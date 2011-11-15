@@ -33,9 +33,8 @@
 #define coil_include_new(args...)                                             \
     COIL_OBJECT(g_object_new(COIL_TYPE_INCLUDE, ##args, NULL))
 
-#define coil_include_error(err, incl, format, args...) \
-    coil_object_error(err, COIL_ERROR_INCLUDE, \
-                          incl, "Include error: " format, ##args)
+#define coil_include_error(incl, format, args...) \
+    coil_object_error(COIL_ERROR_INCLUDE, incl, format, ##args)
 
 typedef struct _CoilInclude         CoilInclude;
 typedef struct _CoilIncludeClass    CoilIncludeClass;
@@ -59,12 +58,10 @@ coil_include_get_type(void) G_GNUC_CONST;
 
 /* XXX: remove (replace with property after errors are refactorerd) */
 CoilObject *
-coil_include_get_root_node(CoilObject *include,
-                           GError     **error);
+coil_include_get_root_node(CoilObject *include);
 
 CoilObject *
-coil_include_dup_root_node(CoilObject *include,
-                           GError     **error);
+coil_include_dup_root_node(CoilObject *include);
 
 G_END_DECLS
 

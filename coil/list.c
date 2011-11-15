@@ -10,20 +10,15 @@
 #include "value.h"
 
 COIL_API(void)
-coil_list_build_string(CoilList *list,
-                       GString *const buffer,
-                       CoilStringFormat *_format,
-                       GError **error)
+coil_list_build_string(CoilList *list, GString *buffer, CoilStringFormat *_format)
 {
     g_return_if_fail(list);
     g_return_if_fail(buffer);
     g_return_if_fail(_format);
-    g_return_if_fail(error == NULL || *error == NULL);
 
     guint i, n, delim_len, opts;
     gchar delim[128];
     CoilStringFormat format = *_format;
-    GError *internal_error = NULL;
 
     n = list->n_values;
     if (n == 0) {
@@ -54,9 +49,8 @@ coil_list_build_string(CoilList *list,
     i = 0;
     do {
         GValue *value = g_value_array_get_nth(list, i);
-        coil_value_build_string(value, buffer, &format, &internal_error);
-        if (internal_error) {
-            g_propagate_error(error, internal_error);
+        coil_value_build_string(value, buffer, &format);
+        if (coil_error_occurred()) {
             return;
         }
         g_string_append_len(buffer, delim, delim_len);
@@ -69,9 +63,7 @@ coil_list_build_string(CoilList *list,
 }
 
 COIL_API(gchar *)
-coil_list_to_string(CoilList *list,
-                    CoilStringFormat *format,
-                    GError **error)
+coil_list_to_string(CoilList *list, CoilStringFormat *format)
 {
   GString *buffer;
 
@@ -79,7 +71,7 @@ coil_list_to_string(CoilList *list,
     return g_strndup("[]", 2);
 
   buffer = g_string_sized_new(128);
-  coil_list_build_string(list, buffer, format, error);
+  coil_list_build_string(list, buffer, format);
 
   return g_string_free(buffer, FALSE);
 }

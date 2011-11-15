@@ -4,8 +4,6 @@
  * Author: John O'Connor
  */
 
-#include <string.h>
-
 #include "coil.h"
 
 #define TEST_CASES_PATH "./cases/"
@@ -16,7 +14,8 @@
 #define TEST_FAIL_STR "fail"
 #define EXPECTED_KEY_NAME "expected"
 
-static void run_test(gconstpointer arg);
+static void
+run_test(gconstpointer arg);
 
 static GSList *
 read_test_dir(const gchar *dirpath)
@@ -67,26 +66,26 @@ static void
 expect_pass(const gchar *filepath)
 {
     CoilObject *root;
-    GError *error = NULL;
+    CoilError *error = NULL;
     const GValue *test, *expected;
 
-    root = coil_parse_file(filepath, &error);
-    g_assert_no_error(error);
+    root = coil_parse_file(filepath);
+    g_assert(!coil_error_occurred());
 
     test = coil_struct_lookup(root, TEST_KEY_NAME,
-            sizeof(TEST_KEY_NAME)-1, FALSE, &error);
-    g_assert_no_error(error);
+            sizeof(TEST_KEY_NAME)-1, FALSE);
+    g_assert(!coil_error_occurred());
 
     expected = coil_struct_lookup(root, EXPECTED_KEY_NAME,
-            sizeof(EXPECTED_KEY_NAME)-1, FALSE, &error);
-    g_assert_no_error(error);
+            sizeof(EXPECTED_KEY_NAME)-1, FALSE);
+    g_assert(!coil_error_occurred());
 
     if (test == NULL && expected == NULL) {
         /* just check syntax
          * expand everything to catch expand errors
          */
-        coil_struct_expand_items(root, TRUE, &error);
-        g_assert_no_error(error);
+        coil_struct_expand_items(root, TRUE);
+        g_assert(!coil_error_occurred());
     }
     else if (test == NULL) {
         g_error("Must specify '%s' in coil pass test file.", TEST_KEY_NAME);
@@ -95,21 +94,26 @@ expect_pass(const gchar *filepath)
         g_error("Must specify '%s' in coil pass test file.", EXPECTED_KEY_NAME);
     }
     else {
-        gint result = coil_value_compare(test, expected, &error);
-        g_assert_no_error(error);
+        gint result = coil_value_compare(test, expected);
 
-        if (result) {
+        g_assert(!coil_error_occurred());
+
+        if (result != 0) {
             gchar *string;
-            CoilStringFormat format = default_string_format;
+            CoilError *error = NULL;
+            CoilStringFormat format;
 
+            format = default_string_format;
             format.options |= FORCE_EXPAND;
 
-            g_assert_no_error(error);
-            string = coil_object_to_string(root, &format, &error);
-            g_assert_no_error(error);
-
-            g_print("Failed: \n\n%s\n", string);
-            g_free(string);
+            if (!coil_error_occurred()) {
+                string = coil_object_to_string(root, &format);
+            }
+            if (coil_get_error(&error)) {
+                g_print("Failed: \n\n%s\n", error->message);
+                g_assert(error != NULL);
+                coil_error_clear();
+            }
         }
         g_assert_cmpint(result, ==, 0);
     }
@@ -120,15 +124,17 @@ static void
 expect_fail(const gchar *filepath)
 {
     CoilObject *root;
-    GError *error = NULL;
+    CoilError *error = NULL;
 
-    root = coil_parse_file(filepath, &error);
+    root = coil_parse_file(filepath);
+    if (coil_error_occurred()) {
+        g_assert(TRUE);
+        return;
+    }
     /* expand file to catch intentional expand errors */
     /* TODO: add specific error checking */
-    if (root && error == NULL) {
-        coil_struct_expand_items(root, TRUE, &error);
-    }
-    g_assert(error != NULL);
+    coil_struct_expand_items(root, TRUE);
+    g_assert(!coil_error_occurred());
 }
 
 static void

@@ -3,30 +3,37 @@
  *
  * Author: John O'Connor
  */
-
 #include "coil.h"
+
+
+/* XXX: implementation is not threadsafe now for a number of reasons
+ *
+ * - When multithreading support is added errors should be separated for each
+ *   thread.
+ */
+static GError *_coil_error = NULL;
 
 /*
  * coil_error_quark:
  *
  * Return error identifier for Glib Error Handling
  */
-GQuark coil_error_quark(void)
+GQuark
+coil_error_quark(void)
 {
-  static GQuark result = 0;
+    static GQuark result = 0;
 
-  if (!result)
-    result = g_quark_from_static_string("coil-error-quark");
-
-  return result;
+    if (!result) {
+        result = g_quark_from_static_string("coil-error-quark");
+    }
+    return result;
 }
 
-
-static char *
-location_prefix(CoilLocation *location)
+inline static char *
+get_location_prefix(CoilLocation *location)
 {
     if (location) {
-        int line = location->first_line;
+        int line = location->line;
         const char *filepath = location->filepath;
 
         if (line > 0 && filepath != NULL)
@@ -39,129 +46,190 @@ location_prefix(CoilLocation *location)
     return g_strndup("", 0);
 }
 
+inline static char *
+get_short_path_string(const gchar *str, guint len)
+{
+    if (str == NULL || len == 0) {
+        return g_strndup("Unknown Path", 12);
+    }
+    return strtrunc("<...>", TRUNCATE_CENTER, 40, str, len);
+}
+
+inline static char *
+get_short_path(CoilPath *path)
+{
+    return get_short_path_string(path->str, path->len);
+}
+
+gboolean
+coil_error_occurred(void)
+{
+    return _coil_error != NULL;
+}
+
+gboolean
+coil_get_error(GError **error)
+{
+    if (coil_error_occurred()) {
+        g_propagate_error(error, _coil_error);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+gboolean
+coil_error_matches(int code)
+{
+    if (coil_error_occurred()) {
+        return g_error_matches(_coil_error, COIL_ERROR, code);
+    }
+    return FALSE;
+}
+
+void
+coil_error_clear(void)
+{
+    if (coil_error_occurred()) {
+        g_error_free(_coil_error);
+        _coil_error = NULL;
+    }
+}
+
 GError *
 coil_error_new_valist(int code, CoilLocation *location,
-                      const char *format, va_list args)
+        const char *format, va_list args)
 {
-    g_return_val_if_fail(location != NULL, NULL);
-    g_return_val_if_fail(format != NULL, NULL);
+    g_return_val_if_fail(format, NULL);
 
-    GError *err;
-    char *pfx, *real_format;
+    GError *error;
 
-    pfx = location_prefix(location);
-    real_format = g_strconcat(pfx, format, NULL);
-    g_free(pfx);
+    if (location) {
+        char *prefix, *buf;
 
-    err = g_error_new_valist(COIL_ERROR, code, real_format, args);
+        prefix = get_location_prefix(location);
+        buf = g_strconcat(prefix, format, NULL);
 
-    g_free(real_format);
+        error = g_error_new_valist(COIL_ERROR, code, buf, args);
 
-    return err;
+        g_free(prefix);
+        g_free(buf);
+    }
+    else {
+        error = g_error_new_valist(COIL_ERROR, code, format, args);
+    }
+    return error;
 }
 
 GError *
 coil_error_new(int code, CoilLocation *location,
-               const char *format, ...)
+        const char *format, ...)
 {
-    GError *err;
+    GError *error;
     va_list args;
 
     va_start(args, format);
-    err = coil_error_new_valist(code, location, format, args);
+    error = coil_error_new_valist(code, location, format, args);
     va_end(args);
 
-    return err;
+    return error;
 }
 
-
 void
-coil_set_error(GError **error, int code,
-               CoilLocation *location,
-               const char *format, ...)
+coil_set_error(int code, CoilLocation *location, const char *format, ...)
 {
-    GError *new;
     va_list args;
 
     va_start(args, format);
-    new = coil_error_new_valist(code, location, format, args);
+    _coil_error = coil_error_new_valist(code, location, format, args);
     va_end(args);
-
-    g_propagate_error(error, new);
 }
 
 void
-coil_set_error_valist(GError **error, int code,
-                      CoilLocation *location, const char *format,
-                      va_list args)
+coil_set_error_valist(int code, CoilLocation *location, const char *format,
+        va_list args)
 {
-    GError *new = coil_error_new_valist(code, location, format, args);
-    g_propagate_error(error, new);
+    _coil_error = coil_error_new_valist(code, location, format, args);
 }
 
 void
-coil_set_error_literal(GError **error, int code, CoilLocation *location,
-                       const char *message)
+coil_set_error_literal(int code, CoilLocation *location, const char *msg)
 {
-    coil_set_error(error, code, location, message, NULL);
+    coil_set_error(code, location, msg, NULL);
 }
 
 void
-coil_object_error(GError **error, int code, CoilObject *obj,
-                      const char *format,
-                      ...)
+coil_object_error_valist(int code, CoilObject *object, const char *format,
+        va_list args)
+{
+    char *buf, *path;
+    const char *type;
+
+    type = G_OBJECT_TYPE_NAME(object);
+    path = get_short_path(object->path);
+    buf = g_strdup_printf("%s<%s>: %s", type, path, format);
+
+    coil_set_error_valist(code, &object->location, buf, args);
+
+    g_free(path);
+    g_free(buf);
+}
+
+void
+coil_object_error(int code, CoilObject *object, const char *format, ...)
 {
     va_list args;
-    CoilLocation *loc;
-    CoilObject *ex = COIL_OBJECT(obj);
-
-    loc = &ex->location;
-    va_start(args, format);
-    coil_set_error_valist(error, code, loc, format, args);
-    va_end(args);
-}
-
-
-void
-coil_struct_error(GError **error, CoilObject *self, const char *format, ...)
-{
-    CoilObject *obj = COIL_OBJECT(self);
-    char *real_format;
-    va_list args;
-
-    real_format = g_strdup_printf("Struct<%s>: %s", obj->path->str, format);
 
     va_start(args, format);
-    coil_set_error_valist(error, COIL_ERROR_STRUCT,
-            &obj->location, real_format, args);
+    coil_object_error_valist(code, object, format, args);
     va_end(args);
-
-    g_free(real_format);
 }
 
 void
-coil_link_error(GError **error, CoilObject *obj, const char *format, ...)
+coil_struct_error(CoilObject *self, const char *format, ...)
 {
-    char *real_format;
-    const CoilPath *path;
-    CoilLocation *lo;
+    g_return_if_fail(self);
+    g_return_if_fail(self->path);
+    g_return_if_fail(format);
+
     va_list args;
 
-    path = COIL_OBJECT(obj)->path;
-    lo = &COIL_OBJECT(obj)->location;
-
     va_start(args, format);
-
-    if (path) {
-        real_format = g_strdup_printf("Link<%s>: %s", path->str, format);
-        coil_set_error_valist(error, COIL_ERROR_LINK, lo, real_format, args);
-        g_free(real_format);
-    }
-    else {
-        coil_set_error_valist(error, COIL_ERROR_LINK, lo, format, args);
-    }
-
+    coil_object_error_valist(COIL_ERROR_STRUCT, self, format, args);
     va_end(args);
 }
 
+void
+coil_link_error(CoilObject *self, const char *format, ...)
+{
+    g_return_if_fail(self);
+    g_return_if_fail(format);
+
+    va_list args;
+
+    va_start(args, format);
+    coil_object_error_valist(COIL_ERROR_LINK, self, format, args);
+    va_end(args);
+}
+
+void
+coil_path_error(const gchar *path, guint len, const char *format, ...)
+{
+    g_return_if_fail(path);
+    g_return_if_fail(format);
+
+    va_list args;
+    const char *type;
+    char *buf, *short_path;
+
+    type = g_type_name(COIL_TYPE_PATH);
+    short_path = get_short_path_string(path, len);
+    buf = g_strdup_printf("%s<%s>: %s", type, short_path, format);
+
+    va_start(args, format);
+    coil_set_error_valist(COIL_ERROR_PATH, NULL, buf, args);
+    va_end(args);
+
+    g_free(short_path);
+    g_free(buf);
+}
 

@@ -25,26 +25,18 @@ link_is_expanded(CoilObject *link)
 }
 
 static gboolean
-link_expand(CoilObject *o, const GValue **return_value, GError **error)
+link_expand(CoilObject *o, const GValue **return_value)
 {
     g_return_val_if_fail(COIL_IS_LINK(o), FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
     CoilLink *self = COIL_LINK(o);
     CoilObject *container = o->container;
     const GValue *value;
-    GError *internal_error = NULL;
 
-    value = coil_struct_lookupx(container, self->target_path,
-            FALSE, &internal_error);
-
-    if (G_UNLIKELY(value == NULL)) {
-        if (internal_error) {
-            g_propagate_error(error, internal_error);
-        }
-        else {
-            coil_link_error(error, o,
-                    "target path '%s' does not exist.",
+    value = coil_struct_lookupx(container, self->target_path, FALSE);
+    if (value == NULL) {
+        if (!coil_error_occurred()) {
+            coil_link_error(o, "target path '%s' does not exist.",
                     self->target_path->str);
         }
         goto error;
@@ -63,14 +55,12 @@ error:
 }
 
 static CoilObject *
-link_copy(CoilObject *obj, const gchar *first_property_name,
-        va_list properties, GError **error)
+link_copy(CoilObject *obj, const gchar *first_property_name, va_list properties)
 {
     g_return_val_if_fail(COIL_IS_LINK(obj), NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
     CoilLink *self = COIL_LINK(obj);
-    CoilObject *copy = coil_link_new(error, "target_path", self->target_path, NULL);
+    CoilObject *copy = coil_link_new("target_path", self->target_path, NULL);
     CoilPath *target_path = NULL;
 
     if (copy == NULL)
@@ -97,29 +87,27 @@ link_copy(CoilObject *obj, const gchar *first_property_name,
 }
 
 static gboolean
-link_equals(CoilObject *self, CoilObject *other, GError **error)
+link_equals(CoilObject *self, CoilObject *other)
 {
     g_return_val_if_fail(COIL_IS_LINK(self), FALSE);
     g_return_val_if_fail(COIL_IS_LINK(other), FALSE);
-    g_return_val_if_fail(error == NULL || *error == NULL, FALSE);
 
     const GValue *selfval, *otherval;
 
     if (self == other)
         return TRUE;
 
-    if (!coil_object_expand(self, &selfval, FALSE, error))
+    if (!coil_object_expand(self, &selfval, FALSE))
         return FALSE;
 
-    if (!coil_object_expand(other, &otherval, FALSE, error))
+    if (!coil_object_expand(other, &otherval, FALSE))
         return FALSE;
 
-    return coil_value_compare(selfval, otherval, error) == 0;
+    return coil_value_compare(selfval, otherval) == 0;
 }
 
 static void
-link_build_string(CoilObject *link, GString *buffer,
-        CoilStringFormat *format, GError **error)
+link_build_string(CoilObject *link, GString *buffer, CoilStringFormat *format)
 {
     g_return_if_fail(COIL_IS_LINK(link));
     g_return_if_fail(buffer);
@@ -131,7 +119,7 @@ link_build_string(CoilObject *link, GString *buffer,
     CoilPath *container_path = obj->container->path;
 
     if (format->options & FLATTEN_PATHS)
-        target_path = coil_path_resolve(self->target_path, container_path, NULL);
+        target_path = coil_path_resolve(self->target_path, container_path);
     else
         target_path = coil_path_relativize(self->target_path, container_path);
 
@@ -150,7 +138,7 @@ link_to_string(CoilObject *link, CoilStringFormat *format)
     g_return_val_if_fail(COIL_IS_LINK(link), NULL);
 
     GString *buffer = g_string_sized_new(128);
-    link_build_string(link, buffer, format, NULL);
+    link_build_string(link, buffer, format);
 
     return g_string_free(buffer, FALSE);
 }
@@ -171,24 +159,20 @@ linkval_to_stringval(const GValue *linkval,
 }
 
 COIL_API(CoilObject *)
-coil_link_new(GError **error,
-              const gchar *first_property_name,
-              ...)
+coil_link_new(const gchar *first_property_name, ...)
 {
     va_list   properties;
     CoilObject *link;
 
     va_start(properties, first_property_name);
-    link = coil_link_new_valist(first_property_name, properties, error);
+    link = coil_link_new_valist(first_property_name, properties);
     va_end(properties);
 
     return link;
 }
 
 COIL_API(CoilObject *)
-coil_link_new_valist(const gchar *first_property_name,
-                     va_list      properties,
-                     GError     **error)
+coil_link_new_valist(const gchar *first_property_name, va_list properties)
 {
     CoilObject *object;
     CoilLink *self;
@@ -201,7 +185,7 @@ coil_link_new_valist(const gchar *first_property_name,
         g_error("Link must be constructed with a path.");
     }
     if (COIL_PATH_IS_ROOT(self->target_path)) {
-        coil_link_error(error, object, "Cannot link to root path");
+        coil_link_error(object, "Cannot link to root path");
         return NULL;
     }
     return COIL_OBJECT(self);

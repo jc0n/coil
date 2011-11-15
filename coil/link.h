@@ -48,16 +48,15 @@ G_BEGIN_DECLS
 
 GType coil_link_get_type(void) G_GNUC_CONST;
 
+/* XXX: make private */
 CoilObject *
-coil_link_new(GError **error,
-              const gchar *first_property_name,
-              ...) G_GNUC_WARN_UNUSED_RESULT
-                   G_GNUC_NULL_TERMINATED;
+coil_link_new(const gchar *first_property_name, ...)
+    G_GNUC_WARN_UNUSED_RESULT G_GNUC_NULL_TERMINATED;
 
+/* XXX: make private */
 CoilObject *
-coil_link_new_valist(const gchar *first_property_name,
-                     va_list      properties,
-                     GError     **error) G_GNUC_WARN_UNUSED_RESULT;
+coil_link_new_valist(const gchar *first_property_name, va_list properties)
+    G_GNUC_WARN_UNUSED_RESULT;
 
 G_END_DECLS
 #endif

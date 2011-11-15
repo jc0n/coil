@@ -55,14 +55,13 @@ GQuark
 coil_struct_prototype_quark(void) G_GNUC_CONST;
 
 CoilObject *
-coil_struct_new(GError **error, const gchar *first_property_name, ...);
+coil_struct_new(const gchar *first_property_name, ...);
 
 CoilObject *
-coil_struct_new_valist(const gchar *first_property_name,
-        va_list properties, GError **error);
+coil_struct_new_valist(const gchar *first_property_name, va_list properties);
 
 void
-coil_struct_empty(CoilObject *self, GError **error);
+coil_struct_empty(CoilObject *self);
 
 gboolean
 coil_struct_is_root(CoilObject *self);
@@ -71,7 +70,7 @@ gboolean
 coil_struct_is_prototype(CoilObject *self);
 
 gboolean
-coil_struct_is_empty(CoilObject *self, GError **error);
+coil_struct_is_empty(CoilObject *self);
 
 gboolean
 coil_struct_is_ancestor(CoilObject *ancestor, CoilObject *descendent);
@@ -88,17 +87,17 @@ coil_struct_foreach_ancestor(CoilObject *self,
 gboolean
 coil_struct_insert_path(CoilObject *self, CoilPath *path,
                         GValue *value, /* steals */
-                        gboolean replace, GError **error);
+                        gboolean replace);
 
 gboolean
 coil_struct_insert(CoilObject  *self, const gchar *str, guint len,
                    GValue *value, /* steals */
-                   gboolean replace, GError **error);
+                   gboolean replace);
 
 
 gboolean
 coil_struct_delete(CoilObject *self, const gchar *str, guint len,
-                   gboolean strict, GError **error);
+                   gboolean strict);
 
 
 void
@@ -110,29 +109,29 @@ coil_struct_iter_next(CoilStructIter *iter, CoilPath **path,
 
 gboolean
 coil_struct_merge_full(CoilObject *src, CoilObject *dst,
-        gboolean overwrite, gboolean force_expand, GError **error);
+        gboolean overwrite, gboolean force_expand);
 
 gboolean
-coil_struct_merge(CoilObject *src, CoilObject *dst, GError **error);
+coil_struct_merge(CoilObject *src, CoilObject *dst);
 
 /* XXX: remove (replace with visitor pattern for object entries) */
 gboolean
-coil_struct_expand_items(CoilObject *self, gboolean recursive, GError **error);
+coil_struct_expand_items(CoilObject *self, gboolean recursive);
 
 const GValue *
 coil_struct_lookupx(CoilObject *self, CoilPath *path,
-        gboolean expand_value, GError **error);
+        gboolean expand_value);
 
 /* XXX: remove */
 const GValue *
 coil_struct_lookup(CoilObject *self, const gchar *str, guint len,
-        gboolean expand_value, GError **error);
+        gboolean expand_value);
 
 GList *
-coil_struct_get_paths(CoilObject *self, GError **error);
+coil_struct_get_paths(CoilObject *self);
 
 GList *
-coil_struct_get_values(CoilObject *self, GError **error);
+coil_struct_get_values(CoilObject *self);
 
 GNode *
 coil_struct_dependency_tree(CoilObject *self, guint n_types, ...);
@@ -142,10 +141,10 @@ coil_struct_dependency_valist(CoilObject *self, guint ntypes, va_list args);
 
 GNode *
 coil_struct_dependency_treev(CoilObject *self, GNode *tree, guint ntypes,
-        GType *allowed_types, GError **error);
+        GType *allowed_types);
 
 gint
-coil_struct_get_size(CoilObject *self, GError **error);
+coil_struct_get_size(CoilObject *self);
 
 G_END_DECLS
 

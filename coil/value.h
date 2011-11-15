@@ -71,15 +71,14 @@ void
 free_string_list(GList *list);
 
 void
-coil_value_build_string(const GValue *value,
-    GString *const buffer, CoilStringFormat *format, GError **error);
+coil_value_build_string(const GValue *value, GString *const buffer,
+        CoilStringFormat *format);
 
 gchar *
-coil_value_to_string(const GValue *value,
-    CoilStringFormat *format, GError **error);
+coil_value_to_string(const GValue *value, CoilStringFormat *format);
 
 gint
-coil_value_compare(const GValue *v1, const GValue *v2, GError **);
+coil_value_compare(const GValue *v1, const GValue *v2);
 
 G_END_DECLS
 

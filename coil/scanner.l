@@ -10,25 +10,10 @@
 %option never-interactive
 
 %{
-#define YY_USER_ACTION                                                       \
-    {                                                                        \
-        register int i = yyleng;                                             \
-        yylloc->first_line = yylloc->last_line = yylineno;                   \
+#define YY_USER_ACTION {                                                     \
+        yylloc->line = yylineno;                                             \
         yylloc->filepath = (gchar *)yyextra->filepath;                       \
-        while (i-- > 0) {                                                    \
-            switch (yytext[i]) {                                             \
-                case 'n':                                                    \
-                    yylloc->last_line++;                                     \
-                    yylloc->last_column = 0;                                 \
-                    break;                                                   \
-                case 't':                                                    \
-                    yylloc->last_column += 8 - (yylloc->last_column % 8);    \
-                    break;                                                   \
-                default:                                                     \
-                    yylloc->last_column++;                                   \
-            }                                                                \
-        }                                                                    \
-    }
+}
 
 #include "common.h"
 #include "error.h"
@@ -95,7 +80,7 @@ G_STMT_START {                                                               \
 G_STMT_START {                                                               \
     /* tokenizer will only create valid paths except for length */           \
     if (yyleng > COIL_PATH_LEN) {                                            \
-        path_length_error(yytext, yyleng, &yyextra->error);                  \
+        path_length_error(yytext, yyleng);                                   \
         return ERROR;                                                        \
     }                                                                        \
     yylval->path = coil_path_take_string(g_strndup(yytext, yyleng), yyleng); \

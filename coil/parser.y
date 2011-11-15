@@ -25,68 +25,85 @@
 #define PEEK_CONTAINER(parser) \
   COIL_OBJECT(g_queue_peek_head(&(parser)->containers))
 
-#define PEEK_NTH_CONTAINER(parser, n) \
-  COIL_OBJECT(g_queue_peek_nth(&(parser)->containers, n))
-
 #define POP_CONTAINER(parser) \
   COIL_OBJECT(g_queue_pop_head(&(parser)->containers))
 
 #define PUSH_CONTAINER(parser, c) \
   g_queue_push_head(&(parser)->containers, (c))
 
-#define parser_error(parser, format, args...) \
-  g_set_error(&parser->error, COIL_ERROR, COIL_ERROR_PARSE, \
-              format, ##args)
-
 void
 yyerror(YYLTYPE *yylocp, CoilParser *parser, const gchar *msg);
 
 static void
-parser_handle_error(CoilParser *parser)
+set_parse_error(CoilParser *parser, CoilLocation *locp, const char *format, ...)
 {
     g_return_if_fail(parser);
 
-    if (parser->error) {
-        parser->errors = g_list_prepend(parser->errors, parser->error);
-        parser->error = NULL;
-    }
+    CoilError *error;
+    va_list args;
+
+    va_start(args, format);
+    error = coil_error_new_valist(COIL_ERROR_PARSE, locp, format, args);
+    va_end(args);
+
+    parser->errors = g_list_prepend(parser->errors, error);
 }
 
 static void
-collect_parse_errors(GError     **error,
-                     CoilParser  *const parser,
-                     gboolean     number_errors)
+handle_internal_error(CoilParser *parser)
 {
     g_return_if_fail(parser);
-    g_return_if_fail(error == NULL || *error == NULL);
 
-    guint    n;
-    GList   *list;
-    GString *msg;
-    GError  *parse_error;
+    CoilError *error = NULL;
 
-    if (error == NULL)
-        return; /* ignore errors */
-
-    if (parser->errors == NULL)
-        return; /* no errors to collect */
-
-    msg = g_string_new_len(COIL_STATIC_STRLEN("Parse Error(s): \n"));
-
-    for (list = g_list_last(parser->errors), n = 1;
-         list; list = g_list_previous(list)) {
-        g_assert(list->data);
-        const GError *err = (GError *)list->data;
-
-        if (number_errors)
-            g_string_append_printf(msg, "%d) %s\n", n++, (gchar *)err->message);
-        else
-            g_string_append(msg, err->message);
-
-        g_string_append_c(msg, '\n');
+    if (coil_get_error(&error)) {
+        CoilError *copy = coil_error_copy(error);
+        parser->errors = g_list_prepend(parser->errors, copy);
+        coil_error_clear();
     }
-    parse_error = g_error_new_literal(COIL_ERROR, COIL_ERROR_PARSE, msg->str);
-    g_propagate_error(error, parse_error);
+}
+
+static char _parse_errors[] = "Parse Errors: \n";
+static char _parse_error[] = "Parse Error: ";
+
+static void
+collect_parse_errors(CoilParser *parser)
+{
+    g_return_if_fail(parser);
+
+    guint i, n;
+    GList *list;
+    GString *msg;
+    CoilError *error;
+    gboolean show_numbers;
+
+    n = g_list_length(parser->errors);
+    if (n == 0) {
+        /* no errors to collect */
+        return;
+    }
+    if (n > 1) {
+        show_numbers = TRUE;
+        msg = g_string_new_len(_parse_errors, sizeof(_parse_errors)-1);
+    }
+    else {
+        show_numbers = FALSE;
+        msg = g_string_new_len(_parse_error, sizeof(_parse_error)-1);
+    }
+
+    list = g_list_last(parser->errors);
+    for (i = 1; list != NULL; i++) {
+        error = (CoilError *)list->data;
+        if (show_numbers) {
+            g_string_append_printf(msg, "%d) %s\n", i, error->message);
+        }
+        else {
+            g_string_append(msg, error->message);
+        }
+        g_string_append_c(msg, '\n');
+        list = g_list_previous(list);
+    }
+    coil_set_error(COIL_ERROR_PARSE, NULL, msg->str);
     g_string_free(msg, TRUE);
 }
 
@@ -108,10 +125,10 @@ handle_undefined_prototypes(CoilParser *parser)
         CoilObject *prototype = COIL_OBJECT(prototypes->data);
 
         if (!coil_struct_is_prototype(prototype->container)) {
-            coil_object_expand(prototype->container, NULL, FALSE, &parser->error);
+            coil_object_expand(prototype->container, NULL, FALSE);
         }
-        if (G_UNLIKELY(parser->error)) {
-            parser_handle_error(parser);
+        if (coil_error_occurred()) {
+            handle_internal_error(parser);
             g_list_free(prototypes);
             return FALSE;
         }
@@ -147,8 +164,7 @@ handle_undefined_prototypes(CoilParser *parser)
             g_string_append_printf(msg, "%s, ", path->str);
             list = g_list_delete_link(list, list);
         }
-        parser_error(parser, "%s", msg->str);
-        parser_handle_error(parser);
+        set_parse_error(parser, NULL, "%s", msg->str);
         g_string_free(msg, TRUE);
         return FALSE;
     }
@@ -171,12 +187,10 @@ parser_push_container(CoilParser *parser)
 {
     CoilObject *new, *container = PEEK_CONTAINER(parser);
 
-    new = _coil_create_containers(container, parser->path,
-            FALSE, FALSE, &parser->error);
+    new = _coil_create_containers(container, parser->path, FALSE, FALSE);
     if (new == NULL) {
         return FALSE;
     }
-
     coil_struct_set_accumulate(new, TRUE);
     PUSH_CONTAINER(parser, new);
     return TRUE;
@@ -203,7 +217,7 @@ parser_handle_include(CoilParser *parser, CoilLocation *location,
     GList *include_args)
 {
     g_return_val_if_fail(parser, FALSE);
-    g_return_val_if_fail(parser->error == NULL, FALSE);
+    g_return_val_if_fail(location, FALSE);
 
     CoilObject *include;
     CoilObject *container = PEEK_CONTAINER(parser);
@@ -212,7 +226,8 @@ parser_handle_include(CoilParser *parser, CoilLocation *location,
     gsize i, n;
 
     if (include_args == NULL) {
-        parser_error(parser, "No filename specified for include/import.");
+        set_parse_error(parser, location,
+            "No filename specified for file include.");
         return FALSE;
     }
 
@@ -228,43 +243,38 @@ parser_handle_include(CoilParser *parser, CoilLocation *location,
         include_args = g_list_delete_link(include_args, include_args);
     }
 
-    g_assert(container != NULL);
-
     include = coil_include_new("file_value", file_value,
                                "imports", imports,
                                "container", container,
                                "location", location,
                                NULL);
-    coil_struct_add_dependency(container, include, &parser->error);
-    g_object_unref(include);
+    if (include == NULL) {
+        return FALSE;
+    }
 
-    return G_UNLIKELY(parser->error) ? FALSE : TRUE;
+    coil_struct_add_dependency(container, include);
+    coil_object_unref(include);
+    if (coil_error_occurred()) {
+        return FALSE;
+    }
+    return TRUE;
 }
 
 static CoilPath *
-parser_make_path_from_string(CoilParser *parser,
-                             GString *gstring)
+parser_make_path_from_string(CoilParser *parser, GString *gstring)
 {
     g_return_val_if_fail(parser, NULL);
     g_return_val_if_fail(gstring, NULL);
 
     CoilPath *path;
 
-    if (!coil_check_path(gstring->str, gstring->len, &parser->error)) {
+    if (!coil_check_path(gstring->str, gstring->len)) {
         g_string_free(gstring, TRUE);
         return NULL;
     }
-
     path = coil_path_take_string(gstring->str, gstring->len);
     g_string_free(gstring, FALSE);
     return path;
-}
-
-static gboolean
-parser_has_errors(CoilParser *const parser)
-{
-    g_return_val_if_fail(parser, TRUE);
-    return parser->errors != NULL;
 }
 %}
 %expect 1
@@ -376,7 +386,7 @@ context
         if (!coil_struct_is_root(container)) {
             parser_pop_container(YYCTX);
         }
-        parser_handle_error(YYCTX);
+        handle_internal_error(YYCTX);
     }
 ;
 
@@ -390,8 +400,7 @@ deletion
     : '~' RELATIVE_PATH {
         CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-        if (!coil_struct_mark_deleted_path(container, $2,
-                FALSE, &YYCTX->error)) {
+        if (!coil_struct_mark_deleted_path(container, $2, FALSE)) {
             coil_path_unref($2);
             YYERROR;
         }
@@ -413,10 +422,10 @@ assignment_path
         }
 
         /* resolve path to prevent doing this more than once in other places */
-        YYCTX->path = coil_path_resolve($1, container->path, &YYCTX->error);
+        YYCTX->path = coil_path_resolve($1, container->path);
         coil_path_unref($1);
 
-        if (G_UNLIKELY(YYCTX->error)) {
+        if (coil_error_occurred()) {
             YYERROR;
         }
     }
@@ -427,8 +436,7 @@ assignment_value
     | value {
         CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-        if (!coil_struct_insert_path(container, YYCTX->path, $1,
-                FALSE, &YYCTX->error)) {
+        if (!coil_struct_insert_path(container, YYCTX->path, $1, FALSE)) {
             coil_path_unref(YYCTX->path);
             YYCTX->path = NULL;
             YYERROR;
@@ -461,7 +469,7 @@ container_context_inherit
             YYERROR;
         }
         container = PEEK_CONTAINER(YYCTX);
-        if (!coil_struct_extend_paths(container, $1, context, &YYCTX->error)) {
+        if (!coil_struct_extend_paths(container, $1, context)) {
             YYERROR;
         }
         coil_path_list_free($1);
@@ -490,7 +498,7 @@ extend_property
     : extend_property_declaration path_list {
         CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-        if (!coil_struct_extend_paths(container, $2, NULL, &YYCTX->error)) {
+        if (!coil_struct_extend_paths(container, $2, NULL)) {
             YYERROR;
         }
         coil_path_list_free($2);
@@ -561,8 +569,7 @@ link_path
         /* XXX: YYCTX->path is null when link is not assigned to a path
           ie. @extends: [ =..some_node ]
         */
-        link = coil_link_new(&YYCTX->error,
-                             "target_path", $1,
+        link = coil_link_new("target_path", $1,
                              "path", YYCTX->path,
                              "container", container,
                              "location", &@$,
@@ -782,10 +789,9 @@ coil_parser_init(CoilParser *parser, gpointer scanner)
 }
 
 static CoilObject *
-coil_parser_finish(CoilParser *parser, GError **error)
+coil_parser_finish(CoilParser *parser)
 {
     g_return_val_if_fail(parser, NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
     CoilObject *container;
 
@@ -809,10 +815,10 @@ coil_parser_finish(CoilParser *parser, GError **error)
     if (parser->scanner) {
         yylex_destroy((yyscan_t)parser->scanner);
     }
-    if (parser_has_errors(parser)) {
-        collect_parse_errors(error, parser, TRUE);
+    if (parser->errors != NULL) {
+        collect_parse_errors(parser);
         while (parser->errors) {
-            g_error_free((GError *)parser->errors->data);
+            coil_error_free((CoilError *)parser->errors->data);
             parser->errors = g_list_delete_link(parser->errors, parser->errors);
         }
     }
@@ -875,10 +881,9 @@ coil_parser_prepare_for_buffer(CoilParser *const parser,
 }
 
 COIL_API(CoilObject *)
-coil_parse_string_len(const gchar *string, gsize len, GError **error)
+coil_parse_string_len(const gchar *string, gsize len)
 {
     g_return_val_if_fail(string, NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
     CoilParser parser;
     yyscan_t scanner;
@@ -889,20 +894,19 @@ coil_parse_string_len(const gchar *string, gsize len, GError **error)
     coil_parser_init(&parser, &scanner);
     coil_parser_prepare_for_string(&parser, string, len);
     yyparse(&parser);
-    return coil_parser_finish(&parser, error);
+    return coil_parser_finish(&parser);
 }
 
 COIL_API(CoilObject *)
-coil_parse_string(const gchar *string, GError **error)
+coil_parse_string(const gchar *string)
 {
-    return coil_parse_string_len(string, strlen(string), error);
+    return coil_parse_string_len(string, strlen(string));
 }
 
 COIL_API(CoilObject *)
-coil_parse_buffer(gchar *buffer, gsize len, GError **error)
+coil_parse_buffer(gchar *buffer, gsize len)
 {
     g_return_val_if_fail(buffer != NULL, NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
     CoilParser parser;
     yyscan_t scanner;
@@ -913,26 +917,25 @@ coil_parse_buffer(gchar *buffer, gsize len, GError **error)
     coil_parser_init(&parser, &scanner);
     coil_parser_prepare_for_buffer(&parser, buffer, len);
     yyparse(&parser);
-    return coil_parser_finish(&parser, error);
+    return coil_parser_finish(&parser);
 }
 
 COIL_API(CoilObject *)
-coil_parse_file(const gchar *filepath, GError **error)
+coil_parse_file(const gchar *filepath)
 {
     g_return_val_if_fail(filepath, NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
     CoilParser parser;
     yyscan_t scanner;
     FILE *fp;
 
     if (!g_file_test(filepath, (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_EXISTS))) {
-        g_set_error(error, COIL_ERROR, COIL_ERROR_PARSE,
-                    "Unable to find file '%s'.", filepath);
+        coil_set_error(COIL_ERROR_PARSE, NULL,
+            "Unable to find file '%s'.", filepath);
         return NULL;
     }
     if (!(fp = fopen(filepath, "r"))) {
-        g_set_error(error, COIL_ERROR, COIL_ERROR_PARSE,
+        coil_set_error(COIL_ERROR_PARSE, NULL,
                     "Unable to open file '%s'.", filepath);
         return NULL;
     }
@@ -940,14 +943,13 @@ coil_parse_file(const gchar *filepath, GError **error)
     coil_parser_prepare_for_stream(&parser, fp, filepath);
     yyparse(&parser);
     fclose(fp);
-    return coil_parser_finish(&parser, error);
+    return coil_parser_finish(&parser);
 }
 
 COIL_API(CoilObject *)
-coil_parse_stream(FILE *fp, const gchar *stream_name, GError **error)
+coil_parse_stream(FILE *fp, const gchar *stream_name)
 {
     g_return_val_if_fail(fp, NULL);
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
 
     CoilParser parser;
     yyscan_t scanner;
@@ -959,19 +961,20 @@ coil_parse_stream(FILE *fp, const gchar *stream_name, GError **error)
     coil_parser_init(&parser, &scanner);
     coil_parser_prepare_for_stream(&parser, fp, stream_name);
     yyparse(&parser);
-    return coil_parser_finish(&parser, error);
+    return coil_parser_finish(&parser);
 }
 
-void yyerror(YYLTYPE *yylocp, CoilParser *parser, const gchar *msg)
+void
+yyerror(YYLTYPE *yylocp, CoilParser *parser, const gchar *msg)
 {
     g_return_if_fail(parser != NULL);
     g_return_if_fail(yylocp != NULL);
 
-    GError *err;
-
-    if (parser->error == NULL) {
-        err = coil_error_new(COIL_ERROR_PARSE, yylocp, "%s", msg);
-        parser->errors = g_list_prepend(parser->errors, err);
+    if (coil_error_occurred()) {
+        handle_internal_error(parser);
+    }
+    else {
+        set_parse_error(parser, yylocp, "%s", msg);
     }
 }
 

@@ -264,32 +264,27 @@ parse_options(int    *argc,
 }
 
 static CoilObject *
-parse_attributes(GError **error)
+parse_attributes()
 {
-    g_return_val_if_fail(error == NULL || *error == NULL, NULL);
-
     gchar *buf;
     CoilObject *res = NULL;
 
     if (attributes) {
         buf = g_strjoinv(" ", attributes);
-        res = coil_parse_string(buf, error);
+        res = coil_parse_string(buf);
         g_free(buf);
     }
     return res;
 }
 
 static void
-print_blocks(CoilObject *root, GString *buffer,
-        CoilStringFormat *format, GError **error)
+print_blocks(CoilObject *root, GString *buffer, CoilStringFormat *format)
 {
     g_return_if_fail(COIL_IS_STRUCT(root));
     g_return_if_fail(buffer);
     g_return_if_fail(format);
-    g_return_if_fail(error == NULL || *error == NULL);
 
-    GError *internal_error = NULL;
-    gint i = 0;
+    gint i;
 
     if (blocks == NULL)
         return;
@@ -304,107 +299,88 @@ print_blocks(CoilObject *root, GString *buffer,
 
         path = blocks[i];
         len = strlen(path);
-        value = coil_struct_lookup(root, path, len, TRUE, &internal_error);
+        value = coil_struct_lookup(root, path, len, TRUE);
 
-        if (G_UNLIKELY(internal_error)) {
-            g_propagate_error(error, internal_error);
+        if (coil_error_occurred()) {
             return;
         }
         if (value) {
             if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
-                g_set_error(error, COIL_ERROR, COIL_ERROR_VALUE,
-                        "Values for '--block' must be type struct."\
+                coil_set_error(COIL_ERROR_VALUE, NULL,
+                        "Values for '--block' must be type struct."
                         " Path '%s' is type '%s'",
                         path, G_VALUE_TYPE_NAME(value));
                 return;
             }
             block = COIL_OBJECT(g_value_dup_object(value));
-            coil_object_build_string(block, buffer, format, &internal_error);
-            if (G_UNLIKELY(internal_error)) {
-                g_object_unref(block);
-                g_propagate_error(error, internal_error);
+            coil_object_build_string(block, buffer, format);
+            if (coil_error_occurred()) {
+                coil_object_unref(block);
                 return;
             }
-            g_object_unref(block);
+            coil_object_unref(block);
         }
     }
 }
 
 static void
-print_paths(CoilObject *root, GString *buffer,
-        CoilStringFormat *format, GError **error)
+print_paths(CoilObject *root, GString *buffer, CoilStringFormat *format)
 {
     g_return_if_fail(COIL_IS_STRUCT(root));
     g_return_if_fail(buffer);
     g_return_if_fail(format);
-    g_return_if_fail(error == NULL || *error == NULL);
 
-    GError *internal_error = NULL;
-    gint i = 0;
+    gint i;
 
-    if (paths) {
-        for (i = 0; paths[i]; i++) {
-            const GValue *value;
-            const gchar *path;
-            guint len;
+    if (paths == NULL)
+        return;
 
-            g_strstrip(paths[i]);
-            path = paths[i];
-            len = strlen(path);
-            value = coil_struct_lookup(root, path, len, TRUE, &internal_error);
+    for (i = 0; paths[i]; i++) {
+        const GValue *value;
+        const gchar *path;
+        guint len;
 
-            if (G_UNLIKELY(internal_error))
-                goto error;
+        g_strstrip(paths[i]);
+        path = paths[i];
+        len = strlen(path);
 
-            if (value) {
-                coil_value_build_string(value, buffer, format, &internal_error);
-                g_string_append_c(buffer, '\n');
+        value = coil_struct_lookup(root, path, len, TRUE);
+        if (coil_error_occurred())
+            return;
 
-                if (G_UNLIKELY(internal_error))
-                    goto error;
-            }
+        if (value) {
+            coil_value_build_string(value, buffer, format);
+            g_string_append_c(buffer, '\n');
+            if (coil_error_occurred())
+                return;
         }
     }
     if (buffer->len > 0 && buffer->str[buffer->len - 1] == '\n') {
         g_string_truncate(buffer, buffer->len - 1);
     }
-    return;
-
-error:
-    g_propagate_error(error, internal_error);
 }
 
 static void
-print_struct(CoilObject *node, GString *buffer,
-        CoilStringFormat *format, GError **error)
+print_struct(CoilObject *node, GString *buffer, CoilStringFormat *format)
 {
     g_return_if_fail(COIL_IS_STRUCT(node));
     g_return_if_fail(buffer);
     g_return_if_fail(format);
-    g_return_if_fail(error == NULL || *error == NULL);
 
-    GError *internal_error = NULL;
+    print_blocks(node, buffer, format);
+    if (coil_error_occurred())
+        return;
 
-    print_blocks(node, buffer, format, &internal_error);
-
-    if (G_UNLIKELY(internal_error))
-        goto error;
-
-    print_paths(node, buffer, format, &internal_error);
-
-    if (G_UNLIKELY(internal_error))
-        goto error;
+    print_paths(node, buffer, format);
+    if (coil_error_occurred())
+        return;
 
     if (!blocks && !paths) {
-        coil_object_build_string(node, buffer, format, &internal_error);
-        if (G_UNLIKELY(internal_error))
-            goto error;
+        coil_object_build_string(node, buffer, format);
+        if (coil_error_occurred())
+            return;
     }
     g_print("%s\n", buffer->str);
-    return;
-
-error:
-    g_propagate_error(error, internal_error);
 }
 
 static void
@@ -455,32 +431,28 @@ init_string_format(CoilStringFormat *format)
 }
 
 static gboolean
-print_dependency(GNode   *node,
-                 gpointer data)
+print_dependency(GNode *node, gpointer data)
 {
     g_return_val_if_fail(node, TRUE);
     g_return_val_if_fail(data, TRUE);
 
     CoilStringFormat *format = (CoilStringFormat *)data;
-    CoilInclude      *object = COIL_INCLUDE(node->data);
-    const GValue     *filepath_value;
-    gchar             indent[80], *filepath;
-    guint             depth, indent_len;
-    GError           *error = NULL;
+    CoilObject *object = COIL_OBJECT(node->data);
+    const GValue *filepath_value;
+    gchar indent[80], *filepath;
+    guint depth, indent_len;
+    CoilError *error = NULL;
 
     if (G_NODE_IS_ROOT(node))
         return FALSE;
 
     depth = g_node_depth(node);
+    coil_object_get(object, "filepath_value", &filepath_value, NULL);
+    filepath = coil_value_to_string(filepath_value, format);
 
-    g_object_get(object,
-            "filepath_value", &filepath_value,
-            NULL);
-
-    filepath = coil_value_to_string(filepath_value, format, &error);
-
-    if (G_UNLIKELY(error)) {
+    if (coil_get_error(&error)) {
         g_warning("Unexpected Error: %s", error->message);
+        coil_error_clear();
         return FALSE;
     }
 
@@ -522,13 +494,13 @@ print_files(void)
     CoilObject *attrs, **nodes;
     gboolean overwrite = !no_clobber_attributes;
     GString *buffer = g_string_sized_new(8192);
-    GError *error = NULL;
     guint i, nnodes;
+    CoilError *error = NULL;
 
     init_string_format(&format);
-    attrs = parse_attributes(&error);
+    attrs = parse_attributes();
 
-    if (G_UNLIKELY(error))
+    if (coil_error_occurred())
         goto error;
 
     nnodes = g_strv_length(files);
@@ -536,55 +508,55 @@ print_files(void)
 
     for (i = 0; i < nnodes; i++) {
         if (strcmp(files[i], "-") == 0)
-            nodes[i] = coil_parse_stream(stdin, NULL, &error);
+            nodes[i] = coil_parse_stream(stdin, NULL);
         else
-            nodes[i] = coil_parse_file(files[i], &error);
+            nodes[i] = coil_parse_file(files[i]);
 
-        if (G_UNLIKELY(error)) {
-            if (!permissive)
+        if (coil_error_occurred()) {
+            if (!permissive) {
                 goto error;
-
+            }
+            coil_get_error(&error);
             g_printerr("Continuing despite errors: %s", error->message);
-            g_error_free(error);
+            coil_error_clear();
             error = NULL;
-
-            if (nodes[i] == NULL)
+            if (nodes[i] == NULL) {
                 continue;
+            }
         }
     }
     if (merge_files) {
         CoilObject *root = coil_struct_new(NULL, NULL);
         for (i = 0; i < nnodes; i++) {
-            if (nodes[i] && !coil_struct_merge(nodes[i], root, &error)) {
+            if (nodes[i] && !coil_struct_merge(nodes[i], root)) {
                 coil_object_unref(root);
                 goto error;
             }
         }
         if (attrs != NULL &&
-            !coil_struct_merge_full(attrs, root, overwrite, FALSE, &error)) {
+            !coil_struct_merge_full(attrs, root, overwrite, FALSE)) {
             coil_object_unref(root);
             goto error;
         }
-        if (expand_all && !coil_struct_expand_items(root, TRUE, &error)) {
+        if (expand_all && !coil_struct_expand_items(root, TRUE)) {
             goto error;
         }
-        print_struct(root, buffer, &format, &error);
+        print_struct(root, buffer, &format);
     }
     else {
         for (i = 0; i < nnodes; i++) {
             if (attrs && nodes[i] &&
-                !coil_struct_merge_full(attrs, nodes[i],
-                    overwrite, FALSE, &error)) {
+                    !coil_struct_merge_full(attrs, nodes[i],overwrite, FALSE)) {
                 goto error;
             }
-            if (expand_all && !coil_struct_expand_items(nodes[i], TRUE, &error)) {
+            if (expand_all && !coil_struct_expand_items(nodes[i], TRUE)) {
                 goto error;
             }
-            print_struct(nodes[i], buffer, &format, &error);
+            print_struct(nodes[i], buffer, &format);
             g_string_truncate(buffer, 0);
         }
     }
-    if (G_UNLIKELY(error))
+    if (coil_error_occurred())
         goto error;
     if (show_dependencies) {
         for (i = 0; i < nnodes; i++) {
@@ -593,9 +565,8 @@ print_files(void)
             if (nodes[i] == NULL)
                 continue;
 
-            tree = coil_struct_dependency_tree(nodes[i],
-                    1, COIL_TYPE_INCLUDE, &error);
-            if (G_UNLIKELY(error)) {
+            tree = coil_struct_dependency_tree(nodes[i], 1, COIL_TYPE_INCLUDE);
+            if (coil_error_occurred()) {
                 g_node_destroy(tree);
                 goto error;
             }
@@ -623,9 +594,9 @@ error:
         coil_object_unref(attrs);
     }
     FREE_NODES(nodes, nnodes);
-    if (error) {
+    if (coil_get_error(&error)) {
         g_printerr("%s\n", error->message);
-        g_error_free(error);
+        coil_error_clear();
     }
     g_string_free(buffer, TRUE);
     exit(EXIT_FAILURE);
