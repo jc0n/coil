@@ -2004,9 +2004,8 @@ compare_entry(const StructEntry *x, const StructEntry *y)
 
 }
 
-/* XXX: make private eventually */
-COIL_API(gboolean)
-coil_struct_equals(CoilObject *x, CoilObject *y)
+gboolean
+struct_equals(CoilObject *x, CoilObject *y)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(x), FALSE);
     g_return_val_if_fail(COIL_IS_STRUCT(y), FALSE);
@@ -2244,7 +2243,7 @@ coil_struct_class_init(CoilStructClass *klass)
     object_class->copy = struct_copy_valist;
     object_class->is_expanded = struct_needs_expand;
     object_class->expand = struct_expand_internal;
-    object_class->equals = coil_struct_equals;
+    object_class->equals = struct_equals;
     object_class->build_string = struct_build_string;
 
     properties[PROP_IS_PROTOTYPE] = g_param_spec_boolean("is-prototype",
