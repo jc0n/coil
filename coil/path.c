@@ -196,39 +196,41 @@ path_length_error(const gchar *path, guint path_len, GError **error)
  * Creates a new #CoilPath object
  */
 COIL_API(CoilPath *)
-coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
-        guint flags)
+coil_path_take_string_with_keyx(gchar *str, guint len,
+        const gchar *key, guint keylen, CoilPathFlags flags)
 {
     g_return_val_if_fail(str != NULL, NULL);
-    g_return_val_if_fail(len > 0, NULL);
+    g_return_val_if_fail(len > 0 && len <= COIL_PATH_LEN, NULL);
+    /* if specified key must point into str */
+    g_return_val_if_fail(key == NULL || key >= str && key <= &str[len], NULL);
+    /* flags must not be backref and absolute */
+    g_return_val_if_fail(!((flags & COIL_PATH_IS_ABSOLUTE) &&
+            (flags & COIL_PATH_IS_BACKREF)), NULL);
+    /* other sanity checks */
+    g_return_val_if_fail(!((key != NULL) ^ (keylen > 0)), NULL);
 
     CoilRealPath *path;
-
-    g_assert(len <= COIL_PATH_LEN);
 
     if (len == 5 && keylen == 0 && str5cmp(str, '@', 'r', 'o', 'o', 't')) {
         if (!(flags & COIL_STATIC_PATH)) {
             g_free(str);
         }
-        if (!(flags & COIL_STATIC_KEY)) {
-            g_free(key);
-        }
         return coil_path_ref(CoilRootPath);
     }
 
-    if (str[0] == '@') {
-        if (!(flags & COIL_PATH_IS_ABSOLUTE) &&
-                str4cmp(str + 1, 'r', 'o', 'o', 't')) {
+    if ((flags & ~COIL_STATIC_PATH) == 0) {
+        if (str5cmp(str, '@', 'r', 'o', 'o', 't')) {
             flags |= COIL_PATH_IS_ABSOLUTE;
         }
-    }
-    else if (!(flags & COIL_PATH_IS_BACKREF)) {
-        if (str2cmp(str, '.', '.')) {
+        else if (str2cmp(str, '.', '.')) {
             flags |= COIL_PATH_IS_BACKREF;
         }
-        else if (*str == '.') {
-            /* path string begins with . */
-            memmove(str, str + 1, len - 1);
+        else if (str[0] == '.') {
+            len--;
+            memmove(str, str + 1, len);
+            if (key) {
+                key--;
+            }
         }
     }
     if (key == NULL) {
@@ -236,13 +238,12 @@ coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
         if (key) {
             key++;
             keylen = len - (key - str);
-            flags |= COIL_STATIC_KEY;
         }
     }
     path = path_alloc();
     path->str = str;
     path->len = len;
-    path->key = key;
+    path->key = (gchar *)key;
     path->key_len = keylen;
     path->hash = 0;
     path->flags = flags;
@@ -415,12 +416,8 @@ coil_path_free(CoilPath *path)
     g_return_if_fail(path);
 
     CoilRealPath *rpath = (CoilRealPath *)path;
-    CoilPathFlags iflags = ~path->flags;
 
-    if (iflags & COIL_STATIC_KEY) {
-        g_free(rpath->key);
-    }
-    if (iflags & COIL_STATIC_PATH) {
+    if (!(path->flags & COIL_STATIC_PATH)) {
         g_free(rpath->str);
     }
     /* try to be nice if others still have a reference */
@@ -495,10 +492,8 @@ coil_path_join(CoilPath *a, CoilPath *b, GError **error)
         g_free(str);
         return NULL;
     }
-
-    /* XXX: it might be a good idea to only allow key to point into path */
-    res = (CoilRealPath *)coil_path_take_string_with_keyx(str, len, key,
-            b->key_len, COIL_STATIC_KEY);
+    res = (CoilRealPath *)coil_path_take_string_with_key(str, len,
+            key, b->key_len);
 
     if (res && a->hash) {
         res->hash = hash_relative(a->hash, b->key, b->key_len);
@@ -725,7 +720,7 @@ coil_path_resolve(CoilPath *path, CoilPath *container, GError **error)
 
     return coil_path_take_string_with_keyx(str, path_len,
             &str[path_len - path->key_len], path->key_len,
-            COIL_STATIC_KEY | COIL_PATH_IS_ABSOLUTE);
+            COIL_PATH_IS_ABSOLUTE);
 }
 
 /*
@@ -756,79 +751,71 @@ coil_path_resolve_inplace(CoilPath **path, CoilPath *container, GError **error)
 
 /*
  * coil_path_relativize:
- * @target: an #CoilPath object that contains an absolute path
- * @container: a #CoilPath object that contains an absolute path
+ * @a: a #CoilPath object that contains an absolute path
+ * @b: a #CoilPath object that contains an absolute path
  *
- * Returns a new relative path to @target starting from @container
+ * Returns a new relative path to @a starting from @b
  */
 COIL_API(CoilPath *)
-coil_path_relativize(CoilPath *target, CoilPath *container)
+coil_path_relativize(CoilPath *a, CoilPath *b)
 {
-    g_return_val_if_fail(target, NULL);
-    g_return_val_if_fail(container, NULL);
-    g_return_val_if_fail(!COIL_PATH_IS_ROOT(target), NULL);
-    g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(container), NULL);
+    g_return_val_if_fail(a, NULL);
+    g_return_val_if_fail(b, NULL);
+    g_return_val_if_fail(!COIL_PATH_IS_ROOT(a), NULL);
+    g_return_val_if_fail(COIL_PATH_IS_ABSOLUTE(b), NULL);
 
-    CoilRealPath *relative;
-    guint8 prefix_len, tail_len, num_dots = 2;
-    const gchar *delim, *prefix, *path;
+    char *delim, *prefix, *path, *key, *str, *p;
+    guint prefix_len, tail_len, num_dots, len, n;
 
-    if (COIL_PATH_IS_RELATIVE(target) || COIL_PATH_IS_ROOT(target)) {
-        return coil_path_ref(target);
+    if (COIL_PATH_IS_RELATIVE(a)) {
+        return coil_path_ref(a);
     }
-    relative = path_alloc();
-    /* both paths are absolute, start checking after @root */
-    prefix = delim = container->str + COIL_ROOT_PATH_LEN;
-    path = target->str + COIL_ROOT_PATH_LEN;
-
-    if (target == container) {
-        tail_len = target->key_len;
-        path = target->key;
-        goto backref;
+    if (coil_path_equal(a, b)) {
+        /* ..xyz */
+        len = a->key_len + 2;
+        p = str = g_new(char, len + 1);
+        *p++ = '.';
+        *p++ = '.';
+        key = p;
+        p = mempcpy(p, a->key, a->key_len);
+        *p = '\0';
+        return coil_path_take_string_with_key(str, len, key, a->key_len);
     }
-    /* find the first differing character
-     * which marks the end of the prefix and
-     * possibly the end of the path */
-    while (*prefix != '\0' && *prefix == *path) {
-        /* keep track of the lask delim in prefix */
-        if (*prefix == COIL_PATH_DELIM)
+    prefix = delim = (char *)b->str + COIL_ROOT_PATH_LEN;
+    path = (char *)a->str + COIL_ROOT_PATH_LEN;
+    n = b->len - COIL_ROOT_PATH_LEN;
+    /* find where the two paths first differ */
+    while (n-- > 0 && *prefix == *path) {
+        if (*prefix == COIL_PATH_DELIM) {
+            /* remember the last matching delimiter */
             delim = prefix;
-
+        }
         prefix++;
         path++;
     }
-    /* the only case where there are no dots is
-     * if <prefix> is a prefix of path */
-    if (*prefix == '\0' && *path == COIL_PATH_DELIM) {
-        /* just move the keys to the front
-         * no need to mess with the allocation */
-        prefix_len = ++path - target->str;
-        relative->len = target->len - prefix_len;
-        relative->str = g_strndup(path, relative->len);
+    if (n == 0 && *path == COIL_PATH_DELIM) {
+        /* @b is a subset of @a which means @a is a descendent of @b */
+        path++;
+        prefix_len = path - a->str;
+        len = a->len - prefix_len; /* new path is @a without the matching prefix */
+        str = g_strndup(path, len);
+        key = &str[len - a->key_len];
+        return coil_path_take_string_with_key(str, len, key, a->key_len);
     }
-    else {
-        prefix_len = delim - container->str;
-        tail_len = target->len - prefix_len - 1;
-        path = target->str + prefix_len + 1;
-
-        /* count # of parts to remove from prefix path to get to
-         * path ie. number of dots to add to relative path */
-        while ((delim = strchr(delim + 1, COIL_PATH_DELIM)))
-            num_dots++;
-
-backref:
-        relative->len = tail_len + num_dots;
-        relative->str = g_new(gchar, relative->len + 1);
-
-        memset(relative->str, COIL_PATH_DELIM, num_dots);
-        memcpy(relative->str + num_dots, path, tail_len);
+    /* we have to use back references to get to @a from @b */
+    num_dots = 2;
+    prefix_len = delim - b->str; /* matching prefix length */
+    tail_len = a->len - prefix_len - 1; /* length of path after backref dots */
+    while ((delim = strchr(delim + 1, COIL_PATH_DELIM))) {
+        num_dots++;
     }
-
-    relative->key = &relative->str[relative->len - target->key_len];
-    relative->key_len = target->key_len;
-    relative->str[relative->len] = 0;
-    relative->flags = COIL_STATIC_KEY;
-    return (CoilPath *)relative;
+    len = tail_len + num_dots;
+    str = g_new(char, len + 1);
+    memset(str, COIL_PATH_DELIM, num_dots);
+    memcpy(str + num_dots, a->str + prefix_len + 1, tail_len);
+    str[len] = '\0';
+    key = &str[len - a->key_len];
+    return coil_path_take_string_with_key(str, len, key, a->key_len);
 }
 
 /* XXX: maybe remove */

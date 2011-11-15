@@ -7,9 +7,7 @@
 #define __COIL_PATH_H
 
 typedef enum {
-    COIL_STATIC_PATH         = 1 << 0,
-    COIL_STATIC_KEY          = 1 << 1,
-    COIL_STATIC_PATH_STRINGS = COIL_STATIC_PATH | COIL_STATIC_KEY,
+    COIL_STATIC_PATH         = 1 << 1,
     COIL_PATH_IS_ABSOLUTE    = 1 << 2,
     COIL_PATH_IS_BACKREF     = 1 << 3,
 } CoilPathFlags;
@@ -43,26 +41,17 @@ extern CoilPath _coil_root_path;
 #define COIL_PATH_DELIM '.'
 #define COIL_PATH_DELIM_S "."
 
-#define COIL_PATH_IS_RELATIVE(p) \
-        (!((p)->flags & COIL_PATH_IS_ABSOLUTE))
-
 #define COIL_PATH_IS_ABSOLUTE(p) \
-        ((p)->flags & COIL_PATH_IS_ABSOLUTE)
+    ((p)->flags & COIL_PATH_IS_ABSOLUTE)
+
+#define COIL_PATH_IS_RELATIVE(p) \
+    !COIL_PATH_IS_ABSOLUTE(p)
 
 #define COIL_PATH_IS_ROOT(p) \
         ((p) == CoilRootPath) \
 
 #define COIL_PATH_IS_BACKREF(p) \
         ((p)->flags & COIL_PATH_IS_BACKREF)
-
-#define COIL_PATH_CONTAINER_LEN(p) \
-  (((p)->len - (p->key_len)) - 1)
-
-#define COIL_KEY_REGEX "-*[a-zA-Z_][\\w-]*"
-
-#define COIL_PATH_REGEX                                       \
-        "(" COIL_SPECIAL_CHAR_S "|\\.\\.+)?"                  \
-        COIL_KEY_REGEX "(\\." COIL_KEY_REGEX ")*"
 
 #define COIL_TYPE_PATH (coil_path_get_type())
 
@@ -81,8 +70,8 @@ guint
 coil_path_get_hash(CoilPath *path);
 
 CoilPath *
-coil_path_take_string_with_keyx(gchar *str, guint len, gchar *key, guint keylen,
-        guint flags);
+coil_path_take_string_with_keyx(gchar *str, guint len,
+        const gchar *key, guint keylen, CoilPathFlags flags);
 
 CoilPath *
 coil_path_take_string_with_key(gchar *str, guint len, gchar *key, guint keylen);
