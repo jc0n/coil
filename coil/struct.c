@@ -105,6 +105,14 @@ do_lookup(CoilObject *self, CoilPath *path, gboolean expand_value,
 static void
 do_build_string(CoilObject *self, GString *buffer, CoilStringFormat *format);
 
+#if COIL_STRICT_CONTEXT
+#define STRUCT_MERGE_STRICT(s, d) \
+    coil_struct_merge_full(s, d, FALSE, TRUE)
+#else
+#define STRUCT_MERGE_STRICT(s, d) \
+    coil_struct_merge(s, d)
+#endif
+
 /* really stupid hack to store root in a
  * gvalue without creating a reference cycle */
 static void
@@ -1397,15 +1405,9 @@ expand_dependency(CoilObject *self, CoilObject *dependency)
                 dependency->path->str);
         return FALSE;
     }
-#if COIL_STRICT_CONTEXT
-    if (!coil_struct_merge_full(dependency, self, FALSE, TRUE)) {
+    if (!STRUCT_MERGE_STRICT(dependency, self)) {
         return FALSE;
     }
-#else
-    if (!coil_struct_merge(dependency, self)) {
-        return FALSE;
-    }
-#endif
     /* if the parent changes after now we dont care */
     g_signal_handlers_disconnect_matched(dependency,
             G_SIGNAL_MATCH_ID | G_SIGNAL_MATCH_FUNC | G_SIGNAL_MATCH_DATA,
