@@ -841,38 +841,45 @@ COIL_API(CoilPath *)
 coil_path_pop(CoilPath *path, int i)
 {
     g_return_val_if_fail(path != NULL, NULL);
+    g_return_val_if_fail(i < COIL_PATH_LEN && i > -COIL_PATH_LEN, NULL);
 
     char *p;
 
+    if (COIL_PATH_IS_BACKREF(path)) {
+        g_error("Popping from a back reference makes no sense");
+    }
+    if (COIL_PATH_IS_ROOT(path)) {
+        return coil_path_ref(path);
+    }
     if (i >= 0) {
+        /* use i + 1 keys from the front of the path */
         if (COIL_PATH_IS_ABSOLUTE(path) && i == 0) {
             return coil_path_ref(CoilRootPath);
         }
+        p = (char *)path->str;
         do {
-            p = memchr(path->str, COIL_PATH_DELIM, path->len);
+            p = strchr(p, COIL_PATH_DELIM);
             if (p == NULL) {
-                /* TODO error */
-                return NULL;
+                return coil_path_ref(path);
             }
         } while (--i > 0);
     }
-    else {
-        if (i == -1) {
-            if (COIL_PATH_IS_RELATIVE(path)) {
-                char *str = g_strndup(path->key, path->key_len);
-                return coil_path_take_string(str, path->key_len);
-            }
-            else {
-                guint len = path->len - path->key_len - 1;
-                char *str = g_strndup(path->str, len);
-                return coil_path_take_string(str, len);
-            }
+    else if (i == -1) {
+        /* remove 1 key from the tail of the path */
+        guint len = path->len - path->key_len - 1;
+        if (len == 0) {
+            return coil_path_ref(path);
         }
+        p = g_strndup(path->str, len);
+        return coil_path_take_string(p, len);
+    }
+    else {
+        /* remove i keys from the tail of the path */
+        p = (char *)path->str;
         while (i++ < 0) {
-            p = memrchr(path->str, COIL_PATH_DELIM, path->len);
+            coil_memrchr(p, p, COIL_PATH_DELIM, p - path->str);
             if (p == NULL) {
-                /* TODO error */
-                return NULL;
+                return coil_path_ref(CoilRootPath);
             }
         }
     }

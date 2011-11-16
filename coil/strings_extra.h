@@ -45,6 +45,23 @@ mempcpy(void *dst, const unsigned char *src, size_t n);
 #define coil_str6cmp(s, c0, c1, c2, c3, c4, c5) \
     (coil_str4cmp(s, c0, c1, c2, c3) && coil_str2cmp(&s[4], c4, c5))
 
+#define coil_memrchr(_r, _s, _c, _n)                                         \
+G_STMT_START {                                                               \
+    char c = (_c);                                                           \
+    size_t n = (_n);                                                         \
+    char *s = (char *)(_s);                                                  \
+    if (n <= 16) {                                                           \
+        while (n-- > 0) {                                                    \
+            if (s[n] == c) {                                                 \
+                _r = &s[n];                                                  \
+                break;                                                       \
+            }                                                                \
+        }                                                                    \
+    } else {                                                                 \
+        _r = memrchr(_s, _c, _n);                                            \
+    }                                                                        \
+} G_STMT_END
+
 enum {
     TRUNCATE_LEFT,
     TRUNCATE_RIGHT,
