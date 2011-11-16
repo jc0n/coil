@@ -201,7 +201,7 @@ coil_path_take_string_with_keyx(gchar *str, guint len,
 
     CoilRealPath *path;
 
-    if (len == 5 && keylen == 0 && str5cmp(str, '@', 'r', 'o', 'o', 't')) {
+    if (len == 5 && keylen == 0 && coil_str5cmp(str, '@', 'r', 'o', 'o', 't')) {
         if (!(flags & COIL_STATIC_PATH)) {
             g_free(str);
         }
@@ -209,10 +209,10 @@ coil_path_take_string_with_keyx(gchar *str, guint len,
     }
 
     if ((flags & ~COIL_STATIC_PATH) == 0) {
-        if (len >= 5 && str5cmp(str, '@', 'r', 'o', 'o', 't')) {
+        if (len >= 5 && coil_str5cmp(str, '@', 'r', 'o', 'o', 't')) {
             flags |= COIL_PATH_IS_ABSOLUTE;
         }
-        else if (len >= 2 && str2cmp(str, '.', '.')) {
+        else if (len >= 2 && coil_str2cmp(str, '.', '.')) {
             flags |= COIL_PATH_IS_BACKREF;
         }
         else if (str[0] == '.') {
@@ -296,7 +296,7 @@ coil_path_new_len(const gchar *str, guint len)
     g_return_val_if_fail(str, NULL);
     g_return_val_if_fail(len > 0, NULL);
 
-    if (len == COIL_ROOT_PATH_LEN && str5cmp(str, '@', 'r', 'o', 'o', 't')) {
+    if (len == COIL_ROOT_PATH_LEN && coil_str5cmp(str, '@', 'r', 'o', 'o', 't')) {
         return coil_path_ref(CoilRootPath);
     }
     if (!coil_check_path(str, len)) {
@@ -569,7 +569,7 @@ coil_validate_path_len(const gchar *str, guint len)
         if (len < 5) {
             return FALSE;
         }
-        if (str4cmp(str + 1, 'r', 'o', 'o', 't')) {
+        if (coil_str4cmp(str + 1, 'r', 'o', 'o', 't')) {
             str += 5;
             len -= 5;
         }
@@ -689,7 +689,7 @@ coil_path_resolve(CoilPath *path, CoilPath *container)
 
     g_assert(path_len > 0);
     if (path_len == 5 && suffix_len == 0 &&
-            str5cmp(container->str, '@', 'r', 'o', 'o', 't')) {
+            coil_str5cmp(container->str, '@', 'r', 'o', 'o', 't')) {
         return coil_path_ref(CoilRootPath);
     }
 
