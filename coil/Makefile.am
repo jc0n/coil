@@ -30,7 +30,7 @@ libcoil_@LIBCOIL_API_VERSION@_la_LIBADD = @LEXLIB@ @GLIB_LIBS@
 libcoil_@LIBCOIL_API_VERSION@_la_LDFLAG = -version-info $(LIBCOIL_SO_VERSION)
 
 # ignore unused yy functions
-libcoil_@LIBCOIL_API_VERSION@_la_CPPFLAGS=$(AM_CPPFLAGS) -Wno-unused-function
+libcoil_@LIBCOIL_API_VERSION@_la_CPPFLAGS=$(AM_CPPFLAGS)
 
 libcoil_includedir=$(includedir)/coil-$(LIBCOIL_API_VERSION)
 libcoil_include_HEADERS=\

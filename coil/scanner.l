@@ -4,6 +4,8 @@
  * Author: John O'Connor
  */
 %option reentrant
+%option noinput
+%option nounput
 %option noyywrap
 %option bison-locations
 %option never-interactive
