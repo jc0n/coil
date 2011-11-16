@@ -39,6 +39,8 @@ AM_CONFIG_HEADER([config.h])
 
 AC_CONFIG_MACRO_DIR([m4])
 
+AM_SILENT_RULES([yes])
+
 AC_CONFIG_FILES([
     libcoil-0.1.pc
     Makefile

@@ -59,10 +59,10 @@ coildump_LDADD = @GLIB_LIBS@ libcoil-@LIBCOIL_API_VERSION@.la
 $(libcoil_la_OBJECTS): $(srcdir)/parser.h
 
 scanner.h: scanner.l
-	$(LEX) $(LFLAGS) --header-file=$@ -o/dev/null $<
+	@$(LEX) $(LFLAGS) --header-file=$@ -o/dev/null $<
 
 scanner.c: scanner.l parser.h
-	$(LEX) $(LFLAGS) -o $@ -i $<
+	@$(LEX) $(LFLAGS) -o $@ -i $<
 
 parser.h: parser.c
 
