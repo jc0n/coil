@@ -20,8 +20,8 @@ struct _CoilStructPrivate
 {
     StructTable *table;
 
-    GQueue entries;
-    GQueue dependencies;
+    GQueue *entries;
+    GQueue *dependencies;
     GList *unexpanded;
 
     guint size;
@@ -300,10 +300,10 @@ coil_struct_empty(CoilObject *o)
     CoilObject *depobj;
     StructEntry *entry;
 
-    while ((depobj = g_queue_pop_head(&priv->dependencies))) {
+    while ((depobj = g_queue_pop_head(priv->dependencies))) {
         coil_object_unref(depobj);
     }
-    while ((entry = g_queue_pop_head(&priv->entries))) {
+    while ((entry = g_queue_pop_head(priv->entries))) {
         struct_table_delete_entry(priv->table, entry);
     }
     priv->size = 0;
@@ -350,7 +350,7 @@ struct_needs_expand(CoilObject *o)
     CoilStruct *self = COIL_STRUCT(o);
     CoilStructPrivate *priv = self->priv;
 
-    if (g_queue_is_empty(&priv->dependencies)) {
+    if (g_queue_is_empty(priv->dependencies)) {
         return FALSE;
     }
     return priv->unexpanded != NULL;
@@ -579,7 +579,7 @@ insert_internal(CoilObject *self, CoilPath *path,
     }
     if (entry == NULL) {
         entry = struct_table_insert(priv->table, path, value);
-        g_queue_push_tail(&priv->entries, entry);
+        g_queue_push_tail(priv->entries, entry);
         priv->size++;
         if (!struct_change_notify(self)) {
             goto error;
@@ -796,7 +796,7 @@ struct_remove_entry(CoilObject *self, StructEntry *entry)
 {
     CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
 
-    g_queue_remove(&priv->entries, (gpointer)entry);
+    g_queue_remove(priv->entries, (gpointer)entry);
 #if COIL_DEBUG
     priv->version++;
 #endif
@@ -1025,7 +1025,7 @@ coil_struct_add_dependency(CoilObject *self, CoilObject *dep)
         return FALSE;
     }
     coil_object_ref(dep);
-    g_queue_push_tail(&priv->dependencies, dep);
+    g_queue_push_tail(priv->dependencies, dep);
 #if COIL_DEBUG
     priv->version++;
 #endif
@@ -1188,7 +1188,7 @@ coil_struct_iter_init(CoilStructIter *iter, CoilObject *self)
 #if COIL_DEBUG
     iter->version = priv->version;
 #endif
-    iter->position = g_queue_peek_head_link(&priv->entries);
+    iter->position = g_queue_peek_head_link(priv->entries);
 }
 
 static gboolean
@@ -1434,7 +1434,7 @@ struct_expand_internal(CoilObject *self, const GValue **return_value)
         return TRUE;
     }
     if (priv->unexpanded == NULL) {
-        list = g_queue_peek_head_link(&priv->dependencies);
+        list = g_queue_peek_head_link(priv->dependencies);
     }
     else {
         list = g_list_next(priv->unexpanded);
@@ -1706,7 +1706,7 @@ coil_struct_dependency_treev(CoilObject *self, GNode *tree, guint ntypes,
         tree = g_node_new(NULL);
     }
 
-    list = g_queue_peek_head_link(&priv->dependencies);
+    list = g_queue_peek_head_link(priv->dependencies);
 
     while (list) {
         GNode *branch;
@@ -2031,8 +2031,8 @@ struct_equals(CoilObject *x, CoilObject *y)
      * after the expansion above. This means struct equality does not depend
      * on the order of the keys.
      */
-    lx = g_queue_peek_head_link(&xpriv->entries);
-    ly = g_queue_peek_head_link(&ypriv->entries);
+    lx = g_queue_peek_head_link(xpriv->entries);
+    ly = g_queue_peek_head_link(ypriv->entries);
 
     lx = g_list_sort(g_list_copy(lx), (GCompareFunc)compare_entry_key);
     ly = g_list_sort(g_list_copy(ly), (GCompareFunc)compare_entry_key);
@@ -2061,7 +2061,12 @@ static void
 coil_struct_init(CoilStruct *self)
 {
     g_return_if_fail(COIL_IS_STRUCT(self));
-    self->priv = COIL_STRUCT_GET_PRIVATE(self);
+
+    CoilStructPrivate *priv = COIL_STRUCT_GET_PRIVATE(self);
+
+    self->priv = priv;
+    priv->entries = g_queue_new();
+    priv->dependencies = g_queue_new();
 }
 
 COIL_API(CoilObject *)
@@ -2151,8 +2156,11 @@ coil_struct_dispose(GObject *object)
     g_return_if_fail(COIL_IS_STRUCT(object));
 
     CoilObject *self = COIL_OBJECT(object);
+    CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
 
     coil_struct_empty(self);
+    g_queue_free(priv->entries);
+    g_queue_free(priv->dependencies);
 
     G_OBJECT_CLASS(coil_struct_parent_class)->dispose(object);
 }
