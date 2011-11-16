@@ -28,6 +28,23 @@ AC_DEFINE_UNQUOTED([COIL_RELEASE_VERSION], $COIL_RELEASE_VERSION, [ ])
 AC_PROG_CC
 AC_PROG_CC_C99
 AM_PROG_LEX
+
+dnl Use faster scanner representation
+if test "x$LEX" == "xflex"; then
+    AC_MSG_CHECKING(if faster scanner representation is available)
+    FLEX_VERSION="`${LEX} --version | cut -f2 -d' '`"
+    AC_SUBST(FLEX_VERSION)
+    case "${FLEX_VERSION}" in
+        2*)
+        AC_MSG_RESULT(yes)
+        LFLAGS="${LFLAGS} -F"
+        ;;
+        *)
+        AC_MSG_RESULT(no)
+        ;;
+    esac
+fi
+
 AC_PROG_YACC
 AC_PROG_SED
 AC_PROG_LIBTOOL
@@ -129,6 +146,8 @@ AC_CHECK_FUNCS(stat lstat)
 
 AC_HEADER_TIME
 AC_CHECK_MEMBERS([struct stat.st_mtime])
+
+AC_SUBST(LFLAGS)
 
 AC_SUBST(CFLAGS)
 AC_SUBST(LDFLAGS)
