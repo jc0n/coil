@@ -85,7 +85,7 @@ hash_relative(guint container_hash, const gchar *path, guint8 path_len)
     return hash_bytes(container_hash, (guchar *)path, path_len);
 }
 
-guint
+inline guint
 coil_path_get_hash(CoilPath *path)
 {
     g_return_val_if_fail(path, 0);
@@ -118,10 +118,10 @@ compare_hash(CoilPath *a, CoilPath *b)
     return ra->hash == rb->hash;
 }
 
-static CoilRealPath *
+static inline CoilRealPath *
 path_alloc(void)
 {
-    CoilRealPath *path = g_slice_new0(CoilRealPath);
+    CoilRealPath *path = g_slice_new(CoilRealPath);
     path->ref_count = 1;
     return path;
 }
@@ -224,7 +224,7 @@ coil_path_take_string_with_keyx(gchar *str, guint len,
         }
     }
     if (key == NULL) {
-        key = memrchr(str, '.', len);
+        coil_memrchr(key, str, '.', len);
         if (key) {
             key++;
             keylen = len - (key - str);
