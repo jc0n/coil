@@ -157,7 +157,6 @@ expr_to_string(CoilObject *self, CoilStringFormat *format)
     return g_string_free(buffer, FALSE);
 }
 
-#if COIL_PATH_TRANSLATION
 static gboolean
 expr_translate_path(GString *expr, CoilObject *old_container,
         CoilObject *new_container)
@@ -192,7 +191,6 @@ expr_translate_path(GString *expr, CoilObject *old_container,
     }
     return TRUE;
 }
-#endif
 
 static CoilObject *
 expr_copy(CoilObject *_self, const gchar *first_property_name,
@@ -208,7 +206,6 @@ expr_copy(CoilObject *_self, const gchar *first_property_name,
     string = g_string_new_len(priv->expr->str, priv->expr->len);
     copy = coil_expr_new_valist(string, first_property_name, properties);
 
-#if COIL_PATH_TRANSLATION
     CoilObject *new_container = COIL_OBJECT(copy)->container;
     CoilObject *old_container = COIL_OBJECT(self)->container;
 
@@ -216,7 +213,6 @@ expr_copy(CoilObject *_self, const gchar *first_property_name,
             !expr_translate_path(string, old_container, new_container)) {
         return NULL;
     }
-#endif
     return COIL_OBJECT(copy);
 }
 
