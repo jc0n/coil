@@ -58,6 +58,9 @@ get_short_path_string(const gchar *str, guint len)
 inline static char *
 get_short_path(CoilPath *path)
 {
+    if (path == NULL) {
+        return g_strndup("", 0);
+    }
     return get_short_path_string(path->str, path->len);
 }
 
@@ -165,8 +168,15 @@ coil_object_error_valist(int code, CoilObject *object, const char *format,
     const char *type;
 
     type = G_OBJECT_TYPE_NAME(object);
-    path = get_short_path(object->path);
-    buf = g_strdup_printf("%s<%s>: %s", type, path, format);
+    if (object->path)
+        path = get_short_path(object->path);
+    else
+        path = get_short_path(object->container->path);
+
+    if (path && *path)
+        buf = g_strdup_printf("%s<%s>: %s", type, path, format);
+    else
+        buf = g_strdup_printf("%s: %s", type, format);
 
     coil_set_error_valist(code, &object->location, buf, args);
 
