@@ -1311,7 +1311,11 @@ merge_item(CoilObject *self, CoilPath *item_path, const GValue *item_value,
     }
     else if (G_VALUE_HOLDS(item_value, COIL_TYPE_OBJECT)) {
         src = COIL_OBJECT(g_value_get_object(item_value));
-        dst = coil_object_copy(src, "container", self, NULL);
+        dst = coil_object_copy(src,
+            "container", self,
+            "path", path,
+            "location", self->location,
+            NULL);
         if (dst == NULL) {
             goto error;
         }
