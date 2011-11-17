@@ -41,6 +41,7 @@ struct _CoilStructIter
 #if COIL_DEBUG
     guint       version;
 #endif
+    gboolean    reversed : 1;
 };
 
 typedef struct _ExpandNotify
@@ -1176,32 +1177,61 @@ coil_struct_extend_paths(CoilObject *self, GList *list, CoilObject *context)
     return TRUE;
 }
 
-COIL_API(void)
-coil_struct_iter_init(CoilStructIter *iter, CoilObject *self)
+static void
+iter_init(CoilStructIter *iter, CoilObject *self, gboolean reversed)
 {
     g_return_if_fail(COIL_IS_STRUCT(self));
     g_return_if_fail(!coil_struct_is_prototype(self));
     g_return_if_fail(iter);
 
     CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
-    iter->node = self;
+
 #if COIL_DEBUG
     iter->version = priv->version;
 #endif
-    iter->position = g_queue_peek_head_link(priv->entries);
+    iter->node = self;
+    iter->reversed = reversed;
+    if (iter->reversed)
+        iter->position = g_queue_peek_tail_link(priv->entries);
+    else
+        iter->position = g_queue_peek_head_link(priv->entries);
+}
+
+COIL_API(void)
+coil_struct_iter_init(CoilStructIter *iter, CoilObject *self)
+{
+    iter_init(iter, self, FALSE);
+}
+
+COIL_API(void)
+coil_struct_iter_init_reversed(CoilStructIter *iter, CoilObject *self)
+{
+    iter_init(iter, self, TRUE);
 }
 
 static gboolean
 iter_next_entry(CoilStructIter *iter, StructEntry **entry)
 {
-    g_return_val_if_fail(iter, FALSE);
-    g_return_val_if_fail(entry, FALSE);
+    g_return_val_if_fail(!iter->reversed, FALSE);
 
     if (!iter->position) {
         return FALSE;
     }
     *entry = (StructEntry *)iter->position->data;
     iter->position = g_list_next(iter->position);
+    return TRUE;
+}
+
+static gboolean
+iter_prev_entry(CoilStructIter *iter, StructEntry **entry)
+{
+    g_return_val_if_fail(iter->reversed, FALSE);
+
+    if (!iter->position) {
+        return FALSE;
+    }
+    *entry = (StructEntry *)iter->position->data;
+    iter->position = g_list_previous(iter->position);
     return TRUE;
 }
 
@@ -1212,16 +1242,22 @@ coil_struct_iter_next(CoilStructIter *iter, CoilPath **path, const GValue **valu
     g_return_val_if_fail(path || value, FALSE);
 
     StructEntry *entry;
+    gboolean res;
 
-    if (!iter_next_entry(iter, &entry)) {
+    if (iter->reversed)
+        res = iter_prev_entry(iter, &entry);
+    else
+        res = iter_next_entry(iter, &entry);
+
+    if (!res)
         return FALSE;
-    }
-    if (path) {
+
+    if (path)
         *path = entry->path;
-    }
-    if (value) {
+
+    if (value)
         *value = entry->value;
-    }
+
     return TRUE;
 }
 
