@@ -1568,7 +1568,7 @@ do_lookup_expand(CoilObject *self, CoilPath *path)
             }
             break;
         }
-    } while (container_path != NULL);
+    } while (!COIL_PATH_IS_ROOT(container_path));
     coil_path_unref(container_path);
     if (!struct_expand(self->root)) {
         goto err;
