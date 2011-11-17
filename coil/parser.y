@@ -565,18 +565,16 @@ link
 
 link_path
     : path {
-        CoilObject *link, *container = PEEK_CONTAINER(YYCTX);
         /* XXX: YYCTX->path is null when link is not assigned to a path
           ie. @extends: [ =..some_node ]
         */
-        link = coil_link_new("target_path", $1,
-                             "path", YYCTX->path,
-                             "container", container,
-                             "location", &@$,
-                             NULL);
+        CoilObject *link = coil_link_new($1,
+            "path", YYCTX->path,
+            "container", PEEK_CONTAINER(YYCTX),
+            "location", &@$,
+            NULL);
 
         coil_path_unref($1);
-
         if (link == NULL) {
             YYERROR;
         }

@@ -29,14 +29,10 @@ typedef struct _CoilLink        CoilLink;
 typedef struct _CoilLinkClass   CoilLinkClass;
 typedef struct _CoilLinkPrivate CoilLinkPrivate;
 
-
 struct _CoilLink
 {
     CoilObject   parent_instance;
     CoilLinkPrivate *priv;
-
-    /* public */
-    CoilPath *target_path;
 };
 
 struct _CoilLinkClass
@@ -50,13 +46,13 @@ GType coil_link_get_type(void) G_GNUC_CONST;
 
 /* XXX: make private */
 CoilObject *
-coil_link_new(const gchar *first_property_name, ...)
+coil_link_new(CoilPath *target, const gchar *first_property_name, ...)
     G_GNUC_WARN_UNUSED_RESULT G_GNUC_NULL_TERMINATED;
 
 /* XXX: make private */
 CoilObject *
-coil_link_new_valist(const gchar *first_property_name, va_list properties)
-    G_GNUC_WARN_UNUSED_RESULT;
+coil_link_new_valist(CoilPath *target, const gchar *first_property_name,
+        va_list properties) G_GNUC_WARN_UNUSED_RESULT;
 
 G_END_DECLS
 #endif
