@@ -55,7 +55,7 @@ build_functional_test_suite(void)
         g_error("No test cases found in %s", TEST_CASES_PATH);
     }
     while (list) {
-        gchar *testname = g_strconcat("/", list->data, NULL);
+        gchar *testname = g_strconcat("/", list->data + 7, NULL);
         g_test_add_data_func(testname, list->data, run_test);
         list = g_slist_next(list);
     }
@@ -93,29 +93,22 @@ expect_pass(const gchar *filepath)
     else if (expected == NULL) {
         g_error("Must specify '%s' in coil pass test file.", EXPECTED_KEY_NAME);
     }
-    else {
-        gint result = coil_value_compare(test, expected);
+    else if (coil_value_compare(test, expected)) {
+        gchar *string;
+        CoilError *error = NULL;
+        CoilStringFormat format;
 
-        g_assert(!coil_error_occurred());
+        format = default_string_format;
+        format.options |= FORCE_EXPAND;
 
-        if (result != 0) {
-            gchar *string;
-            CoilError *error = NULL;
-            CoilStringFormat format;
-
-            format = default_string_format;
-            format.options |= FORCE_EXPAND;
-
-            if (!coil_error_occurred()) {
-                string = coil_object_to_string(root, &format);
-            }
-            if (coil_get_error(&error)) {
-                g_print("Failed: \n\n%s\n", error->message);
-                g_assert(error != NULL);
-                coil_error_clear();
-            }
+        if (!coil_error_occurred()) {
+            string = coil_object_to_string(root, &format);
         }
-        g_assert_cmpint(result, ==, 0);
+        if (coil_get_error(&error)) {
+            g_print("Failed: \n\n%s\n", error->message);
+            g_assert(error != NULL);
+            coil_error_clear();
+        }
     }
     coil_object_unref(root);
 }
@@ -134,7 +127,8 @@ expect_fail(const gchar *filepath)
     /* expand file to catch intentional expand errors */
     /* TODO: add specific error checking */
     coil_struct_expand_items(root, TRUE);
-    g_assert(!coil_error_occurred());
+    g_assert(coil_error_occurred());
+    coil_error_clear();
 }
 
 static void
@@ -142,6 +136,8 @@ run_test(const void *arg)
 {
     gchar *filepath = (gchar *)arg;
     guint offset = sizeof(TEST_CASES_PATH)-1;
+
+    coil_error_clear();
 
     if (!strncmp(filepath + offset, TEST_PASS_STR, sizeof(TEST_PASS_STR)-1)) {
         expect_pass(filepath);
