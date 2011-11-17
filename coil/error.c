@@ -209,19 +209,6 @@ coil_struct_error(CoilObject *self, const char *format, ...)
 }
 
 void
-coil_link_error(CoilObject *self, const char *format, ...)
-{
-    g_return_if_fail(self);
-    g_return_if_fail(format);
-
-    va_list args;
-
-    va_start(args, format);
-    coil_object_error_valist(COIL_ERROR_LINK, self, format, args);
-    va_end(args);
-}
-
-void
 coil_path_error(const gchar *path, guint len, const char *format, ...)
 {
     g_return_if_fail(path);

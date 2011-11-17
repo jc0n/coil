@@ -75,10 +75,11 @@ void
 coil_object_error(int code, CoilObject *object, const char *format, ...);
 
 void
-coil_struct_error(CoilObject *self, const char *format, ...);
+coil_object_error_valist(int code, CoilObject *object, const char *format,
+        va_list args);
 
 void
-coil_link_error(CoilObject *self, const char *format, ...);
+coil_struct_error(CoilObject *self, const char *format, ...);
 
 void
 coil_path_error(const gchar *str, guint len, const char *format, ...);

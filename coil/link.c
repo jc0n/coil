@@ -18,6 +18,19 @@ typedef enum
     PROP_TARGET_PATH,
 } LinkProperties;
 
+static void
+coil_link_error(CoilObject *self, const char *format, ...)
+{
+    g_return_if_fail(self);
+    g_return_if_fail(format);
+
+    va_list args;
+
+    va_start(args, format);
+    coil_object_error_valist(COIL_ERROR_LINK, self, format, args);
+    va_end(args);
+}
+
 static gboolean
 link_is_expanded(CoilObject *link)
 {
