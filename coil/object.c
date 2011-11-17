@@ -96,13 +96,7 @@ coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
 
     if (!g_static_mutex_trylock(&priv->expand_lock)) {
         /* TODO(jcon): improve error handling for cases like this */
-        CoilObject *container;
-        if (COIL_IS_STRUCT(self)) {
-            container = self;
-        }
-        else {
-            container = self->container;
-        }
+        CoilObject *container = COIL_IS_STRUCT(self) ? self : self->container;
         coil_struct_error(container, "Cycle detected during expansion");
         goto error;
     }
@@ -171,12 +165,15 @@ coil_object_set_property(GObject *object,
     CoilObject *self = COIL_OBJECT(object);
 
     switch (property_id) {
-        case PROP_CONTAINER:
-            self->container = COIL_OBJECT(g_value_get_object(value));
-            if (self->container) {
-                self->root = self->container->root;
+        case PROP_CONTAINER: {
+            CoilObject *container = COIL_OBJECT(g_value_get_object(value));
+            if (container) {
+                g_object_freeze_notify(object);
+                coil_object_set_container(COIL_OBJECT(object), container);
+                g_object_thaw_notify(object);
             }
             break;
+        }
         case PROP_LOCATION: {
             CoilLocation *loc = (CoilLocation *)g_value_get_pointer(value);
             if (self->location.filepath) {
@@ -190,12 +187,15 @@ coil_object_set_property(GObject *object,
             }
             break;
         }
-        case PROP_PATH:
-            self->path = (CoilPath *)g_value_dup_boxed(value);
+        case PROP_PATH: {
+            CoilPath *path = (CoilPath *)g_value_dup_boxed(value);
+            if (path) {
+                g_object_freeze_notify(object);
+                coil_object_set_path(COIL_OBJECT(object), path);
+                g_object_thaw_notify(object);
+            }
             break;
-        case PROP_ROOT:
-            self->root = COIL_OBJECT(g_value_get_object(value));
-            break;
+        }
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
             break;
@@ -264,8 +264,8 @@ coil_object_set_container(CoilObject *object, CoilObject *container)
     if (klass->set_container != NULL) {
         klass->set_container(object, container);
     }
-    object->container = container;
-    if (object->container) {
+    if (container) {
+        object->container = container;
         object->root = object->container->root;
     }
     else {
