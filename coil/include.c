@@ -680,15 +680,14 @@ coil_include_init(CoilInclude *self)
 static void
 coil_include_class_init(CoilIncludeClass *klass)
 {
-    g_type_class_add_private(klass, sizeof(CoilIncludePrivate));
-
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
+    CoilObjectClass *object_class = COIL_OBJECT_CLASS(klass);
+
+    g_type_class_add_private(klass, sizeof(CoilIncludePrivate));
 
     gobject_class->set_property = coil_include_set_property;
     gobject_class->get_property = coil_include_get_property;
     gobject_class->dispose = coil_include_dispose;
-
-    CoilObjectClass *object_class = COIL_OBJECT_CLASS(klass);
 
     object_class->is_expanded = include_is_expanded;
     object_class->expand = include_expand;
