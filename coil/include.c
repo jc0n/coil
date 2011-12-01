@@ -470,10 +470,9 @@ process_import_array(CoilObject *self, GValueArray *arr)
     g_return_val_if_fail(arr != NULL, -1);
 
     GValue *import;
-    gint res;
-    gsize i, n = arr->n_values;
+    int res, i;
 
-    for (i = 0; i < n; i++) {
+    for (i = 0; i < arr->n_values; i++) {
         import = g_value_array_get_nth(arr, i);
         if (expand_import(import) < 0) {
             return -1;
