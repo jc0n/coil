@@ -958,10 +958,6 @@ check_parent_sanity(CoilObject *self, CoilObject *parent)
         coil_struct_error(self, "cannot extend self.");
         return FALSE;
     }
-    if (coil_struct_is_root(self)) {
-        coil_struct_error(self, "cannot inherit from other structs.");
-        return FALSE;
-    }
     if (coil_struct_is_root(parent)) {
         coil_struct_error(self, "cannot be extended.");
         return FALSE;
@@ -999,6 +995,10 @@ coil_struct_add_dependency(CoilObject *self, CoilObject *dep)
     CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
     GType type = G_OBJECT_TYPE(dep);
 
+    if (coil_struct_is_root(self)) {
+        coil_struct_error(self, "cannot inherit from other structs.");
+        return FALSE;
+    }
     if (struct_needs_expand(self)) {
         coil_struct_error(self, "Cannot add dependencies after struct expansion");
         return FALSE;
@@ -1433,7 +1433,8 @@ expand_dependency(CoilObject *self, CoilObject *dependency)
             return FALSE;
         }
         dependency = COIL_OBJECT(g_value_get_object(expanded_value));
-        if (!check_parent_sanity(self, dependency)) {
+        if (COIL_IS_LINK(dependency) &&
+            !check_parent_sanity(self, dependency)) {
             return FALSE;
         }
     }
