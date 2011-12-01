@@ -740,6 +740,7 @@ coil_struct_insert_path(CoilObject *self, CoilPath *path,
 
     CoilObject *container;
     CoilPath *container_path;
+    gboolean res;
 
     coil_path_ref(path);
     if (!coil_path_resolve_inplace(&path, self->path)) {
@@ -758,9 +759,9 @@ coil_struct_insert_path(CoilObject *self, CoilPath *path,
     if (container == NULL) {
         goto error;
     }
+    res = insert_internal(container, path, value, replace, TRUE);
     coil_path_unref(path);
-    return insert_internal(container, path, value, replace, TRUE);
-
+    return res;
 error:
     if (path) {
         coil_path_unref(path);
