@@ -459,6 +459,7 @@ process_import(CoilObject *self, GValue *import)
         coil_path_unref(path);
         return -1;
     }
+    coil_path_unref(path);
     return 0;
 }
 
