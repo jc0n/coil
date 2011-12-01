@@ -1,0 +1,7 @@
+test: {
+    @file: ["general.coil" "a.x" "b.y"]
+}
+expected: {
+    x: 1
+    y: 2
+}

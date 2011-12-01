@@ -370,17 +370,68 @@ get_import_path(GValue *import)
     return path;
 }
 
+static gboolean
+copy_into_namespace(CoilObject *self, CoilPath *path, const GValue *value)
+{
+    CoilObject *obj = NULL;
+    CoilObject *namespace = COIL_INCLUDE(self)->priv->namespace;
+    gboolean res = FALSE;
+
+    if (!G_VALUE_HOLDS(value, COIL_TYPE_OBJECT)) {
+        /* regular non-object value */
+        GValue *value_copy = coil_value_copy(value);
+        if (value_copy) {
+            res = coil_struct_insert(namespace, path->key, path->key_len,
+                    value_copy, FALSE);
+        }
+        return res;
+    }
+    obj = COIL_OBJECT(g_value_dup_object(value));
+    if (!COIL_IS_STRUCT(obj)) {
+        GValue *copyval;
+        CoilObject *copyobj;
+        CoilPath *copypath = coil_path_new_len(path->key, path->key_len);
+        if (copypath == NULL) {
+            goto end;
+        }
+        if (!coil_path_resolve_inplace(&copypath, namespace->path)) {
+            coil_path_unref(copypath);
+            goto end;
+        }
+        copyobj = coil_object_copy(obj,
+                "container", namespace,
+                "path", copypath,
+                "location", self->location,
+                NULL);
+        if (copyobj == NULL) {
+            coil_path_unref(copypath);
+            goto end;
+        }
+        coil_value_init(copyval, G_OBJECT_TYPE(obj), take_object, copyobj);
+        res = coil_struct_insert_path(namespace, copypath, copyval, FALSE);
+        coil_path_unref(copypath);
+        if (!res) {
+            coil_value_free(copyval);
+            goto end;
+        }
+    }
+    else {
+        res = MERGE_NAMESPACE(obj, namespace);
+    }
+end:
+    coil_object_unref(obj);
+    return res;
+}
+
 static int
 process_import(CoilObject *self, GValue *import)
 {
     g_return_val_if_fail(COIL_IS_INCLUDE(self), -1);
     g_return_val_if_fail(G_IS_VALUE(import), -1);
 
+    CoilObject *root;
     CoilPath *path;
-    CoilIncludePrivate *priv = COIL_INCLUDE(self)->priv;
-    CoilObject *source, *root;
     const GValue *value;
-    gboolean res;
 
     root = get_root(self);
     if (root == NULL) {
@@ -395,7 +446,7 @@ process_import(CoilObject *self, GValue *import)
         return -1;
     }
     /* lookup the path in the root */
-    value = coil_struct_lookupx(root, path, FALSE);
+    value = coil_struct_lookupx(root, path, TRUE);
     if (value == NULL) {
         if (!coil_error_occurred()) {
             coil_include_error(self, "import path '%s' does not exist.",
@@ -404,18 +455,11 @@ process_import(CoilObject *self, GValue *import)
         coil_path_unref(path);
         return -1;
     }
-    /* TODO(jcon): support importing non struct paths */
-    if (!G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
-        coil_include_error(self, "import path '%s' type must be struct.",
-                path->str);
+    if (!copy_into_namespace(self, path, value)) {
         coil_path_unref(path);
         return -1;
     }
-    source = COIL_OBJECT(g_value_dup_object(value));
-    res = MERGE_NAMESPACE(source, priv->namespace);
-    coil_object_unref(source);
-    coil_path_unref(path);
-    return (res) ? 0 : -1;
+    return 0;
 }
 
 static int
