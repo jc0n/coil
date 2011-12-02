@@ -104,6 +104,9 @@ coil_path_ref(CoilPath *p);
 void
 coil_path_unref(CoilPath *p);
 
+void
+coil_path_unrefx(CoilPath *p);
+
 CoilPath *
 coil_path_join(CoilPath *container, CoilPath *key)
     G_GNUC_WARN_UNUSED_RESULT;

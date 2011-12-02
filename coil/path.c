@@ -453,6 +453,19 @@ coil_path_unref(CoilPath *path)
     }
 }
 
+/* coil_path_unrefx:
+ * @path: a #CoilPath object or %NULL
+ *
+ * Decrements the reference count of @path
+ */
+COIL_API(inline void)
+coil_path_unrefx(CoilPath *path)
+{
+    if (path) {
+        coil_path_unref(path);
+    }
+}
+
 /* coil_path_join:
  * @a: a #CoilPath object
  * @b: a #CoilPath object
