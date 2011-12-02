@@ -314,60 +314,51 @@ get_root(CoilObject *self)
     return root;
 }
 
-static int
-expand_import(GValue *import)
+static gboolean
+expand_import_value(GValue *value)
 {
-    g_return_val_if_fail(G_IS_VALUE(import), -1);
+    CoilObject *importobj;
+    const GValue *returnval;
 
-    CoilObject *o;
-    const GValue *returnval = NULL;
-
-    if (!G_VALUE_HOLDS(import, COIL_TYPE_OBJECT))
-        return 0;
-
-    o = COIL_OBJECT(g_value_dup_object(import));
-    if (!coil_object_expand(o, &returnval, TRUE)) {
-        coil_object_unref(o);
-        return -1;
+    if (!G_VALUE_HOLDS(value, COIL_TYPE_OBJECT)) {
+        return TRUE;
     }
-    if (returnval == NULL) {
-        g_error("Expecting return value from expansion of type '%s'.",
-                G_OBJECT_TYPE_NAME(o));
+    returnval = NULL;
+    importobj = COIL_OBJECT(g_value_dup_object(value));
+    if (!coil_object_expand(importobj, &returnval, TRUE)) {
+        coil_object_unref(importobj);
+        return FALSE;
     }
-    g_value_unset(import);
-    g_value_init(import, G_VALUE_TYPE(returnval));
-    g_value_copy(returnval, import);
-    coil_object_unref(o);
-    return 0;
+    g_assert(returnval);
+    g_value_unset(value);
+    g_value_init(value, G_VALUE_TYPE(returnval));
+    g_value_copy(returnval, value);
+    coil_object_unref(importobj);
+    return TRUE;
 }
 
 static CoilPath *
-get_import_path(GValue *import)
+get_path_from_import_value(GValue *value)
 {
-    g_return_val_if_fail(G_IS_VALUE(import), NULL);
+    GType type;
 
-    CoilPath *path;
-
-    if (expand_import(import) < 0)
+    if (!expand_import_value(value)) {
         return NULL;
-
-    if (G_VALUE_HOLDS(import, COIL_TYPE_PATH)) {
-        path = (CoilPath *)g_value_dup_boxed(import);
     }
-    else if (G_VALUE_HOLDS(import, G_TYPE_GSTRING)) {
-        GString *g = (GString *)g_value_get_boxed(import);
-        path = coil_path_new_len(g->str, g->len);
+    type = G_VALUE_TYPE(value);
+    if (type == COIL_TYPE_PATH) {
+        return (CoilPath *)g_value_dup_boxed(value);
     }
-    else if (G_VALUE_HOLDS(import, G_TYPE_STRING)) {
-        const gchar *str = g_value_get_string(import);
-        path = coil_path_new(str);
+    if (type == G_TYPE_STRING) {
+        return coil_path_new(g_value_get_string(value));
     }
-    else {
-        g_error("Invalid include argument type '%s' in import argument list. "
-                "All import arguments are treated as strings.",
-                G_VALUE_TYPE_NAME(import));
+    if (type == G_TYPE_GSTRING) {
+        GString *g = (GString *)g_value_get_boxed(value);
+        return coil_path_new_len(g->str, g->len);
     }
-    return path;
+    g_error("Invalid include argument type '%s' in import argument list. "
+            "All import arguments are treated as strings.",
+            G_VALUE_TYPE_NAME(value));
 }
 
 static gboolean
@@ -441,7 +432,7 @@ process_import(CoilObject *self, GValue *import)
         CoilObject *ob = COIL_OBJECT(g_value_get_object(import));
         coil_object_set_container(ob, self->container);
     }
-    path = get_import_path(import);
+    path = get_path_from_import_value(import);
     if (path == NULL) {
         return -1;
     }
@@ -469,21 +460,18 @@ process_import_array(CoilObject *self, GValueArray *arr)
     g_return_val_if_fail(COIL_IS_INCLUDE(self), -1);
     g_return_val_if_fail(arr != NULL, -1);
 
-    GValue *import;
-    int res, i;
+    int i;
 
     for (i = 0; i < arr->n_values; i++) {
-        import = g_value_array_get_nth(arr, i);
-        if (expand_import(import) < 0) {
+        GValue *importval = g_value_array_get_nth(arr, i);
+        if (!expand_import_value(importval)) {
             return -1;
         }
-        if (G_VALUE_HOLDS(import, COIL_TYPE_LIST)) {
-            res = process_import_array(self, g_value_get_boxed(import));
+        else if (G_VALUE_HOLDS(importval, COIL_TYPE_LIST) &&
+            process_import_array(self, g_value_get_boxed(importval)) < 0) {
+            return -1;
         }
-        else {
-            res = process_import(self, import);
-        }
-        if (res < 0) {
+        else if (process_import(self, importval) < 0) {
             return -1;
         }
     }

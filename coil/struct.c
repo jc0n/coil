@@ -1593,7 +1593,8 @@ do_lookup_expand(CoilObject *self, CoilPath *path)
         val = do_lookup(self, container_path, FALSE, FALSE);
         if (val != NULL) {
             if (!G_VALUE_HOLDS(val, COIL_TYPE_STRUCT)) {
-                coil_struct_error(self, "item at '%s' is type %s, expected %s",
+                coil_struct_error(self,
+                        "item at '%s' is type %s, expected type %s",
                         container_path->str, G_VALUE_TYPE_NAME(val),
                         g_type_name(COIL_TYPE_STRUCT));
                 goto err;

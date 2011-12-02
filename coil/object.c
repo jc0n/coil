@@ -111,6 +111,10 @@ coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
             && !coil_expand_value(return_value, &return_value, TRUE))
         goto error;
 
+    if (return_value == NULL && !COIL_IS_STRUCT(object)) {
+        g_error("Expecting return value from expansion of type '%s'.",
+                G_OBJECT_TYPE_NAME(object));
+    }
     g_static_mutex_unlock(&priv->expand_lock);
 
     if (value_ptr && return_value)
