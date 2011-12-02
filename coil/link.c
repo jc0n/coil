@@ -45,60 +45,59 @@ link_is_expanded(CoilObject *link)
     return FALSE;
 }
 
+static const GValue *
+lookup_target_value(CoilObject *self)
+{
+    CoilLinkPrivate *priv = COIL_LINK(self)->priv;
+    CoilObject *container = self->container;
+    CoilPath *path = NULL, *structpath = NULL, *relpath = NULL;
+    const GValue *value = NULL, *structval;
+
+    path = coil_path_resolve(priv->target, container->path);
+    if (path == NULL)
+        goto end;
+    value = coil_struct_lookupx(container, path, TRUE);
+    if (value) {
+        /* fast-path: entry found by direct lookup */
+        goto end;
+    }
+
+    structpath = coil_path_pop(path, 1);
+    if (structpath == NULL)
+        goto end;
+    structval = coil_struct_lookupx(self->root, structpath, TRUE);
+    if (structval == NULL)
+        goto end;
+
+    container = COIL_OBJECT(g_value_dup_object(structval));
+    relpath = coil_path_relativize(path, structpath);
+    if (relpath == NULL) {
+        coil_object_unref(container);
+        goto end;
+    }
+    value = coil_struct_lookupx(container, relpath, TRUE);
+    coil_object_unref(container);
+end:
+    if (value == NULL) {
+        coil_link_error(self, "link target path '%s' not found.", path->str);
+    }
+    coil_path_unrefx(structpath);
+    coil_path_unrefx(relpath);
+    coil_path_unrefx(path);
+    return value;
+}
+
 static gboolean
 link_expand(CoilObject *self, const GValue **return_value)
 {
-    g_return_val_if_fail(COIL_IS_LINK(self), FALSE);
-
-    CoilLinkPrivate *priv = COIL_LINK(self)->priv;
-    CoilObject *container = self->container;
-    CoilPath *path;
     const GValue *value;
 
-    /* we need the absolute path incase the target is inside of a struct */
-    path = coil_path_resolve(priv->target, container->path);
-    if (path == NULL) {
-        return FALSE;
-    }
-    value = coil_struct_lookupx(container, path, TRUE);
+    value = lookup_target_value(self);
     if (value) {
         *return_value = value;
-        coil_path_unref(path);
         return TRUE;
     }
-    /* direct path does not exist. target may be a path into a struct */
-    if (!coil_path_pop_inplace(&path, -1)) {
-        return FALSE;
-    }
-    while (path->len > container->path->len) {
-        /* don't allow auto expansion, it may cause cycles */
-        value = coil_struct_lookupx(container, path, TRUE);
-        if (value && G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
-            CoilObject *inner;
-            CoilPath *rel = coil_path_new(priv->target->str + path->len + 1);
-            if (rel == NULL) {
-                goto err;
-            }
-            inner = COIL_OBJECT(g_value_get_object(value));
-            value = coil_struct_lookupx(inner, rel, TRUE);
-            coil_path_unref(rel);
-            if (value) {
-                coil_path_unref(path);
-                *return_value = value;
-                return TRUE;
-            }
-        }
-        if (!coil_path_pop_inplace(&path, -1)) {
-            break;
-        }
-    }
-    /* if we get this far it really doesnt exist */
-    if (!coil_error_occurred()) {
-        coil_link_error(self, "link target path <%s> does not exist.",
-                priv->target->str);
-    }
-err:
-    coil_path_unref(path);
+    *return_value = NULL;
     return FALSE;
 }
 

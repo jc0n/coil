@@ -667,7 +667,6 @@ coil_path_resolve(CoilPath *path, CoilPath *container)
 {
     g_return_val_if_fail(path, NULL);
     g_return_val_if_fail(container, NULL);
-    g_return_val_if_fail(path != container, NULL);
 
     gchar *str, *p;
     const gchar *suffix, *end;
@@ -784,13 +783,14 @@ coil_path_relativize(CoilPath *a, CoilPath *b)
     path = (char *)a->str + COIL_ROOT_PATH_LEN;
     n = b->len - COIL_ROOT_PATH_LEN;
     /* find where the two paths first differ */
-    while (n-- > 0 && *prefix == *path) {
+    while (n >= 0 && *prefix == *path) {
         if (*prefix == COIL_PATH_DELIM) {
             /* remember the last matching delimiter */
             delim = prefix;
         }
         prefix++;
         path++;
+        n--;
     }
     if (n == 0 && *path == COIL_PATH_DELIM) {
         /* @b is a subset of @a which means @a is a descendent of @b */
@@ -866,12 +866,15 @@ coil_path_pop(CoilPath *path, int i)
     }
     if (i >= 0) {
         /* use i + 1 keys from the front of the path */
-        if (COIL_PATH_IS_ABSOLUTE(path) && i == 0) {
-            return coil_path_ref(CoilRootPath);
-        }
         p = (char *)path->str;
+        if (COIL_PATH_IS_ABSOLUTE(path)) {
+            if (i == 0) {
+                return coil_path_ref(CoilRootPath);
+            }
+            p += COIL_ROOT_PATH_LEN;
+        }
         do {
-            p = strchr(p, COIL_PATH_DELIM);
+            p = strchr(p + 1, COIL_PATH_DELIM);
             if (p == NULL) {
                 return coil_path_ref(path);
             }
@@ -889,8 +892,11 @@ coil_path_pop(CoilPath *path, int i)
     else {
         /* remove i keys from the tail of the path */
         p = (char *)path->str;
+        if (COIL_PATH_IS_ABSOLUTE(path)) {
+            p += COIL_ROOT_PATH_LEN;
+        }
         while (i++ < 0) {
-            coil_memrchr(p, p, COIL_PATH_DELIM, p - path->str);
+            coil_memrchr(p, (p - 1), COIL_PATH_DELIM, (p - 1) - path->str);
             if (p == NULL) {
                 return coil_path_ref(CoilRootPath);
             }

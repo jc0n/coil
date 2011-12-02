@@ -1,0 +1,10 @@
+a.x: 1
+b: a
+
+c.d.e.f: 2
+d: c.d
+e: d.e
+f: e.f
+
+test: { one: @root.b.x two: @root.f }
+expected: { one: 1 two: 2 }
