@@ -27,6 +27,7 @@ typedef enum
     COIL_ERROR_PATH,
     COIL_ERROR_STRUCT,
     COIL_ERROR_VALUE,
+    COIL_ERROR_VALUE_TYPE,
 } CoilError;
 
 #define COIL_ERROR coil_error_quark()

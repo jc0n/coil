@@ -28,10 +28,29 @@
 #define COIL_API(rtype) rtype
 #define COIL_STATIC_STRLEN(str) str,(sizeof(str)-1)
 
+#define COIL_TYPE_BOOLEAN G_TYPE_BOOLEAN
+#define COIL_TYPE_INT G_TYPE_INT
+#define COIL_TYPE_UINT G_TYPE_UINT
+#define COIL_TYPE_LONG G_TYPE_LONG
+#define COIL_TYPE_ULONG G_TYPE_ULONG
+#define COIL_TYPE_INT64 G_TYPE_INT64
+#define COIL_TYPE_UINT64 G_TYPE_UINT64
+#define COIL_TYPE_FLOAT G_TYPE_FLOAT
+#define COIL_TYPE_DOUBLE G_TYPE_DOUBLE
+#define COIL_TYPE_STRING G_TYPE_STRING
+
+
 G_BEGIN_DECLS
 
 void
 coil_init(void);
+
+const char *
+coil_type_name(GType type);
+
+gboolean
+coil_get(CoilObject *o, const char *key,
+        int type, gpointer return_value);
 
 G_END_DECLS
 
