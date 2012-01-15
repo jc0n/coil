@@ -54,33 +54,43 @@ lookup_target_value(CoilObject *self)
     const GValue *value = NULL, *structval;
 
     path = coil_path_resolve(priv->target, container->path);
-    if (path == NULL)
+    if (path == NULL) {
         goto end;
+    }
     value = coil_struct_lookupx(container, path, TRUE);
     if (value) {
         /* fast-path: entry found by direct lookup */
         goto end;
     }
-
-    structpath = coil_path_pop(path, 1);
-    if (structpath == NULL)
-        goto end;
-    structval = coil_struct_lookupx(self->root, structpath, TRUE);
-    if (structval == NULL)
-        goto end;
-
-    container = COIL_OBJECT(g_value_dup_object(structval));
-    relpath = coil_path_relativize(path, structpath);
-    if (relpath == NULL) {
+    /* XXX:
+     * The target path does not directly exist. If one of the keys in the
+     * link target path is a struct we have to pop off each key of the target path
+     * until we find which one is the struct. Then do a relative lookup on that
+     * struct.
+     */
+    structpath = coil_path_ref(path);
+    do {
+        if (!coil_path_pop_inplace(&structpath, -1)) {
+            goto end;
+        }
+        if (COIL_PATH_IS_ROOT(structpath)) {
+            coil_link_error(self, "link target path '%s' not found.", path->str);
+            goto end;
+        }
+        structval = coil_struct_lookupx(self->root, structpath, TRUE);
+        if (structval == NULL) {
+            continue;
+        }
+        container = COIL_OBJECT(g_value_dup_object(structval));
+        relpath = coil_path_relativize(path, structpath);
+        if (relpath == NULL) {
+            coil_object_unref(container);
+            goto end;
+        }
+        value = coil_struct_lookupx(container, relpath, TRUE);
         coil_object_unref(container);
-        goto end;
-    }
-    value = coil_struct_lookupx(container, relpath, TRUE);
-    coil_object_unref(container);
+    } while (value == NULL);
 end:
-    if (value == NULL) {
-        coil_link_error(self, "link target path '%s' not found.", path->str);
-    }
     coil_path_unrefx(structpath);
     coil_path_unrefx(relpath);
     coil_path_unrefx(path);
