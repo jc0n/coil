@@ -109,6 +109,9 @@ set_pointer_from_value(gpointer ptr, const GValue *value)
 }
 
 static void
+set_value_from_pointer(GValue *value, gconstpointer pointer) __attribute__((unused));
+
+static void
 set_value_from_pointer(GValue *value, gconstpointer pointer)
 {
     GType value_type = G_VALUE_TYPE(value);
@@ -188,7 +191,7 @@ coil_type_name(GType type)
             else if (type == COIL_TYPE_OBJECT)
                 return "object";
         default:
-            g_error("Unsupported coil value type");
+            return g_type_name(type);
     }
 }
 
@@ -228,7 +231,7 @@ get_and_transform_type(CoilObject *o, const char *key,
     }
     else {
         coil_set_error(COIL_ERROR_VALUE_TYPE, NULL,
-                "Unable to convert '%s' coil value at '%s' to type '%s'",
+                "Unable to convert %s value type at '%s' to type %s.",
                 coil_type_name(value_type), path->str,
                 coil_type_name(return_type));
     }
