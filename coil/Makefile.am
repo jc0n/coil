@@ -52,9 +52,10 @@ libcoil_include_HEADERS=\
 				struct_table.h \
 				value.h
 
-bin_PROGRAMS = coildump
+bin_PROGRAMS = coildump simple_test
 
 coildump_LDADD = @GLIB_LIBS@ libcoil-@LIBCOIL_API_VERSION@.la
+simple_test_LDADD = @GLIB_LIBS@ libcoil-@LIBCOIL_API_VERSION@.la
 
 $(libcoil_la_OBJECTS): $(srcdir)/parser.h
 
