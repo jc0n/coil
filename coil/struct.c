@@ -996,7 +996,7 @@ coil_struct_add_dependency(CoilObject *self, CoilObject *dep)
     CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
     GType type = G_OBJECT_TYPE(dep);
 
-    if (coil_struct_is_root(self)) {
+    if (coil_struct_is_root(self) && COIL_IS_STRUCT(dep)) {
         coil_struct_error(self, "cannot inherit from other structs.");
         return FALSE;
     }
@@ -1438,6 +1438,10 @@ expand_dependency(CoilObject *self, CoilObject *dependency)
             !check_parent_sanity(self, dependency)) {
             return FALSE;
         }
+    }
+    else if (coil_struct_is_root(self)) {
+        coil_struct_error(self, "cannot inherit from other structs.");
+        return FALSE;
     }
     if (coil_struct_is_prototype(dependency)) {
         coil_struct_error(self, "dependency struct '%s' is still a prototype"
