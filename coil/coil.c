@@ -108,6 +108,56 @@ set_pointer_from_value(gpointer ptr, const GValue *value)
     }
 }
 
+static void
+set_value_from_pointer(GValue *value, gconstpointer pointer)
+{
+    GType value_type = G_VALUE_TYPE(value);
+
+    switch (G_TYPE_FUNDAMENTAL(value_type)) {
+        case COIL_TYPE_BOOLEAN:
+            g_value_set_boolean(value, *(gboolean *)pointer);
+            break;
+        case COIL_TYPE_INT:
+            g_value_set_int(value, *(gint *)pointer);
+            break;
+        case COIL_TYPE_UINT:
+            g_value_set_uint(value, *(guint *)pointer);
+            break;
+        case COIL_TYPE_LONG:
+            g_value_set_long(value, *(glong *)pointer);
+            break;
+        case COIL_TYPE_ULONG:
+            g_value_set_ulong(value, *(gulong *)pointer);
+            break;
+        case COIL_TYPE_INT64:
+            g_value_set_int64(value, *(gint64 *)pointer);
+            break;
+        case COIL_TYPE_UINT64:
+            g_value_set_uint64(value, *(guint64 *)pointer);
+            break;
+        case COIL_TYPE_FLOAT:
+            g_value_set_float(value, *(gfloat *)pointer);
+            break;
+        case COIL_TYPE_DOUBLE:
+            g_value_set_double(value, *(gdouble *)pointer);
+            break;
+        case COIL_TYPE_STRING:
+            g_value_set_string(value, (gchar *)pointer);
+            break;
+        case G_TYPE_OBJECT:
+            if (value_type == COIL_TYPE_NONE) {
+                g_value_set_object(value, coil_none_object);
+                break;
+            }
+            else if (g_type_is_a(value_type, COIL_TYPE_OBJECT)) {
+                g_value_set_object(value, (CoilObject *)pointer);
+                break;
+            }
+        default:
+            g_error("Unsupported coil value type");
+    }
+}
+
 const char *
 coil_type_name(GType type)
 {
