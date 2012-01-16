@@ -78,21 +78,17 @@ struct_register_types(PyObject * m, PyObject * d);
 int
 listproxy_register_types(PyObject *m, PyObject *d);
 
-void
-ccoil_error(GError ** error);
+void ccoil_handle_error(void);
 
-GValue *coil_value_from_pyobject(PyObject * o);
+GValue *coil_value_from_pyobject(PyObject *o);
+PyObject *coil_value_as_pyobject(CoilObject *node, GValue *value);
+CoilPath *coil_path_from_pyobject(PyObject *o);
+gboolean struct_update_from_pyitems(CoilObject *node, PyObject *o);
 
-PyObject *coil_value_as_pyobject(CoilStruct *node, GValue *value);
+PyObject *ccoil_listproxy_new(CoilObject *node, GValueArray *arr);
+PyObject *ccoil_struct_new(CoilObject *node);
 
-CoilPath *coil_path_from_pyobject(PyObject * o, GError ** error);
-
-gboolean struct_update_from_pyitems(CoilStruct * node, PyObject * o);
-
-PyObject *ccoil_listproxy_new(CoilStruct *node, GValueArray *arr);
-PyObject *ccoil_struct_new(CoilStruct * node);
-
-CoilStruct *ccoil_struct_get_real(PyObject *obj);
+CoilObject *ccoil_struct_get_real(PyObject *obj);
 
 PyObject *struct_reconstructor(PyCoilStruct *, PyObject *);
 PyObject *listproxy_reconstructor(ListProxyObject *, PyObject *);

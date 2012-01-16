@@ -89,28 +89,28 @@ coil_list_from_pysequence(PyObject * obj)
         }
         g_value_array_insert(arr, i, value);
     }
-
     Py_DECREF(fast);
     return arr;
 }
 
 CoilPath *
-coil_path_from_pyobject(PyObject *obj, GError **error)
+coil_path_from_pyobject(PyObject *obj)
 {
+    CoilPath *path;
     gchar *str = NULL;
     PyObject *xstr = NULL;
-    CoilPath *path;
     Py_ssize_t len;
 
-    if (PyUnicode_Check(obj)) {
-        xstr = PyUnicode_AsEncodedString(obj, "ascii", NULL);
-        if (xstr == NULL)
-            return NULL;
-        obj = xstr;
-    }
+//    if (PyUnicode_Check(obj)) {
+//        PyObject *xstr = PyUnicode_AsEncodedString(obj, "ascii", NULL);
+//        if (xstr == NULL)
+//            return NULL;
+//        obj = xstr;
+//    }
     if (PyString_Check(obj)) {
-        if (PyString_AsStringAndSize(obj, &str, &len) < 0)
-            return NULL;
+        if (PyString_AsStringAndSize(obj, &str, &len) < 0) {
+            goto error;
+        }
     }
     else {
         PyErr_Format(PyExc_TypeError,
@@ -118,9 +118,16 @@ coil_path_from_pyobject(PyObject *obj, GError **error)
             Py_TYPE_NAME(obj));
         return NULL;
     }
-    path = coil_path_new_len(str, (guint)len, error);
+    path = coil_path_new_len(str, len);
+    if (path == NULL) {
+        ccoil_handle_error();
+        goto error;
+    }
     Py_XDECREF(xstr);
     return path;
+error:
+    Py_XDECREF(xstr);
+    return NULL;
 }
 
 GValue *
@@ -177,8 +184,14 @@ coil_value_from_pyobject(PyObject *o)
                     (gchar *) PyString_AsString(o));
         }
         else {
-            coil_value_init(value, COIL_TYPE_EXPR, take_object,
-                    coil_expr_new_string(str, len, NULL));
+            /* FIXME: this is WRONG. fix this when expresions are reworked. */
+            GString *gs = g_string_new_len(str, len);
+            CoilExpr *expr = coil_expr_new(gs, NULL);
+            if (expr == NULL) {
+                ccoil_handle_error();
+                return NULL;
+            }
+            coil_value_init(value, COIL_TYPE_EXPR, take_object, expr);
         }
     }
     else if (PySequence_Check(o)) {
@@ -186,7 +199,7 @@ coil_value_from_pyobject(PyObject *o)
                         coil_list_from_pysequence(o));
     }
     else if (PyDict_Check(o)) {
-        CoilStruct *node = coil_struct_new(NULL, NULL);
+        CoilObject *node = coil_struct_new(NULL);
         if (node == NULL)
             return NULL;
 
@@ -206,7 +219,7 @@ coil_value_from_pyobject(PyObject *o)
 }
 
 PyObject *
-coil_value_as_pyobject(CoilStruct *node, GValue *value)
+coil_value_as_pyobject(CoilObject *node, GValue *value)
 {
     GType type;
 
@@ -268,20 +281,22 @@ coil_value_as_pyobject(CoilStruct *node, GValue *value)
             if (type == COIL_TYPE_EXPR || type == COIL_TYPE_LINK) {
                 char *str;
                 PyObject *res;
-                GError *error = NULL;
                 CoilStringFormat fmt;
                 const GValue *real_value;
 
                 fmt = default_string_format;
                 fmt.options |= DONT_QUOTE_STRINGS;
 
-                if (!coil_expand_value(value, &real_value, TRUE, &error))
+                if (!coil_expand_value(value, &real_value, TRUE)) {
+                    ccoil_handle_error();
                     return NULL;
-                if (real_value == NULL)
+                }
+                if (real_value == NULL) {
                     return NULL;
-                str = coil_value_to_string(real_value, &fmt, &error);
-                if (str == NULL || error != NULL) {
-                    ccoil_error(&error);
+                }
+                str = coil_value_to_string(real_value, &fmt);
+                if (str == NULL) {
+                    ccoil_handle_error();
                     return NULL;
                 }
                 res = PyString_FromString(str);
@@ -311,62 +326,50 @@ coil_value_as_pyobject(CoilStruct *node, GValue *value)
 }
 
 void
-ccoil_error(GError ** error)
+ccoil_handle_error()
 {
-    g_return_if_fail(error && *error);
-    g_return_if_fail((*error)->domain == COIL_ERROR);
+    PyObject *e = NULL, *msg = NULL;
+    CoilError *error = NULL;
 
-    PyObject *e = NULL;
-    PyObject *msg = NULL;
+    if (!coil_get_error(&error)) {
+        return;
+    }
 
-    switch ((*error)->code) {
+    switch (error->code) {
         case COIL_ERROR_INTERNAL:
             e = ccoilError;
             break;
-
         case COIL_ERROR_INCLUDE:
             e = IncludeError;
             break;
-
         case COIL_ERROR_KEY:
         case COIL_ERROR_PATH:
             e = KeyValueError;
             break;
-
         case COIL_ERROR_KEY_MISSING:
             e = KeyMissingError;
             break;
-
         case COIL_ERROR_LINK:
             e = LinkError;
             break;
-
         case COIL_ERROR_PARSE:
             e = ParseError;
             break;
-
         case COIL_ERROR_STRUCT:
             e = StructError;
             break;
-
         case COIL_ERROR_VALUE:
             e = PyExc_ValueError;
             break;
-
         default:
-            g_error("Unknown coil error code %d", (*error)->code);
+            g_error("Unknown coil error code %d", error->code);
     }
-
-    msg = PyString_FromString((*error)->message);
-    if (msg == NULL)
-        return;
-
-    PyErr_SetObject(e, msg);
-
-    g_error_free(*error);
-    g_nullify_pointer((gpointer *) error);
-
-    Py_DECREF(msg);
+    msg = PyString_FromString(error->message);
+    if (msg) {
+        PyErr_SetObject(e, msg);
+        Py_DECREF(msg);
+    }
+    coil_error_clear();
 }
 
 /*
@@ -382,20 +385,25 @@ ccoil_error(GError ** error)
     :param ignore_missing: See :meth:`struct.Struct.expanditem`
     """
 */
-static CoilStruct *
+static CoilObject *
 parse_pysequence(PyObject *seqobj)
 {
-    CoilStruct *root;
+    CoilObject *root;
     PyObject *sepobj, *bufobj;
     Py_ssize_t n;
     const char *buffer;
-    GError *error = NULL;
 
     n = PySequence_Size(seqobj);
     if (n < 0)
         return NULL;
-    if (n == 0)
-        return coil_struct_new(NULL, NULL);
+    if (n == 0) {
+        root = coil_struct_new(NULL, NULL);
+        if (root == NULL) {
+            ccoil_handle_error();
+            return NULL;
+        }
+        return root;
+    }
 
     sepobj = PyString_FromStringAndSize(NULL, 0);
     if (sepobj == NULL)
@@ -409,9 +417,9 @@ parse_pysequence(PyObject *seqobj)
     buffer = PyString_AS_STRING(bufobj);
     n = Py_SIZE(bufobj);
 
-    root = coil_parse_string_len(buffer, n, &error);
+    root = coil_parse_string_len(buffer, n);
     if (root == NULL) {
-        ccoil_error(&error);
+        ccoil_handle_error();
         Py_DECREF(bufobj);
         return NULL;
     }
@@ -424,8 +432,7 @@ ccoil_parse(PyObject *ignored, PyObject *args, PyObject *kwargs)
     static char *kwlist[] = {"expand", "defaults", "ignore_missing", NULL};
     PyObject *input = NULL, *expand = NULL;
     PyObject *defaults = NULL, *ignore_missing = NULL;
-    CoilStruct *root;
-    GError *error = NULL;
+    CoilObject *root;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO:parse", kwlist,
                                      &input, &expand, &defaults, &ignore_missing))
@@ -437,27 +444,32 @@ ccoil_parse(PyObject *ignored, PyObject *args, PyObject *kwargs)
         //PyObject *filename = PyFile_Name(input);
         //
 /*    PyFile_IncUseCount((PyFileObject *)input); python 2.6 */
-        root = coil_parse_stream(fp, NULL /*filename */ , &error);
+        root = coil_parse_stream(fp, NULL /*filename */);
 /*    PyFile_DecUseCount((PyFileObject *)input); python 2.6 */
-
-        if (G_UNLIKELY(error))
-            goto error;
+        if (root == NULL) {
+            ccoil_handle_error();
+            return NULL;
+        }
     }
     else if (PyString_Check(input)) {
         char *buffer;
         Py_ssize_t len;
 
-        if (PyString_AsStringAndSize(input, &buffer, &len) < 0)
-            goto error;
-
-        root = coil_parse_string_len(buffer, len, &error);
-        if (root == NULL || G_UNLIKELY(error))
-            goto error;
+        if (PyString_AsStringAndSize(input, &buffer, &len) < 0) {
+            return NULL;
+        }
+        root = coil_parse_string_len(buffer, len);
+        if (root == NULL) {
+            ccoil_handle_error();
+            return NULL;
+        }
     }
     else if (PySequence_Check(input)) {
         root = parse_pysequence(input);
-        if (root == NULL)
-            goto error;
+        if (root == NULL) {
+            ccoil_handle_error();
+            return NULL;
+        }
     }
     else {
         PyErr_Format(PyExc_TypeError,
@@ -471,20 +483,13 @@ ccoil_parse(PyObject *ignored, PyObject *args, PyObject *kwargs)
     /* TODO(jcon): implement expand, defaults, and ignore_missing later */
 
     return ccoil_struct_new(root);
-
- error:
-    if (error)
-        ccoil_error(&error);
-
-    return NULL;
 }
 
 static PyObject *
 ccoil_parse_file(PyObject * ignored, PyObject * args, PyObject * kwargs)
 {
     static char *kwlist[] = { "expand", "defaults", "ignore_missing", NULL };
-    CoilStruct *root = NULL;
-    GError *error = NULL;
+    CoilObject *root = NULL;
     PyObject *expand = NULL;
     PyObject *defaults = NULL;
     PyObject *ignore_missing = NULL;
@@ -495,9 +500,9 @@ ccoil_parse_file(PyObject * ignored, PyObject * args, PyObject * kwargs)
                                      &ignore_missing))
         return NULL;
 
-    root = coil_parse_file(filepath, &error);
+    root = coil_parse_file(filepath);
     if (root == NULL) {
-        ccoil_error(&error);
+        ccoil_handle_error();
         return NULL;
     }
 
@@ -657,9 +662,6 @@ init_constants(PyObject * m)
         return 0;
 
     if (PyModule_AddIntMacro(m, COIL_INCLUDE_CACHING) < 0)
-        return 0;
-
-    if (PyModule_AddIntMacro(m, COIL_PATH_TRANSLATION) < 0)
         return 0;
 
     if (PyModule_AddIntMacro(m, COIL_STRICT_CONTEXT) < 0)
