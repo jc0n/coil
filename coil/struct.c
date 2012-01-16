@@ -838,7 +838,7 @@ do_delete(CoilObject *self, CoilPath *path,
     if (entry == NULL) {
         if (strict) {
             coil_struct_error(self,
-                    "Attempting to delete non-existent path '%s'.", path);
+                    "Attempting to delete non-existent path '%s'.", path->str);
             return FALSE;
         }
         return TRUE;
