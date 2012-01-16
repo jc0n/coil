@@ -111,6 +111,9 @@ coil_struct_delete(CoilObject *self, const gchar *str, guint len,
                    gboolean strict);
 
 
+gboolean
+coil_struct_delete_path(CoilObject *self, CoilPath *path, gboolean strict);
+
 void
 coil_struct_iter_init(CoilStructIter *iter, CoilObject *self);
 
