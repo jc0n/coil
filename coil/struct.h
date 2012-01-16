@@ -44,6 +44,16 @@ struct _CoilStructClass
     CoilObjectClass parent_class;
 };
 
+struct _CoilStructIter
+{
+    CoilObject *node;
+    GList      *position;
+#if COIL_DEBUG
+    guint       version;
+#endif
+    gboolean    reversed : 1;
+};
+
 typedef gboolean (*CoilStructFunc)(CoilObject *, gpointer);
 
 G_BEGIN_DECLS

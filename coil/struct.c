@@ -35,16 +35,6 @@ struct _CoilStructPrivate
     gboolean is_accumulating : 1;
 };
 
-struct _CoilStructIter
-{
-    CoilObject *node;
-    GList      *position;
-#if COIL_DEBUG
-    guint       version;
-#endif
-    gboolean    reversed : 1;
-};
-
 typedef struct _ExpandNotify
 {
     CoilObject *object;
