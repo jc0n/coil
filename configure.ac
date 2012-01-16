@@ -62,6 +62,8 @@ AC_CONFIG_FILES([
     libcoil-0.1.pc
     Makefile
     coil/Makefile
+    python/Makefile
+    python/tests/Makefile
     tests/Makefile
     tests/functional/Makefile
 ])
@@ -78,6 +80,7 @@ COIL_ARG_ENABLE(debug, whether to enable debugging,
 
 if test "$COIL_DEBUG" = "yes"; then
   AC_DEFINE([COIL_DEBUG], [1], [ ])
+  CFLAGS="${CFLAGS} -O0 -g"
 else
   AC_DEFINE([COIL_DEBUG], [0], [ ])
 fi
@@ -131,8 +134,31 @@ if test "x$have_glib" = "xno"; then
     AC_MSG_ERROR($GLIB_PKG_ERRORS)
 fi
 
+dnl
+dnl Language Bindings
+dnl
+
+COIL_ARG_WITH(python, whether to build python support,
+              [Build python binding],  yes)
+
+if test "$COIL_PYTHON" = "yes"; then
+  AM_CHECK_PYTHON_HEADERS(,[AC_MSG_ERROR(could not find Python headers)])
+  AM_PATH_PYTHON([2.6])
+
+  PKG_CHECK_MODULES(PYGOBJECT, [pygobject-2.0 >= 2.0],
+                    [have_pygobject=yes], [have_pygobject=no])
+
+  if test "x$have_pygobject" = "xno"; then
+    AC_MSG_ERROR($PYGOBJECT_PKG_ERRORS)
+  fi
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, true)
+  AC_SUBST(PYTHON)
+else
+  AM_CONDITIONAL(BUILD_PYTHON_BINDING, false)
+fi
+
 AC_CHECK_FUNCS(strcmp strcpy strlen)
-AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr)
+AC_CHECK_FUNCS(memcpy mempcpy memset memchr memrchr memmem)
 AC_CHECK_FUNCS(stat lstat)
 
 AC_HEADER_TIME

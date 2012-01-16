@@ -83,13 +83,13 @@ rm -rf autom4te.cache
 # regenerated from their corresponding *.in files by ./configure anyway.
 touch README INSTALL
 
-$ACLOCAL $ACLOCAL_FLAGS || exit $?
+$ACLOCAL -Im4 $ACLOCAL_FLAGS || exit $?
 
 libtoolize --force || exit $?
-autoheader || exit $?
+autoheader -Im4 || exit $?
 
 $AUTOMAKE --add-missing || exit $?
-autoconf || exit $?
+autoconf -Im4 || exit $?
 cd $ORIGDIR || exit $?
 
 if test -z "$AUTOGEN_SUBDIR_MODE"; then

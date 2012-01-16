@@ -2,7 +2,7 @@ include $(top_srcdir)/Makefile.decl
 
 ACLOCAL_AMFLAGS=-I m4
 
-SUBDIRS = coil tests
+SUBDIRS = coil tests python
 
 pkgconfigdir= $(libdir)/pkgconfig
 pkgconfig_DATA=libcoil-0.1.pc
