@@ -886,6 +886,18 @@ err:
     return res;
 }
 
+COIL_API(gboolean)
+coil_struct_delete_path(CoilObject *self, CoilPath *path, gboolean strict)
+{
+    if (!coil_path_resolve_inplace(&path, self->path))
+        return FALSE;
+    if (COIL_PATH_IS_ROOT(path)) {
+        coil_struct_error(self, "Cannot delete '@root' path.");
+        return FALSE;
+    }
+    return do_delete(self, path, strict, TRUE);
+}
+
 static gboolean
 mark_deleted(CoilObject *self, CoilPath *path, gboolean force)
 {
