@@ -362,8 +362,14 @@ parse_pysequence(PyObject *seqobj)
     n = PySequence_Size(seqobj);
     if (n < 0)
         return NULL;
-    if (n == 0)
-        return coil_struct_new(NULL, NULL);
+    if (n == 0) {
+        root = coil_struct_new(NULL, NULL);
+        if (root == NULL) {
+            ccoil_handle_error();
+            return NULL;
+        }
+        return root;
+    }
 
     sepobj = PyString_FromStringAndSize(NULL, 0);
     if (sepobj == NULL)
@@ -427,6 +433,7 @@ ccoil_parse(PyObject *ignored, PyObject *args, PyObject *kwargs)
     else if (PySequence_Check(input)) {
         root = parse_pysequence(input);
         if (root == NULL) {
+            ccoil_handle_error();
             return NULL;
         }
     }
