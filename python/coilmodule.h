@@ -27,7 +27,7 @@
 
 #define PyCoilStruct_Check(obj) \
     (&PyCoilStruct_Type == (PyTypeObject *)((PyObject *)obj)->ob_type || \
-     PyObject_IsInstance(obj, (PyObject *)&PyCoilStruct_Type))
+     PyObject_IsInstance((PyObject *)obj, (PyObject *)&PyCoilStruct_Type))
 
 #define PyCoilStructIter_Check(o) \
     (&PyCoilStructIter_Type == (PyTypeObject *)((PyObject *)o)->ob_type)
@@ -75,6 +75,7 @@ PyObject *ccoil_struct_new(CoilStruct * node);
 
 CoilStruct *ccoil_struct_get_real(PyObject *obj);
 
+PyObject *struct_reconstructor(PyCoilStruct *, PyObject *);
 PyObject *list_reconstructor(ListProxyObject *, PyObject *);
 
 extern PyObject *ccoilError;

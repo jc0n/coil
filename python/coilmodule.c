@@ -266,16 +266,21 @@ coil_value_as_pyobject(CoilStruct *node, GValue *value)
             if (type == COIL_TYPE_NONE)
                 Py_RETURN_NONE;
 
-            if (type == COIL_TYPE_EXPR) {
+            if (type == COIL_TYPE_EXPR || type == COIL_TYPE_LINK) {
                 char *str;
                 PyObject *res;
                 GError *error = NULL;
                 CoilStringFormat fmt;
+                const GValue *real_value;
 
                 fmt = default_string_format;
                 fmt.options |= DONT_QUOTE_STRINGS;
 
-                str = coil_value_to_string(value, &fmt, &error);
+                if (!coil_expand_value(value, &real_value, TRUE, &error))
+                    return NULL;
+                if (real_value == NULL)
+                    return NULL;
+                str = coil_value_to_string(real_value, &fmt, &error);
                 if (str == NULL || error != NULL) {
                     ccoil_error(&error);
                     return NULL;
@@ -503,6 +508,11 @@ ccoil_parse_file(PyObject * ignored, PyObject * args, PyObject * kwargs)
 }
 
 static PyMethodDef ccoil_functions[] = {
+    {"_struct_reconstructor", (PyCFunction)struct_reconstructor, METH_VARARGS,
+    PyDoc_STR("Internal. Used for pickling support.")},
+    {"_list_reconstructor", (PyCFunction)list_reconstructor, METH_VARARGS,
+    PyDoc_STR("Internal. Used for pickling support.")},
+
     {"parse", (PyCFunction)ccoil_parse, METH_VARARGS | METH_KEYWORDS, NULL},
     {"parse_file", (PyCFunction)ccoil_parse_file,
      METH_VARARGS | METH_KEYWORDS, NULL},
