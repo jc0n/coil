@@ -75,6 +75,8 @@ PyObject *ccoil_struct_new(CoilStruct * node);
 
 CoilStruct *ccoil_struct_get_real(PyObject *obj);
 
+PyObject *list_reconstructor(ListProxyObject *, PyObject *);
+
 extern PyObject *ccoilError;
 extern PyObject *StructError;
 extern PyObject *LinkError;
