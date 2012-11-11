@@ -7,6 +7,8 @@
 #ifndef __COIL_STRINGS_H
 #define __COIL_STRINGS_H
 
+#include "stdint.h"
+
 #if !HAVE_MEMCHR
 void *
 memchr(const void *src, int c, size_t n);
