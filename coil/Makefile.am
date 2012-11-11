@@ -55,7 +55,6 @@ libcoil_include_HEADERS=\
 bin_PROGRAMS = coildump
 
 coildump_LDADD = @GLIB_LIBS@ libcoil-@LIBCOIL_API_VERSION@.la
-simple_test_LDADD = @GLIB_LIBS@ libcoil-@LIBCOIL_API_VERSION@.la
 
 $(libcoil_la_OBJECTS): $(srcdir)/parser.h
 
