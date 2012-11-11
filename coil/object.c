@@ -262,19 +262,23 @@ void
 coil_object_set_container(CoilObject *object, CoilObject *container)
 {
     g_return_if_fail(object);
+    g_return_if_fail(COIL_IS_OBJECT(object));
+    g_return_if_fail(container == NULL || COIL_IS_OBJECT(container));
 
     CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(object);
 
     if (klass->set_container != NULL) {
         klass->set_container(object, container);
     }
-    if (container) {
+    if (container != NULL) {
         object->container = container;
         object->root = object->container->root;
     }
     else {
+        object->container = NULL;
         object->root = object;
     }
+
 #if GLIB_MAJOR_VERSION >= 2 && GLIB_MINOR_VERSION >= 6
     g_object_notify_by_pspec(G_OBJECT(object), properties[PROP_CONTAINER]);
     g_object_notify_by_pspec(G_OBJECT(object), properties[PROP_ROOT]);
