@@ -1690,8 +1690,15 @@ struct_init(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
     return -1;
 }
 
+PyObject *
+struct_get_node(PyObject *self, PyObject *args)
+{
+    return PyLong_FromLong((long)((PyCoilStruct *)self)->node);
+}
+
 static PyMethodDef struct_methods[] = {
     {"__reduce__", (PyCFunction)struct_reduce, METH_NOARGS, NULL},
+    {"c_node", (PyCFunction)struct_get_node, METH_NOARGS, NULL},
     {"clear",(PyCFunction)struct_empty, METH_NOARGS, NULL},
     {"container",(PyCFunction)struct_get_container, METH_NOARGS, NULL},
     {"copy",(PyCFunction)struct_copy, METH_VARARGS | METH_KEYWORDS, NULL},

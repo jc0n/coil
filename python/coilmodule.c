@@ -679,6 +679,52 @@ init_constants(PyObject * m)
     if (PyModule_AddIntMacro(m, COIL_STRICT_FILE_CONTEXT) < 0)
         return 0;
 
+    /* types */
+    if (PyModule_AddIntMacro(m, COIL_TYPE_BOOLEAN) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_INT) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_UINT) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_LONG) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_ULONG) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_INT64) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_FLOAT) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_DOUBLE) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_STRING) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_OBJECT) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_NONE) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_STRUCT) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_LINK) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_EXPR) < 0)
+        return 0;
+
+    if (PyModule_AddIntMacro(m, COIL_TYPE_LIST) < 0)
+        return 0;
+
     return 1;
 }
 
