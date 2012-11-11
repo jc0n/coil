@@ -55,6 +55,20 @@ coil_object_to_string(CoilObject *self, CoilStringFormat *format)
     return g_string_free(buffer, FALSE);
 }
 
+static void
+object_value_to_string_value(const GValue *objval, GValue *strval)
+{
+    CoilObject *obj;
+    char *string;
+
+    obj = g_value_dup_object(objval);
+    if (obj == NULL) {
+        return;
+    }
+    string = coil_object_to_string(obj, &default_string_format);
+    g_value_take_string(strval, string);
+}
+
 COIL_API(gboolean)
 coil_object_equals(CoilObject *a, CoilObject *b)
 {
@@ -433,5 +447,9 @@ coil_object_class_init(CoilObjectClass *klass)
 
     g_object_class_install_property(gobject_class, PROP_PATH,
             properties[PROP_PATH]);
+
+
+    g_value_register_transform_func(COIL_TYPE_OBJECT, COIL_TYPE_STRING,
+            object_value_to_string_value);
 }
 
