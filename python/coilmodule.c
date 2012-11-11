@@ -75,8 +75,9 @@ coil_list_from_pysequence(PyObject * obj)
     Py_ssize_t i, n;
 
     fast = PySequence_Fast(obj, "Expecting sequence type.");
-    if (fast == NULL)
+    if (fast == NULL) {
         return NULL;
+    }
 
     n = PySequence_Fast_GET_SIZE(fast);
     arr = g_value_array_new(n);
@@ -85,6 +86,7 @@ coil_list_from_pysequence(PyObject * obj)
         value = coil_value_from_pyobject(item);
         if (value == NULL) {
             g_value_array_free(arr);
+            Py_DECREF(fast);
             return NULL;
         }
         g_value_array_insert(arr, i, value);
@@ -171,15 +173,13 @@ coil_value_from_pyobject(PyObject *o)
         char *str;
         const char *s, *e = NULL;
 
-        if (PyString_AsStringAndSize(o, &str, &len) < 0)
+        if (PyString_AsStringAndSize(o, &str, &len) < 0) {
             return NULL;
-
-        /* this is a hack, it is possible that the expression
+        }
+        /* FIXME: this is a hack, it is possible that the expression
          * characters are escaped but it will still work fine */
         s = memmem(str, len, "${", 2);
-        if (s != NULL && len - 3 > str - s)
-            e = memchr(s + 3, '}', (str + len) - s);
-        if (s == NULL || e == NULL) {
+        if (s == NULL) {
             coil_value_init(value, G_TYPE_STRING, set_string,
                     (gchar *) PyString_AsString(o));
         }
@@ -189,6 +189,7 @@ coil_value_from_pyobject(PyObject *o)
             CoilExpr *expr = coil_expr_new(gs, NULL);
             if (expr == NULL) {
                 ccoil_handle_error();
+                g_string_free(gs, TRUE);
                 return NULL;
             }
             coil_value_init(value, COIL_TYPE_EXPR, take_object, expr);
@@ -204,7 +205,7 @@ coil_value_from_pyobject(PyObject *o)
             return NULL;
 
         if (!struct_update_from_pyitems(node, o)) {
-            g_object_unref(node);
+            coil_object_unref(node);
             return NULL;
         }
         coil_value_init(value, COIL_TYPE_STRUCT, take_object, node);

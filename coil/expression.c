@@ -31,7 +31,7 @@ expr_is_expanded(CoilObject *object)
 }
 
 static void
-append_path_substitution(CoilObject *self, GString *buffer,
+insert_expression_value(CoilObject *self, GString *buffer,
         CoilStringFormat *format, const gchar *path, guint len)
 {
     g_return_if_fail(COIL_IS_EXPR(self));
@@ -41,8 +41,9 @@ append_path_substitution(CoilObject *self, GString *buffer,
     const GValue *value;
 
     value = coil_struct_lookup(self->container, path, len, TRUE);
-    if (coil_error_occurred())
+    if (coil_error_occurred()) {
         return;
+    }
     if (value == NULL) {
         coil_object_error(COIL_ERROR_KEY_MISSING, self,
                 "expression path '%.*s' not found.", len, path);
@@ -60,47 +61,67 @@ expr_expand(CoilObject *self, const GValue **return_value)
     CoilExprPrivate *priv = COIL_EXPR(self)->priv;
     CoilStringFormat format = default_string_format;
     GString *expr = priv->expr, *buffer;
-    const gchar *s, *p, *e;
+    const gchar *s;
 
     if (priv->is_expanded) {
         goto done;
     }
+
     buffer = g_string_sized_new(128);
 
     format.indent_level = 0;
     format.options &= ~ESCAPE_QUOTES;
     format.options |= DONT_QUOTE_STRINGS;
 
-    e = expr->str + expr->len;
     for (s = expr->str; *s; s++) {
         if (*s == '\\') {
-            g_string_append_c(buffer, *++s);
+            if (*++s == '\0') {
+                coil_object_error(COIL_ERROR_VALUE, self,
+                    "trailing '\\' in expression.");
+                goto err;
+            }
+            g_string_append_c(buffer, *s);
             continue;
         }
         /**
          * TODO(jcon): Add more advanced possibly bash style
          * replacements here as well as list indexing
          */
-        if (*s == '$' && s[1] == '{') {
+        if (coil_str2cmp(s, '$', '{')) {
+            const gchar *start;
             s += 2;
-            /* FIXME: make sure this isnt escaped */
-            p = memchr(s + 1, '}', e - s);
-            if (p == NULL) {
+            start = s;
+            if (*s == '}') {
                 coil_object_error(COIL_ERROR_VALUE, self,
-                    "Unterminated expression ${%.*s", (int)(p - s), s);
-                g_string_free(buffer, TRUE);
-                return FALSE;
+                    "Expression cannot be empty.");
+                goto err;
             }
-            append_path_substitution(self, buffer, &format, s, p - s);
-            if (coil_error_occurred()) {
-                g_string_free(buffer, TRUE);
-                return FALSE;
+            while (*++s) {
+                if (*s == '}') {
+                    insert_expression_value(self, buffer, &format, start, s - start);
+                    if (coil_error_occurred()) {
+                        goto err;
+                    }
+                    goto loop;
+                }
+                else if (*s == '\\') {
+                    if (*++s == '\0') {
+                        coil_object_error(COIL_ERROR_VALUE, self,
+                            "tailing '\\' in expression.");
+                        goto err;
+                    }
+                    continue;
+                }
             }
-            s = p;
+            coil_object_error(COIL_ERROR_VALUE, self,
+                "Unterminated expression ${%.*s", (int)(s - start), start);
+            goto err;
+loop:
             continue;
         }
         g_string_append_c(buffer, *s);
     }
+
     coil_value_init(priv->expanded_value, G_TYPE_STRING,
             take_string, g_string_free(buffer, FALSE));
     priv->is_expanded = TRUE;
@@ -110,6 +131,9 @@ done:
         *return_value = priv->expanded_value;
     }
     return TRUE;
+err:
+    g_string_free(buffer, TRUE);
+    return FALSE;
 }
 
 static gboolean
@@ -168,14 +192,14 @@ expr_to_string(CoilObject *self, CoilStringFormat *format)
 }
 
 static gboolean
-expr_translate_path(GString *expr, CoilObject *old_container,
+expr_translate_path(CoilObject *self, GString *expr, CoilObject *old_container,
         CoilObject *new_container)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(old_container), FALSE);
     g_return_val_if_fail(COIL_IS_STRUCT(new_container), FALSE);
 
     guint i;
-    const gchar *s, *e;
+    const gchar *s;
     CoilPath *path, *new_path;
 
     for (i = 0, s = expr->str; i < expr->len; i++, s++) {
@@ -184,24 +208,44 @@ expr_translate_path(GString *expr, CoilObject *old_container,
             i++;
             continue;
         }
-        if (*s == '$' && s[1] == '{') {
+        if (coil_str2cmp(s, '$', '{')) {
+            const gchar *start;
             s += 2;
             i += 2;
-            e = memchr(s + 1, '}', e - s);
-            if (e == NULL) {
-                coil_set_error(COIL_ERROR_VALUE, NULL,
-                        "Unterminated expression ${%.*s", (int)(e - s), s);
+            start = s;
+            if (*s == '}') {
+                coil_object_error(COIL_ERROR_VALUE, self,
+                    "Expression cannot be empty.");
                 return FALSE;
             }
-            path = coil_path_new_len(s, e - s);
-            if (path == NULL) {
-                return FALSE;
+            while (*++s) {
+                if (*s == '}') {
+                    if (coil_error_occurred()) {
+                        return FALSE;
+                    }
+                    path = coil_path_new_len(start, s - start);
+                    if (path == NULL) {
+                        return FALSE;
+                    }
+                    new_path = coil_path_relativize(path, old_container->path);
+                    g_string_erase(expr, i, path->len);
+                    g_string_insert_len(expr, i, new_path->str, new_path->len);
+                    coil_path_unref(path);
+                    coil_path_unref(new_path);
+                    return TRUE;
+                }
+                else if (*s == '\\') {
+                    if (*++s == '\0') {
+                        coil_object_error(COIL_ERROR_VALUE, self,
+                            "tailing '\\' in expression.");
+                        return FALSE;
+                    }
+                    continue;
+                }
             }
-            new_path = coil_path_relativize(path, old_container->path);
-            g_string_erase(expr, i, path->len);
-            g_string_insert_len(expr, i, new_path->str, new_path->len);
-            coil_path_unref(path);
-            coil_path_unref(new_path);
+            coil_set_error(COIL_ERROR_VALUE, NULL,
+                    "Unterminated expression ${%.*s", (int)(s - start), start);
+            return FALSE;
         }
     }
     return TRUE;
@@ -225,7 +269,7 @@ expr_copy(CoilObject *_self, const gchar *first_property_name,
     CoilObject *old_container = COIL_OBJECT(self)->container;
 
     if (old_container->root != new_container->root &&
-            !expr_translate_path(string, old_container, new_container)) {
+            !expr_translate_path(_self, string, old_container, new_container)) {
         return NULL;
     }
     return COIL_OBJECT(copy);
