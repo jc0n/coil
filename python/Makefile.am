@@ -17,7 +17,7 @@ all: $(MODULES)
 coilmodule: buildconf.py $(COIL_LIBS)
 	$(PYTHON) $(srcdir)/setup.py build
 	find $(srcdir)/build -type f -name "ccoil.so" \
-		-exec ln -fs '{}' $(srcdir)/ccoil.so ';'
+		-exec cp '{}' $(srcdir)/ccoil.so ';'
 
 install-exec-hook:
 	$(PYTHON) $(srcdir)/setup.py install

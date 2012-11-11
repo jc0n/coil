@@ -602,7 +602,7 @@ insert_internal(CoilObject *self, CoilPath *path,
     if (G_VALUE_HOLDS(value, COIL_TYPE_OBJECT)) {
         CoilObject *valueobj = COIL_OBJECT(g_value_get_object(value));
         coil_object_set_container(valueobj, self);
-        /* XXX: maybe set path here */
+        /* TODO: consider setting path here as well */
     }
     else if (G_VALUE_HOLDS(value, COIL_TYPE_LIST)) {
         guint i;
