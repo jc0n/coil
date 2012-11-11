@@ -122,6 +122,7 @@ expect_fail(const gchar *filepath)
     root = coil_parse_file(filepath);
     if (coil_error_occurred()) {
         g_assert(TRUE);
+        coil_error_clear();
         return;
     }
     /* expand file to catch intentional expand errors */

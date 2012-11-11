@@ -58,6 +58,9 @@ lookup_target_value(CoilObject *self)
         goto end;
     }
     value = coil_struct_lookupx(container, path, TRUE);
+    if (coil_error_occurred()) {
+        goto end;
+    }
     if (value) {
         /* fast-path: entry found by direct lookup */
         goto end;
@@ -78,6 +81,9 @@ lookup_target_value(CoilObject *self)
             goto end;
         }
         structval = coil_struct_lookupx(self->root, structpath, TRUE);
+        if (coil_error_occurred()) {
+            goto end;
+        }
         if (structval == NULL) {
             continue;
         }
@@ -89,6 +95,10 @@ lookup_target_value(CoilObject *self)
         }
         value = coil_struct_lookupx(container, relpath, TRUE);
         coil_object_unref(container);
+        if (coil_error_occurred()) {
+            value = NULL;
+            goto end;
+        }
     } while (value == NULL);
 end:
     coil_path_unrefx(structpath);
