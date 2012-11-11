@@ -276,7 +276,7 @@ _compare_value_list(const GValue *v1, const GValue *v2)
         v1 = g_value_array_get_nth(x, n);
         v2 = g_value_array_get_nth(y, n);
         if (coil_value_compare(v1, v2))
-            break;
+            return 1;
     }
     return 0;
 }
