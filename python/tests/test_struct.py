@@ -178,10 +178,6 @@ class TestStruct(TestCase):
     self.assertEquals(self.struct['first.string'], 'something')
 
   def testValidate(self):
-    self.assertEquals(Struct.validate_key("foo"), True)
-    self.assertEquals(Struct.validate_key("foo.bar"), False)
-    self.assertEquals(Struct.validate_key("@root"), False)
-    self.assertEquals(Struct.validate_key("#blah"), False)
     self.assertEquals(Struct.validate_path("foo"), True)
     self.assertEquals(Struct.validate_path("foo.bar"), True)
     self.assertEquals(Struct.validate_path("@root"), True)
