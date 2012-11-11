@@ -9,6 +9,12 @@ class TestParser(TestCase):
 
     SIMPLE_FILE = os.path.join(os.path.dirname(__file__), 'simple.coil')
 
+    def testParseFile(self):
+        with open(self.SIMPLE_FILE, 'r') as f:
+            root = ccoil.parse(f)
+        self.assertEquals(root.get('x'), 'x value')
+        self.assertEquals(root.get('y.z'), 'z value')
+
     def testEmpty(self):
         root = ccoil.parse('')
         self.assertTrue(isinstance(root, ccoil.Struct))

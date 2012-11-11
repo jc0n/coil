@@ -100,36 +100,23 @@ coil_path_from_pyobject(PyObject *obj)
 {
     CoilPath *path;
     gchar *str = NULL;
-    PyObject *xstr = NULL;
     Py_ssize_t len;
 
-//    if (PyUnicode_Check(obj)) {
-//        PyObject *xstr = PyUnicode_AsEncodedString(obj, "ascii", NULL);
-//        if (xstr == NULL)
-//            return NULL;
-//        obj = xstr;
-//    }
-    if (PyString_Check(obj)) {
-        if (PyString_AsStringAndSize(obj, &str, &len) < 0) {
-            goto error;
-        }
-    }
-    else {
+    if (!PyString_Check(obj)) {
         PyErr_Format(PyExc_TypeError,
             "Unsupported type %s for coil path.",
             Py_TYPE_NAME(obj));
         return NULL;
     }
+    if (PyString_AsStringAndSize(obj, &str, &len) < 0) {
+        return NULL;
+    }
     path = coil_path_new_len(str, len);
     if (path == NULL) {
         ccoil_handle_error();
-        goto error;
+        return NULL;
     }
-    Py_XDECREF(xstr);
     return path;
-error:
-    Py_XDECREF(xstr);
-    return NULL;
 }
 
 GValue *
@@ -171,7 +158,7 @@ coil_value_from_pyobject(PyObject *o)
         /* check for an expression */
         Py_ssize_t len;
         char *str;
-        const char *s, *e = NULL;
+        const char *s;
 
         if (PyString_AsStringAndSize(o, &str, &len) < 0) {
             return NULL;
@@ -395,8 +382,9 @@ parse_pysequence(PyObject *seqobj)
     const char *buffer;
 
     n = PySequence_Size(seqobj);
-    if (n < 0)
+    if (n < 0) {
         return NULL;
+    }
     if (n == 0) {
         root = coil_struct_new(NULL, NULL);
         if (root == NULL) {
@@ -415,16 +403,17 @@ parse_pysequence(PyObject *seqobj)
     if (bufobj == NULL)
         return NULL;
 
-    buffer = PyString_AS_STRING(bufobj);
     n = Py_SIZE(bufobj);
+    buffer = PyString_AS_STRING(bufobj);
 
     root = coil_parse_string_len(buffer, n);
+    Py_DECREF(bufobj);
+
     if (coil_error_occurred()) {
         if (root != NULL) {
             coil_object_unref(root);
         }
         ccoil_handle_error();
-        Py_DECREF(bufobj);
         return NULL;
     }
     return root;
@@ -443,14 +432,21 @@ ccoil_parse(PyObject *ignored, PyObject *args, PyObject *kwargs)
         return NULL;
 
     if (PyFile_Check(input)) {
-        FILE *fp = PyFile_AsFile(input);
-        /* TODO(jcon): fix setting filename when locations are refactored */
-        //PyObject *filename = PyFile_Name(input);
-        //
-/*    PyFile_IncUseCount((PyFileObject *)input); python 2.6 */
-        root = coil_parse_stream(fp, NULL /*filename */);
-/*    PyFile_DecUseCount((PyFileObject *)input); python 2.6 */
-        if (root == NULL) {
+        FILE *fp;
+        PyObject *filename;
+
+        PyFile_IncUseCount((PyFileObject *)input); // python 2.6
+
+        fp = PyFile_AsFile(input);
+        filename = PyFile_Name(input);
+        root = coil_parse_stream(fp, PyString_AS_STRING(filename));
+
+        PyFile_DecUseCount((PyFileObject *)input); // python 2.6
+
+        if (coil_error_occurred()) {
+            if (root != NULL) {
+                coil_object_unref(root);
+            }
             ccoil_handle_error();
             return NULL;
         }

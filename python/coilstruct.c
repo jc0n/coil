@@ -1716,7 +1716,6 @@ static PyMethodDef struct_methods[] = {
     {"root",(PyCFunction)struct_root, METH_NOARGS, NULL},
     {"set",(PyCFunction)struct_set, METH_VARARGS | METH_KEYWORDS, NULL},
     {"string",(PyCFunction)struct_string, METH_VARARGS | METH_KEYWORDS, NULL},
-//    {"validate_key",(PyCFunction)struct_validate_key, METH_VARARGS | METH_CLASS, NULL},
     {"validate_path",(PyCFunction)struct_validate_path, METH_VARARGS | METH_CLASS, NULL},
     {"values",(PyCFunction)struct_values, METH_NOARGS, NULL},
     {NULL, NULL, 0, NULL},

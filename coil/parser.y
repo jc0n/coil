@@ -822,6 +822,9 @@ coil_parser_finish(CoilParser *parser)
             parser->errors = g_list_delete_link(parser->errors, parser->errors);
         }
     }
+    if (parser->filepath) {
+        g_free(parser->filepath);
+    }
     return parser->root;
 }
 
@@ -831,10 +834,9 @@ coil_parser_prepare_for_stream(CoilParser *const parser, FILE *stream,
 {
     g_return_if_fail(parser != NULL);
     g_return_if_fail(stream != NULL);
-    g_return_if_fail(name != NULL);
 
     yyset_in(stream, (yyscan_t)parser->scanner);
-    parser->filepath = name;
+    parser->filepath = g_strdup(name);
 }
 
 static void

@@ -34,7 +34,7 @@
 
 typedef struct _CoilParser
 {
-    const gchar *filepath;
+    gchar       *filepath;
     CoilObject  *root;
     CoilPath    *path;
     gulong       prototype_hook_id;
