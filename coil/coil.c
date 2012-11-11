@@ -74,7 +74,8 @@ coil_location_get_type(void)
 static void
 set_pointer_from_value(gpointer ptr, const GValue *value)
 {
-    g_return_if_fail(ptr);
+    g_return_if_fail(ptr != NULL);
+    g_return_if_fail(value != NULL);
 
     GType value_type = G_VALUE_TYPE(value);
 
@@ -111,8 +112,8 @@ set_pointer_from_value(gpointer ptr, const GValue *value)
                 *(gpointer *)ptr = NULL;
                 break;
             }
-            if (value_type == COIL_TYPE_OBJECT) {
-                ptr = (gpointer)g_value_dup_object(value);
+            if (g_type_is_a(value_type, COIL_TYPE_OBJECT)) {
+                *(gpointer *)ptr = g_value_dup_object(value);
                 break;
             }
         default:
@@ -123,6 +124,9 @@ set_pointer_from_value(gpointer ptr, const GValue *value)
 static void
 set_value_from_pointer(GValue *value, gconstpointer pointer)
 {
+    g_return_if_fail(value != NULL);
+    g_return_if_fail(pointer != NULL);
+
     GType value_type = G_VALUE_TYPE(value);
 
     switch (G_TYPE_FUNDAMENTAL(value_type)) {
@@ -203,6 +207,8 @@ static gboolean
 get_and_transform_type(CoilObject *o, const char *key,
         int return_type, gpointer ptr)
 {
+    g_return_val_if_fail(COIL_IS_STRUCT(o), FALSE);
+    g_return_val_if_fail(key != NULL, FALSE);
     g_return_val_if_fail(ptr != NULL, FALSE);
 
     CoilPath *path;
@@ -214,14 +220,17 @@ get_and_transform_type(CoilObject *o, const char *key,
         goto err;
     }
     value = coil_struct_lookupx(o, path, TRUE);
-    if (value == NULL) {
+    if (value == NULL || coil_error_occurred()) {
         goto err;
     }
     value_type = G_VALUE_TYPE(value);
+    if (value_type == COIL_TYPE_NONE) {
+        *(gpointer *)ptr = NULL;
+        goto done;
+    }
     if (value_type == return_type) {
         set_pointer_from_value(ptr, value);
-        coil_path_unref(path);
-        return TRUE;
+        goto done;
     }
     if (g_value_type_transformable(value_type, return_type)) {
         GValue tmp = {0,};
@@ -231,17 +240,19 @@ get_and_transform_type(CoilObject *o, const char *key,
 
         set_pointer_from_value(ptr, &tmp);
         g_value_unset(&tmp);
-        coil_path_unref(path);
-        return TRUE;
+        goto done;
     }
     coil_set_error(COIL_ERROR_VALUE_TYPE, NULL,
-            "Unable to convert %s value type at '%s' to type %s.",
+            "Cannot convert value type %s at '%s' to type %s.",
             coil_type_name(value_type), path->str,
             coil_type_name(return_type));
 err:
     coil_path_unrefx(path);
     *(gpointer *)ptr = NULL;
     return FALSE;
+done:
+    coil_path_unref(path);
+    return TRUE;
 }
 
 /*
@@ -250,6 +261,10 @@ err:
 gboolean
 coil_get(CoilObject *o, const char *path, int return_type, gpointer return_value)
 {
+    g_return_val_if_fail(COIL_IS_STRUCT(o), FALSE);
+    g_return_val_if_fail(path != NULL, FALSE);
+    g_return_val_if_fail(return_value != NULL, FALSE);
+
     return get_and_transform_type(o, path, return_type, return_value);
 }
 
@@ -257,16 +272,24 @@ coil_get(CoilObject *o, const char *path, int return_type, gpointer return_value
  * coil_set:
  */
 gboolean
-coil_set(CoilObject *o, const char *path, int value_type, gpointer value_ptr)
+coil_set(CoilObject *o, const char *path, int value_type, gpointer *value_ptr)
 {
+    g_return_val_if_fail(COIL_IS_STRUCT(o), FALSE);
+    g_return_val_if_fail(path != NULL, FALSE);
+
     GValue *value;
 
-    value = coil_value_alloc();
-    if (value == NULL) {
-        return FALSE;
+    if (value_ptr != NULL && *value_ptr != NULL) {
+        value = coil_value_alloc();
+        if (value == NULL) {
+            return FALSE;
+        }
+        g_value_init(value, value_type);
+        set_value_from_pointer(value, value_ptr);
     }
-    g_value_init(value, value_type);
-    set_value_from_pointer(value, value_ptr);
+    else {
+        coil_value_init(value, COIL_TYPE_NONE, set_object, coil_none_object);
+    }
     if (!coil_struct_insert(o, path, strlen(path), value, TRUE)) {
         coil_value_free(value);
         return FALSE;

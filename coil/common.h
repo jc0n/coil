@@ -49,8 +49,10 @@ const char *
 coil_type_name(GType type);
 
 gboolean
-coil_get(CoilObject *o, const char *key,
-        int type, gpointer return_value);
+coil_get(CoilObject *o, const char *path, int type, gpointer return_value);
+
+gboolean
+coil_set(CoilObject *o, const char *path, int type, gpointer *value_ptr);
 
 G_END_DECLS
 
