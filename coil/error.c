@@ -13,6 +13,11 @@
  */
 static GError *_coil_error = NULL;
 
+#define CHECK_ERROR() \
+    if (_coil_error != NULL) { \
+        g_error("Attempting to overwrite existing coil error"); \
+    } \
+
 /*
  * coil_error_quark:
  *
@@ -142,6 +147,8 @@ coil_set_error(int code, CoilLocation *location, const char *format, ...)
 {
     va_list args;
 
+    CHECK_ERROR();
+
     va_start(args, format);
     _coil_error = coil_error_new_valist(code, location, format, args);
     va_end(args);
@@ -151,6 +158,8 @@ void
 coil_set_error_valist(int code, CoilLocation *location, const char *format,
         va_list args)
 {
+    CHECK_ERROR();
+
     _coil_error = coil_error_new_valist(code, location, format, args);
 }
 
