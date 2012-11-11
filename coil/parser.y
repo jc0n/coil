@@ -678,16 +678,16 @@ primative
         coil_value_init($$, COIL_TYPE_NONE, set_object, coil_none_object);
     }
     | TRUE_SYM {
-        coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, TRUE);
+        coil_value_init($$, COIL_TYPE_BOOLEAN, set_boolean, TRUE);
     }
     | FALSE_SYM {
-        coil_value_init($$, G_TYPE_BOOLEAN, set_boolean, FALSE);
+        coil_value_init($$, COIL_TYPE_BOOLEAN, set_boolean, FALSE);
     }
     | INTEGER {
-        coil_value_init($$, G_TYPE_LONG, set_long, $1);
+        coil_value_init($$, COIL_TYPE_LONG, set_long, $1);
     }
     | DOUBLE {
-        coil_value_init($$, G_TYPE_DOUBLE, set_double, $1);
+        coil_value_init($$, COIL_TYPE_DOUBLE, set_double, $1);
     }
 ;
 

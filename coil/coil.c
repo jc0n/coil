@@ -100,9 +100,6 @@ set_pointer_from_value(gpointer ptr, const GValue *value)
         case COIL_TYPE_UINT64:
             *(guint64 *)ptr = g_value_get_uint64(value);
             break;
-        case COIL_TYPE_FLOAT:
-            *(gfloat *)ptr = g_value_get_float(value);
-            break;
         case COIL_TYPE_DOUBLE:
             *(gdouble *)ptr = g_value_get_double(value);
             break;
@@ -122,10 +119,6 @@ set_pointer_from_value(gpointer ptr, const GValue *value)
             g_error("Unsupported coil value type");
     }
 }
-
-/*
-static void
-set_value_from_pointer(GValue *value, gconstpointer pointer) __attribute__((unused));
 
 static void
 set_value_from_pointer(GValue *value, gconstpointer pointer)
@@ -154,14 +147,11 @@ set_value_from_pointer(GValue *value, gconstpointer pointer)
         case COIL_TYPE_UINT64:
             g_value_set_uint64(value, *(guint64 *)pointer);
             break;
-        case COIL_TYPE_FLOAT:
-            g_value_set_float(value, *(gfloat *)pointer);
-            break;
         case COIL_TYPE_DOUBLE:
             g_value_set_double(value, *(gdouble *)pointer);
             break;
         case COIL_TYPE_STRING:
-            g_value_set_string(value, (gchar *)pointer);
+            g_value_set_string(value, *(gchar **)pointer);
             break;
         case G_TYPE_OBJECT:
             if (value_type == COIL_TYPE_NONE) {
@@ -169,14 +159,13 @@ set_value_from_pointer(GValue *value, gconstpointer pointer)
                 break;
             }
             if (g_type_is_a(value_type, COIL_TYPE_OBJECT)) {
-                g_value_set_object(value, (CoilObject *)pointer);
+                g_value_set_object(value, *(CoilObject **)pointer);
                 break;
             }
         default:
             g_error("Unsupported coil value type");
     }
 }
-*/
 
 const char *
 coil_type_name(GType type)
@@ -196,8 +185,6 @@ coil_type_name(GType type)
             return "int64";
         case COIL_TYPE_UINT64:
             return "uint64";
-        case COIL_TYPE_FLOAT:
-            return "float";
         case COIL_TYPE_DOUBLE:
             return "double";
         case COIL_TYPE_STRING:
@@ -259,24 +246,30 @@ err:
 
 /*
  * coil_get:
- * coil_get(o, "x", COIL_TYPE_INT, &intval)
- * coil_set(o, "y", COIL_TYPE_INT, &intval)
- * coil_get(o, "x.y", COIL_TYPE_INT, &intval)
  */
 gboolean
-coil_get(CoilObject *o, const char *key, int return_type, gpointer return_value)
+coil_get(CoilObject *o, const char *path, int return_type, gpointer return_value)
 {
-    return get_and_transform_type(o, key, return_type, return_value);
+    return get_and_transform_type(o, path, return_type, return_value);
 }
-
-/*
- * coil_getx:
- */
 
 /*
  * coil_set:
  */
+gboolean
+coil_set(CoilObject *o, const char *path, int value_type, gpointer value_ptr)
+{
+    GValue *value;
 
-/*
- * coil_setx:
- */
+    value = coil_value_alloc();
+    if (value == NULL) {
+        return FALSE;
+    }
+    g_value_init(value, value_type);
+    set_value_from_pointer(value, value_ptr);
+    if (!coil_struct_insert(o, path, strlen(path), value, TRUE)) {
+        coil_value_free(value);
+        return FALSE;
+    }
+    return TRUE;
+}

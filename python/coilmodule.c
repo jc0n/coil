@@ -132,23 +132,23 @@ coil_value_from_pyobject(PyObject *o)
         coil_value_init(value, COIL_TYPE_NONE, set_object, coil_none_object);
     }
     else if (o == Py_True) {
-        coil_value_init(value, G_TYPE_BOOLEAN, set_boolean, TRUE);
+        coil_value_init(value, COIL_TYPE_BOOLEAN, set_boolean, TRUE);
     }
     else if (o == Py_False) {
-        coil_value_init(value, G_TYPE_BOOLEAN, set_boolean, FALSE);
+        coil_value_init(value, COIL_TYPE_BOOLEAN, set_boolean, FALSE);
     }
 #if PYTHON_MAJOR_VERSION <= 2
     else if (PyInt_CheckExact(o)) {
-        coil_value_init(value, G_TYPE_INT, set_int, (gint) PyInt_AsLong(o));
+        coil_value_init(value, COIL_TYPE_INT, set_int, (gint) PyInt_AsLong(o));
     }
 #endif
     else if (PyLong_CheckExact(o)) {
-        coil_value_init(value, G_TYPE_LONG, set_long,
+        coil_value_init(value, COIL_TYPE_LONG, set_long,
                         (glong) PyLong_AsLong(o));
     }
     else if (PyFloat_Check(o)) {
-        coil_value_init(value, G_TYPE_FLOAT, set_float,
-                        (gfloat) PyFloat_AsDouble(o));
+        coil_value_init(value, COIL_TYPE_DOUBLE, set_double,
+                        (gdouble) PyFloat_AsDouble(o));
     }
     else if (PyCoilStruct_Check(o)) {
         coil_value_init(value, COIL_TYPE_STRUCT, set_object,
@@ -167,7 +167,7 @@ coil_value_from_pyobject(PyObject *o)
          * characters are escaped but it will still work fine */
         s = memmem(str, len, "${", 2);
         if (s == NULL) {
-            coil_value_init(value, G_TYPE_STRING, set_string,
+            coil_value_init(value, COIL_TYPE_STRING, set_string,
                     (gchar *) PyString_AsString(o));
         }
         else {
@@ -217,6 +217,7 @@ coil_value_as_pyobject(CoilObject *node, GValue *value)
     type = G_VALUE_TYPE(value);
 
     switch (G_TYPE_FUNDAMENTAL(type)) {
+        /*
         case G_TYPE_CHAR: {
             gint8 val = g_value_get_char(value);
             return PyString_FromStringAndSize((char *)&val, 1);
@@ -225,35 +226,34 @@ coil_value_as_pyobject(CoilObject *node, GValue *value)
             guint8 val = g_value_get_uchar(value);
             return PyString_FromStringAndSize((char *)&val, 1);
         }
-        case G_TYPE_BOOLEAN:
+        */
+        case COIL_TYPE_BOOLEAN:
             return PyBool_FromLong((long)g_value_get_boolean(value));
-        case G_TYPE_INT:
+        case COIL_TYPE_INT:
             return PyLong_FromLong((long)g_value_get_int(value));
-        case G_TYPE_UINT:
+        case COIL_TYPE_UINT:
             return PyLong_FromUnsignedLong((gulong) g_value_get_uint(value));
-        case G_TYPE_LONG:
+        case COIL_TYPE_LONG:
             return PyLong_FromLong(g_value_get_long(value));
-        case G_TYPE_ULONG:
+        case COIL_TYPE_ULONG:
             return PyLong_FromUnsignedLong(g_value_get_ulong(value));
-        case G_TYPE_INT64: {
+        case COIL_TYPE_INT64: {
             gint64 val = g_value_get_int64(value);
             if (G_MINLONG <= val && val <= G_MAXLONG)
                 return PyLong_FromLong((glong) val);
             else
                 return PyLong_FromLongLong(val);
         }
-        case G_TYPE_UINT64: {
+        case COIL_TYPE_UINT64: {
             guint64 val = g_value_get_uint64(value);
             if (val <= G_MAXLONG)
                 return PyLong_FromLong((glong) val);
             else
                 return PyLong_FromUnsignedLongLong(val);
         }
-        case G_TYPE_FLOAT:
-            return PyFloat_FromDouble(g_value_get_float(value));
-        case G_TYPE_DOUBLE:
+        case COIL_TYPE_DOUBLE:
             return PyFloat_FromDouble(g_value_get_double(value));
-        case G_TYPE_STRING: {
+        case COIL_TYPE_STRING: {
             const gchar *str = g_value_get_string(value);
             if (str)
                 return PyString_FromString(str);
