@@ -10,10 +10,10 @@ class TestListProxy(TestCase):
 
     def setUp(self):
         self.node = ccoil.Struct('''
-x: [1 2 2 3 'Hello']
-y: [None True 1.0]
-z: [[1 2] [3 4]]
-''')
+            x: [1 2 2 3 'Hello']
+            y: [None True 1.0]
+            z: [[1 2] [3 4]]
+        ''')
         self.rx = [1, 2, 2, 3, 'Hello']
         self.ry = [None, True, 1.0]
         self.rz = [[1, 2], [3, 4]]

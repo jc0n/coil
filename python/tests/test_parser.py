@@ -49,13 +49,13 @@ class TestParser(TestCase):
 
     def testExtendsList(self):
         buf = '''
-a: { x:1 y:2 z: 3}
-z: { a:3 b:2 c: 1}
+            a: { x:1 y:2 z: 3}
+            z: { a:3 b:2 c: 1}
 
-m: { @extends: [..a ..z] a:1 x:3 }
-n: { @extends: ..a, ..z a:1 x:3 }
-o: a, z { a:1 x:3 }
-'''
+            m: { @extends: [..a ..z] a:1 x:3 }
+            n: { @extends: ..a, ..z a:1 x:3 }
+            o: a, z { a:1 x:3 }
+        '''
         root = ccoil.parse(buf)
         kvs = (('a.x', 1), ('a.y', 2), ('a.z', 3),
                ('z.a', 3), ('z.b', 2), ('z.c', 1),
@@ -75,10 +75,10 @@ o: a, z { a:1 x:3 }
 
     def testExtendsLink(self):
         buf = '''
-a.x: 1
-b: a
-c: b { y: 2 }
-'''
+            a.x: 1
+            b: a
+            c: b { y: 2 }
+        '''
         root = ccoil.parse(buf)
         for k, v in (('a.x', 1), ('c.x', 1), ('c.y', 2)):
             self.assertEquals(root[k], v)
@@ -95,9 +95,9 @@ c: b { y: 2 }
 
     def testDelete(self):
         buf = '''
-a: { x: 'x' y: 'y' }
-b: a { ~y }
-'''
+            a: { x: 'x' y: 'y' }
+            b: a { ~y }
+        '''
         root = ccoil.parse(buf)
         self.assertEquals(root['b.x'], 'x')
         self.assertEquals(root['b']['x'], 'x')
@@ -109,9 +109,9 @@ b: a { ~y }
 
     def testDeleteSub(self):
         buf = '''
-a: { x: 123  y: { x: 123 z: '321' } }
-b: a { ~y.z y.y: 123 }
-'''
+            a: { x: 123  y: { x: 123 z: '321' } }
+            b: a { ~y.z y.y: 123 }
+        '''
         root = ccoil.parse(buf)
         kvs = (('a.x', 123),
                ('a.y.x', 123),
@@ -143,14 +143,14 @@ b: a { ~y.z y.y: 123 }
 
     def testFileExpansion(self):
         buf = '''
-path: %s
-sub: {
-    @file: '${@root.path}'
-}
-sub2: {
-    @file: '${..path}'
-}
-'''
+            path: %s
+            sub: {
+                @file: '${@root.path}'
+            }
+            sub2: {
+                @file: '${..path}'
+            }
+        '''
         root = ccoil.parse(buf % repr(self.SIMPLE_FILE))
         self.assertEqual(root.get('path'), self.SIMPLE_FILE)
         self.assertEqual(root.get('sub.x'), 'x value')
