@@ -181,7 +181,7 @@ change_container(CoilObject *object, CoilObject *container,
                  CoilPath *path, gboolean reset)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(object), FALSE);
-    g_return_val_if_fail(COIL_IS_STRUCT(container), FALSE);
+    g_return_val_if_fail(container == NULL || COIL_IS_STRUCT(container), FALSE);
     g_return_val_if_fail(object != container, FALSE);
 
     CoilStructPrivate *priv = COIL_STRUCT(object)->priv;
@@ -845,6 +845,7 @@ do_delete(CoilObject *self, CoilPath *path,
     entry = struct_table_lookup(priv->table, path);
     if (entry == NULL) {
         if (strict) {
+            /* TODO: change to key error */
             coil_struct_error(self,
                     "Attempting to delete non-existent path '%s'.", path->str);
             return FALSE;
@@ -897,8 +898,9 @@ err:
 COIL_API(gboolean)
 coil_struct_delete_path(CoilObject *self, CoilPath *path, gboolean strict)
 {
-    if (!coil_path_resolve_inplace(&path, self->path))
+    if (!coil_path_resolve_inplace(&path, self->path)) {
         return FALSE;
+    }
     if (COIL_PATH_IS_ROOT(path)) {
         coil_struct_error(self, "Cannot delete '@root' path.");
         return FALSE;
