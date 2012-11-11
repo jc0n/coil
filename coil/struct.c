@@ -1011,17 +1011,20 @@ coil_struct_add_dependency(CoilObject *self, CoilObject *dep)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(self), FALSE);
     g_return_val_if_fail(COIL_IS_OBJECT(dep), FALSE);
-    g_return_val_if_fail(self != dep, FALSE);
 
     CoilStructPrivate *priv = COIL_STRUCT(self)->priv;
     GType type = G_OBJECT_TYPE(dep);
 
+    if (self == dep) {
+        coil_struct_error(self, "struct cannot add self as dependency.");
+        return FALSE;
+    }
     if (coil_struct_is_root(self) && COIL_IS_STRUCT(dep)) {
-        coil_struct_error(self, "cannot inherit from other structs.");
+        coil_struct_error(self, "root struct cannot inherit from other structs.");
         return FALSE;
     }
     if (struct_needs_expand(self)) {
-        coil_struct_error(self, "Cannot add dependencies after struct expansion");
+        coil_struct_error(self, "struct cannot add dependencies after struct expansion");
         return FALSE;
     }
     if (!struct_check_dependency_type(type)) {
@@ -1042,7 +1045,7 @@ coil_struct_add_dependency(CoilObject *self, CoilObject *dep)
         struct_connect_expand_notify(self, dep);
     }
     else if (self->root != dep->root) {
-        coil_struct_error(self, "Cannot add dependency in a different @root.",
+        coil_struct_error(self, "struct cannot add dependency in a different @root.",
                 self->path->str);
         return FALSE;
     }
@@ -1149,6 +1152,10 @@ coil_struct_extend_path(CoilObject *self, CoilPath *path,
     if (path == NULL) {
         goto err;
     }
+    if (coil_path_equal(path, self->path)) {
+        coil_struct_error(self, "struct cannot extend self.");
+        goto err;
+    }
     value = do_lookup(context, path, FALSE, FALSE);
     if (value) {
         GType type = G_VALUE_TYPE(value);
@@ -1170,13 +1177,12 @@ coil_struct_extend_path(CoilObject *self, CoilPath *path,
             goto err;
         }
     }
+
     coil_path_unref(path);
     return coil_struct_add_dependency(self, dependency);
 
 err:
-    if (path) {
-        coil_path_unref(path);
-    }
+    coil_path_unrefx(path);
     return FALSE;
 }
 

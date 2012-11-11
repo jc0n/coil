@@ -418,7 +418,10 @@ parse_pysequence(PyObject *seqobj)
     n = Py_SIZE(bufobj);
 
     root = coil_parse_string_len(buffer, n);
-    if (root == NULL) {
+    if (coil_error_occurred()) {
+        if (root != NULL) {
+            coil_object_unref(root);
+        }
         ccoil_handle_error();
         Py_DECREF(bufobj);
         return NULL;
@@ -459,14 +462,20 @@ ccoil_parse(PyObject *ignored, PyObject *args, PyObject *kwargs)
             return NULL;
         }
         root = coil_parse_string_len(buffer, len);
-        if (root == NULL) {
+        if (coil_error_occurred()) {
+            if (root != NULL) {
+                coil_object_unref(root);
+            }
             ccoil_handle_error();
             return NULL;
         }
     }
     else if (PySequence_Check(input)) {
         root = parse_pysequence(input);
-        if (root == NULL) {
+        if (coil_error_occurred()) {
+            if (root != NULL) {
+                coil_object_unref(root);
+            }
             ccoil_handle_error();
             return NULL;
         }
@@ -501,7 +510,10 @@ ccoil_parse_file(PyObject * ignored, PyObject * args, PyObject * kwargs)
         return NULL;
 
     root = coil_parse_file(filepath);
-    if (root == NULL) {
+    if (coil_error_occurred()) {
+        if (root != NULL) {
+            coil_object_unref(root);
+        }
         ccoil_handle_error();
         return NULL;
     }

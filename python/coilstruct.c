@@ -1657,7 +1657,10 @@ struct_init(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
             goto error;
 
         root = coil_parse_string_len(buffer, buflen);
-        if (root == NULL) {
+        if (coil_error_occurred()) {
+            if (root != NULL) {
+                coil_object_unref(root);
+            }
             ccoil_handle_error();
             goto error;
         }
