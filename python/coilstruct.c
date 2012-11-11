@@ -1606,88 +1606,76 @@ struct_reconstructor(PyCoilStruct *self, PyObject *args)
 static int
 struct_init(PyCoilStruct * self, PyObject * args, PyObject * kwargs)
 {
-    static char *kwlist[] = { "base", "container", "name", "location", NULL };
+    static char *kwlist[] = {"base", "container", "name", "location", NULL};
     PyCoilStruct *container = NULL;
     PyObject *name = NULL;
     PyObject *base = NULL;
     PyObject *location = NULL;
-    CoilObject *_container = NULL;
-    gchar *_name = NULL;
+    const gchar *namestr = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords
-        (args, kwargs, "|OO!SO:ccoil.Struct.__init__", kwlist, &base,
-         &PyCoilStruct_Type, &container, &name, &location))
-        goto error;
-
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO!SO:Struct.__init__",
+                kwlist, &base, &PyCoilStruct_Type, &container, &name, &location)) {
+        return -1;
+    }
     if (name) {
-        _name = PyString_AsString(name);
-        if (_name == NULL)
-            goto error;
-
-        if (container)
-            _container = container->node;
+        namestr = PyString_AsString(name);
+        if (namestr == NULL) {
+            return -1;
+        }
     }
     else if (container) {
         PyErr_SetString(PyExc_ValueError,
-                        "A name argument must be specified with a container argument.");
-
-        goto error;
+                        "A name argument must be specified "
+                        "with a container argument.");
+        return -1;
     }
-
     /* TODO(jcon): handle location */
+    self->node = coil_struct_new(
+            "container", (container) ? container->node : NULL,
+            "path", namestr,
+            NULL);
+    if (self->node == NULL) {
+        return -1;
+    }
+    g_object_set_qdata_full(G_OBJECT(self->node), struct_wrapper_key, self, NULL);
+    if (base) {
+        if (PyString_Check(base)) {
+            CoilObject *root;
+            gchar *buffer;
+            Py_ssize_t buflen;
 
-    self->node = coil_struct_new("container", _container,
-                                 "path", _name, NULL);
-
-    if (self->node == NULL)
-        goto error;
-
-    g_object_set_qdata_full(G_OBJECT(self->node),
-                            struct_wrapper_key, self, NULL);
-
-    if (base == NULL)
-        return 0;
-
-    if (PyString_Check(base)) {
-        CoilObject *root;
-        gchar *buffer;
-        Py_ssize_t buflen;
-
-        if (PyString_AsStringAndSize(base, &buffer, &buflen) < 0)
-            goto error;
-
-        root = coil_parse_string_len(buffer, buflen);
-        if (coil_error_occurred()) {
-            if (root != NULL) {
-                coil_object_unref(root);
+            if (PyString_AsStringAndSize(base, &buffer, &buflen) < 0) {
+                return -1;
             }
-            ccoil_handle_error();
-            goto error;
+            root = coil_parse_string_len(buffer, buflen);
+            if (coil_error_occurred()) {
+                if (root != NULL) {
+                    coil_object_unref(root);
+                }
+                ccoil_handle_error();
+                return -1;
+            }
+            coil_struct_merge(root, self->node);
+            coil_object_unref(root);
+            if (coil_error_occurred()) {
+                ccoil_handle_error();
+                return -1;
+            }
+            return 0;
         }
-        if (!coil_struct_merge(root, self->node)) {
-            g_object_unref(root);
-            ccoil_handle_error();
-            goto error;
+        if (!(PyCoilStruct_Check(base) ||
+              PyMapping_Check(base) ||
+              PySequence_Check(base))) {
+            PyErr_SetString(PyExc_ValueError,
+                            "base argument must be a dict-like object, "
+                            "a sequence of items, or a coil struct");
+            return -1;
         }
-        g_object_unref(root);
-        return 0;
+        if (!struct_update_from_pyitems(self->node, base)) {
+            return -1;
+        }
     }
-
-    if (!(PyCoilStruct_Check(base) ||
-          PyMapping_Check(base) || PySequence_Check(base))) {
-        PyErr_SetString(PyExc_ValueError,
-                        "base argument must be a dict-like object, "
-                        "a sequence of items, or a coil struct");
-        goto error;
-    }
-
-    if (!struct_update_from_pyitems(self->node, base))
-        goto error;
-
     return 0;
-
- error:
-    return -1;
 }
 
 PyObject *
