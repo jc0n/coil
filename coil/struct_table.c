@@ -1,9 +1,23 @@
 /*
- * Copyright (C) 2009, 2010, 2011
+ * Copyright (C) 2012 John O'Connor
  *
- * Author: John O'Connor
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
 #include "common.h"
 
 #include "struct.h"
@@ -17,7 +31,7 @@
  * Satisfies requirement for table max size to be 2^n - 1
  */
 static guint
-nearest_binpow(guint size)
+size_mask(guint size)
 {
     g_return_val_if_fail(size > 0, 0);
 
@@ -41,7 +55,7 @@ struct_table_new_sized(gsize size)
     StructTable *table;
 
     table = g_new(StructTable, 1);
-    table->max = nearest_binpow(size); /* max always (2^n)-1 */
+    table->max = size_mask(size); /* max always (2^n)-1 */
     table->bucket = g_new0(StructEntry *, table->max + 1);
     table->ref_count = 1;
     table->size = 0;
@@ -60,7 +74,7 @@ do_resize(StructTable *table, guint max)
 {
     g_return_if_fail(table);
     g_return_if_fail(max > 0);
-    g_return_if_fail(max == nearest_binpow(max));
+    g_return_if_fail(max == size_mask(max));
 
     guint n;
     StructEntry *entry, *next, **old, **new;
@@ -103,7 +117,7 @@ struct_table_resize(StructTable *table, guint size)
     g_return_if_fail(table);
     g_return_if_fail(size > 0);
 
-    guint max = nearest_binpow(size);
+    guint max = size_mask(size);
     do_resize(table, max);
 }
 
