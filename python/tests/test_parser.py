@@ -113,6 +113,14 @@ class TestParser(TestCase):
         self.assertEquals(len(root['a']), 2)
         self.assertEquals(len(root['b']), 1)
 
+    def testDeleteSelf(self):
+        buf = '''
+        a: {
+          ~..a
+        }
+        '''
+        self.assertRaises(ccoil.errors.ParseError, ccoil.parse, buf)
+
     def testDeleteSub(self):
         buf = '''
             a: { x: 123  y: { x: 123 z: '321' } }

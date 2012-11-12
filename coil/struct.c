@@ -699,8 +699,7 @@ _coil_create_containers(CoilObject *self, CoilPath *path,
     if (has_lookup) {
         /* first key was already searched, skip */
         g_ptr_array_add(missing, container_path);
-        container_path = coil_path_pop(container_path, -1);
-        if (container_path == NULL) {
+        if (!coil_path_pop_inplace(&container_path, -1)) {
             goto err;
         }
     }
@@ -749,9 +748,7 @@ err:
     if (missing) {
         g_ptr_array_free(missing, TRUE);
     }
-    if (container_path) {
-        coil_path_unref(container_path);
-    }
+    coil_path_unrefx(container_path);
     return NULL;
 }
 
@@ -967,7 +964,6 @@ coil_struct_mark_deleted_path(CoilObject *self, CoilPath *path,
     CoilPath *container_path;
     gboolean res = FALSE;
 
-    coil_path_ref(path);
     if (!coil_path_resolve_inplace(&path, self->path)) {
         goto err;
     }
@@ -1216,7 +1212,6 @@ coil_struct_extend_paths(CoilObject *self, GList *list, CoilObject *context)
 
     while (list) {
         CoilPath *path = (CoilPath *)list->data;
-
         if (!coil_struct_extend_path(self, path, context)) {
             return FALSE;
         }

@@ -342,6 +342,18 @@ coil_path_new(const gchar *str)
 }
 
 /*
+ * coil_path_copy:
+ * @path: a #CoilPath object
+ */
+COIL_API(CoilPath *)
+coil_path_copy(const CoilPath *path)
+{
+    g_return_val_if_fail(path != NULL, NULL);
+
+    return coil_path_new_len(path->str, path->len);
+}
+
+/*
  * coil_path_equal:
  * @a: a #CoilPath object
  * @b: a #CoilPath object

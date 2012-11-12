@@ -182,14 +182,17 @@ link_copy(CoilObject *self, const gchar *first_property_name, va_list properties
 
     CoilLinkPrivate *priv = COIL_LINK(self)->priv;
     CoilPath *path = priv->target;
+    CoilObject *link;
 
     if (self->container && self->container->path) {
-        path = coil_path_relativize(path, self->container->path);
+        path = coil_path_relativize(priv->target, self->container->path);
         if (path == NULL) {
             return NULL;
         }
     }
-    return coil_link_new_valist(path, first_property_name, properties);
+    link = coil_link_new_valist(path, first_property_name, properties);
+    coil_path_unref(path);
+    return link;
 }
 
 static gboolean

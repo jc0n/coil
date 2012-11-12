@@ -130,7 +130,6 @@ cache_save(GObject *object, const gchar *filepath, CoilObject *root)
     entry = g_hash_table_lookup(include_cache, filepath);
     if (entry) {
         g_atomic_int_inc(&entry->ref_count);
-        g_object_weak_ref(object, cache_gc_notify, entry->filepath);
     }
     else if (stat(filepath, &st) == 0) {
         entry = g_new(CacheEntry, 1);
@@ -140,8 +139,8 @@ cache_save(GObject *object, const gchar *filepath, CoilObject *root)
         entry->m_time = st.st_mtime;
 
         g_hash_table_insert(include_cache, entry->filepath, entry);
-        g_object_weak_ref(object, cache_gc_notify, entry->filepath);
     }
+    g_object_weak_ref(object, cache_gc_notify, entry->filepath);
 }
 
 static CoilObject *
@@ -158,9 +157,13 @@ cache_load(gpointer _notify, const gchar *filepath)
     entry = g_hash_table_lookup(include_cache, filepath);
     if (entry == NULL) {
         root = coil_parse_file(filepath);
-        if (root) {
-            cache_save(notify, filepath, root);
+        if (coil_error_occurred()) {
+            if (root != NULL) {
+                coil_object_unref(root);
+            }
+            return NULL;
         }
+        cache_save(notify, filepath, root);
         return root;
     }
     if (stat(filepath, &st) < 0) {
@@ -170,7 +173,10 @@ cache_load(gpointer _notify, const gchar *filepath)
     }
     if (st.st_mtime != entry->m_time) {
         root = coil_parse_file(filepath);
-        if (root == NULL) {
+        if (coil_error_occurred()) {
+            if (root != NULL) {
+                coil_object_unref(root);
+            }
             cache_entry_free(entry);
             return NULL;
         }
@@ -234,6 +240,7 @@ find_include_path(CoilObject *self, const gchar *filename)
 
     dirpath = (gchar *)g_get_home_dir();
     path = g_build_filename(dirpath, filename, NULL);
+    g_free(dirpath);
     if (g_file_test(path, flags)) {
         return path;
     }

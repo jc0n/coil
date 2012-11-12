@@ -204,6 +204,12 @@ class TestStruct(TestCase):
         self.assertEquals(l1, l2)
         self.assertFalse(l1 is l2, "l1 is l2")
 
+    def testCopyLink(self):
+        a = Struct('a: 1 b: a')
+        b = a.copy()
+        self.assertEquals(a['a'], 1)
+        self.assertEquals(b['b'], 1)
+
     def testModifyList(self):
         s1 = Struct({'list': [1, 2, [3, 4]]})
         self.assertEquals(s1['list'], [1, 2, [3, 4]])

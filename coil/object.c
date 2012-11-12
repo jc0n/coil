@@ -30,7 +30,7 @@ G_DEFINE_ABSTRACT_TYPE(CoilObject, coil_object, G_TYPE_OBJECT);
 
 struct _CoilObjectPrivate
 {
-    GStaticMutex  expand_lock;
+    GMutex  expand_lock;
 };
 
 typedef enum
@@ -122,7 +122,7 @@ coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
 
     /* TODO(jcon): notify container of expansion */
 
-    if (!g_static_mutex_trylock(&priv->expand_lock)) {
+    if (!g_mutex_trylock(&priv->expand_lock)) {
         /* TODO(jcon): improve error handling for cases like this */
         CoilObject *container = COIL_IS_STRUCT(self) ? self : self->container;
         coil_struct_error(container, "Cycle detected during expansion");
@@ -143,7 +143,7 @@ coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
         g_error("Expecting return value from expansion of type '%s'.",
                 G_OBJECT_TYPE_NAME(object));
     }
-    g_static_mutex_unlock(&priv->expand_lock);
+    g_mutex_unlock(&priv->expand_lock);
 
     if (value_ptr && return_value)
         *value_ptr = return_value;
@@ -154,7 +154,7 @@ error:
     if (value_ptr) {
         *value_ptr = NULL;
     }
-    g_static_mutex_unlock(&priv->expand_lock);
+    g_mutex_unlock(&priv->expand_lock);
     return FALSE;
 }
 
@@ -350,7 +350,7 @@ coil_object_init(CoilObject *self)
     CoilObjectPrivate *priv = COIL_OBJECT_GET_PRIVATE(self);
     self->priv = priv;
 
-    g_static_mutex_init(&priv->expand_lock);
+    g_mutex_init(&priv->expand_lock);
 }
 
 static CoilObject *

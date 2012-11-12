@@ -98,6 +98,8 @@ coil_path_take_string(gchar *str, guint len);
 CoilPath *
 coil_path_take_stringx(gchar *str, guint len, guint flags);
 
+CoilPath *
+coil_path_copy(const CoilPath *path);
 
 CoilPath *
 coil_path_new_len(const gchar *str, guint len);

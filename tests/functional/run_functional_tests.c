@@ -46,6 +46,7 @@ read_test_dir(const gchar *dirpath)
         gchar *fullpath = g_build_filename(dirpath, entry, NULL);
         if (g_file_test(fullpath, G_FILE_TEST_IS_DIR)) {
             entries = g_slist_concat(entries, read_test_dir(fullpath));
+            g_free(fullpath);
         }
         else if (g_str_has_prefix(entry, TEST_FILE_PREFIX) &&
                 g_str_has_suffix(entry, TEST_FILE_SUFFIX) &&
@@ -71,6 +72,7 @@ build_functional_test_suite(void)
     while (list) {
         gchar *testname = g_strconcat("/", list->data + 7, NULL);
         g_test_add_data_func(testname, list->data, run_test);
+        g_free(testname);
         list = g_slist_next(list);
     }
     g_slist_free(list);
@@ -147,6 +149,7 @@ expect_fail(const gchar *filepath)
     coil_struct_expand_items(root, TRUE);
     g_assert(coil_error_occurred());
     coil_error_clear();
+    coil_object_unref(root);
 }
 
 static void
