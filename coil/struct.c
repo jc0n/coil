@@ -196,15 +196,19 @@ change_container(CoilObject *object, CoilObject *container,
 {
     g_return_val_if_fail(COIL_IS_STRUCT(object), FALSE);
     g_return_val_if_fail(container == NULL || COIL_IS_STRUCT(container), FALSE);
-    g_return_val_if_fail(object != container, FALSE);
 
     CoilStructPrivate *priv = COIL_STRUCT(object)->priv;
     CoilStructIter it;
     StructTable *old_table = priv->table;
     StructEntry *entry;
 
+    if (object == container) {
+        coil_struct_error(object,
+                "cannot set struct container to self.");
+        goto error;
+    }
     /* remove struct from previous container */
-    if (reset && object->container != NULL) {
+    if (reset && object->container != NULL && object->container != container) {
         guint ref_count = coil_object_get_refcount(object);
         if (ref_count == 1) {
             g_error("Removing struct from previous container will"
@@ -244,24 +248,22 @@ change_container(CoilObject *object, CoilObject *container,
          * changes with the path. The path is changed, then the entry is inserted
          * back into the hash table.
          */
-
         struct_table_remove_entry(old_table, entry);
-
         path = coil_path_join(object->path, entry->path);
         if (path == NULL) {
             goto error;
         }
         coil_path_unref(entry->path);
         entry->path = path;
-
         struct_table_insert_entry(priv->table, entry);
 
         /* update containers and paths for entry objects */
         if (entry->value && G_VALUE_HOLDS(entry->value, COIL_TYPE_OBJECT)) {
             CoilObject *entryobj = COIL_OBJECT(g_value_get_object(entry->value));
-            if (COIL_IS_STRUCT(entryobj) &&
-                    !change_container(entryobj, object, entry->path, TRUE)) {
-                goto error;
+            if (COIL_IS_STRUCT(entryobj)) {
+                if (!change_container(entryobj, object, entry->path, TRUE)) {
+                    goto error;
+                }
             }
             else {
                 coil_object_set_path(entryobj, entry->path);
@@ -273,9 +275,9 @@ change_container(CoilObject *object, CoilObject *container,
     return TRUE;
 
 error:
-    if (old_table)
+    if (old_table) {
         struct_table_unref(old_table);
-
+    }
     return FALSE;
 }
 
@@ -407,7 +409,6 @@ coil_struct_is_ancestor(CoilObject *a, CoilObject *b)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(a), FALSE);
     g_return_val_if_fail(COIL_IS_STRUCT(b), FALSE);
-    g_return_val_if_fail(a != b, FALSE);
 
     CoilObject *container = b;
 
@@ -435,7 +436,6 @@ coil_struct_is_descendent(CoilObject *a, CoilObject *b)
 {
     g_return_val_if_fail(COIL_IS_STRUCT(a), FALSE);
     g_return_val_if_fail(COIL_IS_STRUCT(b), FALSE);
-    g_return_val_if_fail(a != b, FALSE);
 
     return coil_struct_is_ancestor(b, a);
 }
@@ -570,6 +570,11 @@ insert_internal(CoilObject *self, CoilPath *path,
     /* TODO(jcon): dont check value for struct more than once */
     if (G_VALUE_HOLDS(value, COIL_TYPE_STRUCT)) {
         CoilObject *valueobj = COIL_OBJECT(g_value_get_object(value));
+        if (self == valueobj) {
+            coil_struct_error(self,
+                    "struct values cannot be self.");
+            goto error;
+        }
         if (coil_struct_is_ancestor(valueobj, self)) {
             coil_struct_error(self,
                     "Attempting to insert ancestor struct '%s' into '%s'.",
@@ -600,14 +605,13 @@ insert_internal(CoilObject *self, CoilPath *path,
     /* XXX: if value is struct, path will change based on container. */
     /* TODO(jcon): implement set_container in object */
     if (value_is_struct) {
-        CoilObject *valueobj = COIL_OBJECT(g_value_get_object(value));
+        CoilObject *obj = COIL_OBJECT(g_value_get_object(value));
 
-        if (valueobj->container != self &&
-            !change_container(valueobj, self, path, TRUE)) {
+        if (obj->container != self && !change_container(obj, self, path, TRUE)) {
             goto error;
         }
         /* XXX: inserting a prototype does not provoke a cast */
-        if (!coil_struct_is_prototype(valueobj)) {
+        if (!coil_struct_is_prototype(obj)) {
             coil_struct_foreach_ancestor(self, TRUE, finalize_prototype, NULL);
         }
         return TRUE;
@@ -872,9 +876,10 @@ do_delete(CoilObject *self, CoilPath *path,
     if (container == NULL) {
         return FALSE;
     }
-    if (reset && G_VALUE_HOLDS(entry->value, COIL_TYPE_STRUCT)) {
-        CoilObject *entryobj = COIL_OBJECT(g_value_get_object(entry->value));
-        if (!change_container(entryobj, NULL, NULL, FALSE)) {
+    if (reset && G_VALUE_HOLDS(entry->value, COIL_TYPE_OBJECT)) {
+        /* FIXME: use object->set_container API */
+        CoilObject *obj = COIL_OBJECT(g_value_get_object(entry->value));
+        if (!change_container(obj, NULL, NULL, FALSE)) {
             return FALSE;
         }
     }

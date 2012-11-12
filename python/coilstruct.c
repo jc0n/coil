@@ -409,12 +409,10 @@ struct_clear(PyCoilStruct * self)
         g_object_set_qdata_full(G_OBJECT(self->node),
                                 struct_wrapper_key, NULL, NULL);
 
-        g_object_unref(self->node);
+        coil_object_unref(self->node);
         self->node = NULL;
     }
-
     Py_CLEAR(self->iter);
-
     return 0;
 }
 
@@ -1484,20 +1482,18 @@ struct_mp_get(PyCoilStruct * self, PyObject * pypath)
 }
 
 static int
-struct_mp_set(PyCoilStruct * self, PyObject * py_key, PyObject * py_value)
+struct_mp_set(PyCoilStruct *self, PyObject *py_path, PyObject *py_value)
 {
     CoilPath *path;
     GValue *value;
 
-    path = coil_path_from_pyobject(py_key);
+    path = coil_path_from_pyobject(py_path);
     if (path == NULL) {
-        ccoil_handle_error();
         goto error;
     }
     if (py_value == NULL) {
         /* delete the value */
         if (!coil_struct_delete_path(self->node, path, TRUE)) {
-            ccoil_handle_error();
             goto error;
         }
         coil_path_unref(path);
@@ -1505,22 +1501,18 @@ struct_mp_set(PyCoilStruct * self, PyObject * py_key, PyObject * py_value)
     else {
         value = coil_value_from_pyobject(py_value);
         if (value == NULL) {
-            ccoil_handle_error();
             goto error;
         }
-
         if (!coil_struct_insert_path(self->node, path, value, TRUE)) {
             path = NULL; value = NULL;
-            ccoil_handle_error();
             goto error;
         }
     }
     return 0;
 
  error:
-    if (path)
-        coil_path_unref(path);
-
+    ccoil_handle_error();
+    coil_path_unrefx(path);
     return -1;
 }
 

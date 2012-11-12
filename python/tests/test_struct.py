@@ -406,6 +406,11 @@ class ContainerTestCase(TestCase):
         del a
         self.assertEquals(self.root, copy)
 
+    def testDeleteRoot(self):
+        def test():
+            del self.root['@root']
+        self.assertRaises(ccoil.errors.StructError, test)
+
     def testGetRoot(self):
         for s in self.blocks:
             self.assertEquals(s.root(), self.root)
@@ -425,6 +430,30 @@ class ContainerTestCase(TestCase):
         self.assertEquals(x.container(), self.root)
         self.assertEquals(y.container(), x)
         self.assertEquals(self.root.container(), None)
+
+    def testAddSelf(self):
+        s = Struct()
+        def test():
+            s['foo'] = s
+        self.assertRaises(ccoil.errors.StructError, test)
+
+    def testAddParent(self):
+        s = Struct()
+        parent = Struct()
+        parent['s'] = s
+        def test():
+            s['foo'] = parent
+        self.assertRaises(ccoil.errors.StructError, test)
+
+    def testAddRemoveChild(self):
+        s = Struct('x:1 y:2')
+        foo = Struct({'s': s})
+        self.assertEquals(foo['s'], s)
+        s['z'] = {'a': {}}
+        self.assertEquals(foo['s.z'], {'a': {}})
+        del s['z']
+        self.assertRaises(KeyError, lambda: s['z'])
+
 
 class ExpansionTestCase(TestCase):
 
