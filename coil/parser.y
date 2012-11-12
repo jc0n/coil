@@ -402,6 +402,7 @@ context
             parser_pop_container(YYCTX);
         }
         handle_internal_error(YYCTX);
+        coil_path_unrefx(YYCTX->path);
     }
 ;
 
@@ -818,9 +819,7 @@ coil_parser_finish(CoilParser *parser)
     while ((container = g_queue_pop_head(&parser->containers))) {
         coil_object_unref(container);
     }
-    if (parser->path) {
-        coil_path_unref(parser->path);
-    }
+    coil_path_unrefx(parser->path);
     if (parser->do_buffer_gc) {
         yy_delete_buffer((YY_BUFFER_STATE)parser->buffer_state,
                          (yyscan_t)parser->scanner);
