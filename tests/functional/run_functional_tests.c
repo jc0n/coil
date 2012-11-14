@@ -61,21 +61,24 @@ read_test_dir(const gchar *dirpath)
     return entries;
 }
 
-static void
-build_functional_test_suite(void)
+static int
+run_tests(void)
 {
-    GSList *list = read_test_dir(TEST_CASES_PATH);
+    GSList *list, *l;
+    int result;
 
+    list = read_test_dir(TEST_CASES_PATH);
     if (list == NULL) {
         g_error("No test cases found in %s", TEST_CASES_PATH);
     }
-    while (list) {
-        gchar *testname = g_strconcat("/", list->data + 7, NULL);
-        g_test_add_data_func(testname, list->data, run_test);
+    for (l = list; l != NULL; l = g_slist_next(l)) {
+        gchar *testname = g_strconcat("/", l->data + 7, NULL);
+        g_test_add_data_func(testname, l->data, run_test);
         g_free(testname);
-        list = g_slist_next(list);
     }
+    result = g_test_run();
     g_slist_free(list);
+    return result;
 }
 
 static void
@@ -177,8 +180,6 @@ int main(int argc, char **argv)
     coil_init();
 
     g_test_init(&argc, &argv, NULL);
-    build_functional_test_suite();
-
-    return g_test_run();
+    return run_tests();
 }
 
