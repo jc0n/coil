@@ -408,6 +408,14 @@ coil_object_finalize(GObject *object)
     g_free(self->location.filepath);
 }
 
+inline void
+coil_object_unrefx(CoilObject *obj)
+{
+    if (obj != NULL) {
+        coil_object_unref(obj);
+    }
+}
+
 static void
 coil_object_class_init(CoilObjectClass *klass)
 {

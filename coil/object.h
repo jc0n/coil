@@ -150,6 +150,7 @@ coil_object_expand(CoilObject *object,
                    gboolean recursive);
 */
 
+void coil_object_unrefx(CoilObject *obj);
 
 G_END_DECLS
 
