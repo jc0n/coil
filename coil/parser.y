@@ -35,14 +35,21 @@
 #include "parser.h"
 #include "scanner.h"
 
-#define PEEK_CONTAINER(parser) \
+#define PEEK_CONTAINER(parser)                                  \
   COIL_OBJECT(g_queue_peek_head(&(parser)->containers))
 
-#define POP_CONTAINER(parser) \
+#define POP_CONTAINER(parser)                                   \
   COIL_OBJECT(g_queue_pop_head(&(parser)->containers))
 
-#define PUSH_CONTAINER(parser, c) \
+#define PUSH_CONTAINER(parser, c)                               \
   g_queue_push_head(&(parser)->containers, (c))
+
+#define CLEAR_PATH(parser)                                      \
+    G_STMT_START {                                              \
+        coil_path_unrefx(parser->path);                         \
+        parser->path = NULL;                                    \
+    } G_STMT_END
+
 
 void
 yyerror(YYLTYPE *yylocp, CoilParser *parser, const gchar *msg);
@@ -402,7 +409,7 @@ context
             parser_pop_container(YYCTX);
         }
         handle_internal_error(YYCTX);
-        coil_path_unrefx(YYCTX->path);
+        CLEAR_PATH(YYCTX);
     }
 ;
 
@@ -417,7 +424,6 @@ deletion
         CoilObject *container = PEEK_CONTAINER(YYCTX);
 
         if (!coil_struct_mark_deleted_path(container, $2, FALSE)) {
-            coil_path_unref($2);
             YYERROR;
         }
         coil_path_unref($2);
@@ -432,16 +438,13 @@ assignment_path
     : RELATIVE_PATH {
         CoilObject *container = PEEK_CONTAINER(YYCTX);
 
-        if (YYCTX->path) {
-            coil_path_unref(YYCTX->path);
-            YYCTX->path = NULL;
-        }
-
         /* resolve path to prevent doing this more than once in other places */
+        CLEAR_PATH(YYCTX);
         YYCTX->path = coil_path_resolve($1, container->path);
         coil_path_unref($1);
 
         if (coil_error_occurred()) {
+            CLEAR_PATH(YYCTX);
             YYERROR;
         }
     }
@@ -453,12 +456,10 @@ assignment_value
         CoilObject *container = PEEK_CONTAINER(YYCTX);
 
         if (!coil_struct_insert_path(container, YYCTX->path, $1, FALSE)) {
-            coil_path_unref(YYCTX->path);
-            YYCTX->path = NULL;
+            CLEAR_PATH(YYCTX);
             YYERROR;
         }
-        coil_path_unref(YYCTX->path);
-        YYCTX->path = NULL;
+        CLEAR_PATH(YYCTX);
     }
 ;
 
