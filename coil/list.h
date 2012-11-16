@@ -23,16 +23,70 @@
 
 #include "value.h"
 
-#define COIL_TYPE_LIST G_TYPE_VALUE_ARRAY
-#define CoilList GValueArray
+#define COIL_TYPE_LIST          \
+    (coil_list_get_type())
+
+#define COIL_LIST(obj) \
+    (G_TYPE_CHECK_INSTANCE_CAST((obj), COIL_TYPE_LIST, CoilList))
+
+#define COIL_IS_LIST(obj) \
+    (G_TYPE_CHECK_INSTANCE_TYPE((obj), COIL_TYPE_LIST))
+
+#define COIL_LIST_CLASS(klass) \
+    (G_TYPE_CHECK_CLASS_CAST((klass), COIL_TYPE_LIST, CoilListClass))
+
+#define COIL_IS_LIST_CLASS(klass) \
+    (G_TYPE_CHECK_CLASS_TYPE((klass), COIL_TYPE_LIST))
+
+#define COIL_LIST_GET_CLASS(obj) \
+    (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_LIST, CoilListClass))
+
+typedef struct _CoilList CoilList;
+typedef struct _CoilListClass CoilListClass;
+typedef struct _CoilListPrivate CoilListPrivate;
+
+struct _CoilList
+{
+    CoilObject parent_instance;
+    CoilListPrivate *priv;
+};
+
+struct _CoilListClass
+{
+    CoilObjectClass parent_class;
+};
 
 G_BEGIN_DECLS
 
-void
-coil_list_build_string(CoilList *list, GString *buffer, CoilStringFormat *format);
+GType
+coil_list_get_type(void) G_GNUC_CONST;
 
-gchar *
-coil_list_to_string(CoilList *list, CoilStringFormat *format);
+CoilObject *
+coil_list_new(void);
+
+CoilObject *
+coil_list_new_sized(guint n);
+
+guint
+coil_list_length(CoilObject *list);
+
+CoilObject *
+coil_list_append(CoilObject *list, CoilValue *value);
+
+CoilObject *
+coil_list_prepend(CoilObject *list, CoilValue *value);
+
+CoilObject *
+coil_list_insert(CoilObject *list, guint index, CoilValue *value);
+
+CoilValue *
+coil_list_get_index(CoilObject *list, guint index);
+
+CoilValue *
+coil_list_dup_index(CoilObject *list, guint index);
+
+CoilObject *
+coil_list_remove_range(CoilObject *list, guint i, guint n);
 
 G_END_DECLS
 

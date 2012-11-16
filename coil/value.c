@@ -27,11 +27,8 @@ G_DEFINE_TYPE(CoilNone, coil_none, G_TYPE_OBJECT);
 
 CoilNone *coil_none_object = NULL;
 
-static gint
-_compare_value_list(const GValue *v1, const GValue *v2);
-
 static void
-noneval_to_strval(const GValue *noneval, GValue *strval)
+noneval_to_strval(const CoilValue *noneval, CoilValue *strval)
 {
     g_return_if_fail(G_IS_VALUE(noneval));
     g_return_if_fail(G_IS_VALUE(strval));
@@ -51,16 +48,16 @@ coil_none_init(CoilNone *obj)
 {
 }
 
-GValue *
+CoilValue *
 coil_value_alloc(void)
 {
-    return g_slice_new0(GValue);
+    return g_slice_new0(CoilValue);
 }
 
-inline GValue *
-coil_value_copy(const GValue *value)
+inline CoilValue *
+coil_value_copy(const CoilValue *value)
 {
-    GValue *copy;
+    CoilValue *copy;
 
     g_return_val_if_fail(G_IS_VALUE(value), NULL);
 
@@ -70,40 +67,13 @@ coil_value_copy(const GValue *value)
     return copy;
 }
 
-GList *
-coil_value_list_copy(const GList *value_list)
-{
-    const GList  *list;
-    GList        *list_copy = NULL;
-    const GValue *value;
-    GValue       *value_copy;
-
-    for (list = g_list_last((GList *)value_list);
-         list; list = g_list_previous(list)) {
-        value = (GValue *)list->data;
-        value_copy = coil_value_copy(value);
-        list_copy = g_list_prepend(list_copy, value_copy);
-    }
-    return list_copy;
-}
-
 inline void
 coil_value_free(gpointer value)
 {
-    if (value == NULL)
-        return;
-
-    g_return_if_fail(G_IS_VALUE(value));
-    g_value_unset((GValue *)value);
-    g_slice_free(GValue, value);
-}
-
-void
-coil_value_list_free(GList *list)
-{
-    while (list) {
-        coil_value_free(list->data);
-        list = g_list_delete_link(list, list);
+    if (value != NULL) {
+        g_return_if_fail(G_IS_VALUE(value));
+        g_value_unset((CoilValue *)value);
+        g_slice_free(CoilValue, value);
     }
 }
 
@@ -175,15 +145,17 @@ buffer_string_append(GString *const buffer,
 }
 
 COIL_API(void)
-coil_value_build_string(const GValue *value,
+coil_value_build_string(const CoilValue *value,
     GString *const buffer, CoilStringFormat *format)
 {
     g_return_if_fail(value);
     g_return_if_fail(buffer);
-    g_return_if_fail(format);
 
     GType type;
 
+    if (format == NULL) {
+        format = &default_string_format;
+    }
     if (format->options & FORCE_EXPAND &&
         G_VALUE_HOLDS(value, COIL_TYPE_OBJECT) &&
         !coil_expand_value(value, &value, TRUE)) {
@@ -221,11 +193,6 @@ coil_value_build_string(const GValue *value,
             buffer_string_append(buffer, gstring->str, gstring->len, format);
             return;
         }
-        if (type == COIL_TYPE_LIST) {
-            CoilList *list = (CoilList *)g_value_get_boxed(value);
-            coil_list_build_string(list, buffer, format);
-            return;
-        }
         if (type == COIL_TYPE_PATH) {
             const CoilPath *path = (CoilPath *)g_value_get_boxed(value);
             g_string_append_len(buffer, path->str, path->len);
@@ -235,7 +202,7 @@ coil_value_build_string(const GValue *value,
 
 transform:
     if (g_value_type_transformable(type, G_TYPE_STRING)) {
-        GValue tmp = {0, };
+        CoilValue tmp = {0, };
 
         g_value_init(&tmp, G_TYPE_STRING);
         g_value_transform(value, &tmp);
@@ -244,7 +211,7 @@ transform:
         return;
     }
     if (g_value_type_compatible(type, G_TYPE_STRING)) {
-        GValue tmp = {0, };
+        CoilValue tmp = {0, };
 
         g_value_init(&tmp, G_TYPE_STRING);
         g_value_copy(value, &tmp);
@@ -257,43 +224,18 @@ transform:
 }
 
 COIL_API(gchar *)
-coil_value_to_string(const GValue *value, CoilStringFormat *format)
+coil_value_to_string(const CoilValue *value, CoilStringFormat *format)
 {
+    g_return_val_if_fail(value != NULL, NULL);
+
     GString *buffer = g_string_sized_new(128);
 
     coil_value_build_string(value, buffer, format);
-
-    return g_string_free(buffer, FALSE);
-}
-
-static gint
-_compare_value_list(const GValue *v1, const GValue *v2)
-{
-    g_return_val_if_fail(G_IS_VALUE(v1), -1);
-    g_return_val_if_fail(G_IS_VALUE(v2), -1);
-    g_return_val_if_fail(G_VALUE_HOLDS(v1, COIL_TYPE_LIST), -1);
-    g_return_val_if_fail(G_VALUE_HOLDS(v2, COIL_TYPE_LIST), -1);
-
-    GValueArray *x, *y;
-    guint n;
-
-    if (v1 == v2)
-        return 0;
-
-    x = (GValueArray *)g_value_get_boxed(v1);
-    y = (GValueArray *)g_value_get_boxed(v2);
-
-    if (x->n_values != y->n_values)
-        return 1;
-
-    n = x->n_values;
-    while (n-- > 0) {
-        v1 = g_value_array_get_nth(x, n);
-        v2 = g_value_array_get_nth(y, n);
-        if (coil_value_compare(v1, v2))
-            return 1;
+    if (coil_error_occurred()) {
+        g_string_free(buffer, TRUE);
+        return NULL;
     }
-    return 0;
+    return g_string_free(buffer, FALSE);
 }
 
 static void
@@ -317,7 +259,7 @@ g_string_compare(const GString *a, const GString *b)
 }
 
 static gint
-value_compare_as_fundamental(const GValue *v1, const GValue *v2)
+value_compare_as_fundamental(const CoilValue *v1, const CoilValue *v2)
 {
     g_return_val_if_fail(G_IS_VALUE(v1), -1);
     g_return_val_if_fail(G_IS_VALUE(v2), -1);
@@ -419,7 +361,6 @@ value_compare_as_fundamental(const GValue *v1, const GValue *v2)
 
                 a = COIL_OBJECT(g_value_get_object(v1));
                 b = COIL_OBJECT(g_value_get_object(v2));
-
                 return !(a == b || coil_object_equals(a, b));
             }
             break;
@@ -431,9 +372,6 @@ value_compare_as_fundamental(const GValue *v1, const GValue *v2)
                 s2 = (GString *)g_value_get_boxed(v2);
                 return g_string_compare(s1, s2);
             }
-            if (t1 == COIL_TYPE_LIST) {
-                return _compare_value_list(v1, v2);
-            }
             break;
         }
     }
@@ -442,7 +380,7 @@ value_compare_as_fundamental(const GValue *v1, const GValue *v2)
 }
 
 static gint
-value_compare_as_string(const GValue *v1, const GValue *v2)
+value_compare_as_string(const CoilValue *v1, const CoilValue *v2)
 {
     g_return_val_if_fail(G_IS_VALUE(v1), -1);
     g_return_val_if_fail(G_IS_VALUE(v2), -1);
@@ -482,7 +420,7 @@ value_compare_as_string(const GValue *v1, const GValue *v2)
 }
 
 COIL_API(gint)
-coil_value_compare(const GValue *v1, const GValue *v2)
+coil_value_compare(const CoilValue *v1, const CoilValue *v2)
 {
     GType t1, t2;
     gboolean expanded = FALSE;
@@ -515,3 +453,8 @@ start:
     return value_compare_as_string(v1, v2);
 }
 
+COIL_API(gboolean)
+coil_value_equals(const CoilValue *v1, const CoilValue *v2)
+{
+    return coil_value_compare(v1, v2) == 0;
+}

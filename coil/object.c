@@ -65,7 +65,10 @@ coil_object_to_string(CoilObject *self, CoilStringFormat *format)
 
     GString *buffer = g_string_sized_new(128);
     coil_object_build_string(self, buffer, format);
-
+    if (coil_error_occurred()) {
+        g_string_free(buffer, TRUE);
+        return NULL;
+    }
     return g_string_free(buffer, FALSE);
 }
 
@@ -120,6 +123,11 @@ coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
     CoilObjectClass *klass = COIL_OBJECT_GET_CLASS(self);
     const GValue *return_value = NULL;
 
+    if (klass->expand == NULL) {
+        /* *value_ptr = self_value */
+        return TRUE;
+    }
+
     /* TODO(jcon): notify container of expansion */
 
     if (!g_mutex_trylock(&priv->expand_lock)) {
@@ -168,6 +176,26 @@ coil_expand_value(const GValue *value, const GValue **return_value,
     CoilObject *object = COIL_OBJECT(g_value_get_object(value));
 
     return coil_expand(object, return_value, recursive);
+}
+
+COIL_API(CoilObject *)
+coil_value_get_object(const CoilValue *value)
+{
+    g_return_val_if_fail(value != NULL, NULL);
+    g_return_val_if_fail(G_IS_VALUE(value), NULL);
+    g_return_val_if_fail(G_VALUE_HOLDS(value, COIL_TYPE_OBJECT), NULL);
+
+    return COIL_OBJECT(g_value_get_object(value));
+}
+
+COIL_API(CoilObject *)
+coil_value_dup_object(const CoilValue *value)
+{
+    g_return_val_if_fail(value != NULL, NULL);
+    g_return_val_if_fail(G_IS_VALUE(value), NULL);
+    g_return_val_if_fail(G_VALUE_HOLDS(value, COIL_TYPE_OBJECT), NULL);
+
+    return COIL_OBJECT(g_value_dup_object(value));
 }
 
 COIL_API(CoilObject *)
@@ -354,47 +382,42 @@ coil_object_init(CoilObject *self)
 }
 
 static CoilObject *
-_object_copy(CoilObject *self, const gchar *first_property_name,
+object_copy(CoilObject *self, const gchar *first_property_name,
         va_list properties)
 {
-    g_error("Bad implementation of object->copy() in '%s' class.",
+    g_error("Missing implementation of object->copy() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
 
     return NULL;
 }
 
 static gboolean
-_object_is_expanded(CoilObject * self)
+object_is_expanded(CoilObject *self)
 {
-    g_error("Bad implementation of object->is_expanded() in '%s' class.",
-            G_OBJECT_CLASS_NAME(self));
-
-    return FALSE;
-}
-
-static gboolean
-_object_expand(CoilObject *self, const GValue **return_value)
-{
-    g_error("Bad implementation of object->expand() in '%s' class.",
+    CoilObjectClass *klass = COIL_OBJECT_CLASS(self);
+    if (klass->expand == NULL) {
+        return TRUE;
+    }
+    g_error("Missing implementation of object->is_expanded() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
 
     return FALSE;
 }
 
 static gint
-_object_equals(CoilObject * self, CoilObject * other)
+object_equals(CoilObject * self, CoilObject * other)
 {
-    g_error("Bad implementation of object->equals() in '%s' class.",
+    g_error("Missing implementation of object->equals() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
 
     return 0;
 }
 
 static void
-_object_build_string(CoilObject *self, GString *buffer,
+object_build_string(CoilObject *self, GString *buffer,
         CoilStringFormat *format)
 {
-    g_error("Bad implementation of object->build_string() in '%s' class.",
+    g_error("Missing implementation of object->build_string() in '%s' class.",
             G_OBJECT_CLASS_NAME(self));
 }
 
@@ -430,11 +453,12 @@ coil_object_class_init(CoilObjectClass *klass)
     /*
      * XXX: Override virtuals in sub-classes
      */
-    klass->copy = _object_copy;
-    klass->is_expanded = _object_is_expanded;
-    klass->expand = _object_expand;
-    klass->equals = _object_equals;
-    klass->build_string = _object_build_string;
+    klass->copy = object_copy;
+    klass->is_expanded = object_is_expanded;
+    klass->expand = NULL;
+    klass->equals = object_equals;
+    klass->build_string = object_build_string;
+
     /*
      * Properties
      */

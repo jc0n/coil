@@ -39,6 +39,8 @@ struct _CoilNoneClass
     GObjectClass parent_class;
 };
 
+typedef GValue CoilValue;
+
 /* block padding chars for string output */
 #define COIL_BLOCK_PADDING "    " /* 4 spaces */
 #define COIL_BLOCK_PADDING_LEN                                               \
@@ -67,11 +69,11 @@ G_BEGIN_DECLS
 GType
 coil_none_get_type(void) G_GNUC_CONST;
 
-GValue *
+CoilValue *
 coil_value_alloc(void);
 
-GValue *
-coil_value_copy(const GValue *value);
+CoilValue *
+coil_value_copy(const CoilValue *value);
 
 GList *
 coil_value_list_copy(const GList *value_list);
@@ -86,14 +88,17 @@ void
 free_string_list(GList *list);
 
 void
-coil_value_build_string(const GValue *value, GString *const buffer,
+coil_value_build_string(const CoilValue *value, GString *const buffer,
         CoilStringFormat *format);
 
 gchar *
-coil_value_to_string(const GValue *value, CoilStringFormat *format);
+coil_value_to_string(const CoilValue *value, CoilStringFormat *format);
 
 gint
-coil_value_compare(const GValue *v1, const GValue *v2);
+coil_value_compare(const CoilValue *v1, const CoilValue *v2);
+
+gboolean
+coil_value_equals(const CoilValue *v1, const CoilValue *v2);
 
 G_END_DECLS
 

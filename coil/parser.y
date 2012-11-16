@@ -44,12 +44,7 @@
 #define PUSH_CONTAINER(parser, c)                               \
   g_queue_push_head(&(parser)->containers, (c))
 
-#define CLEAR_PATH(parser)                                      \
-    G_STMT_START {                                              \
-        coil_path_unrefx(parser->path);                         \
-        parser->path = NULL;                                    \
-    } G_STMT_END
-
+#define CLEAR_PATH(parser) CLEAR(parser->path, coil_path_unref)
 
 void
 yyerror(YYLTYPE *yylocp, CoilParser *parser, const gchar *msg);
@@ -233,35 +228,23 @@ parser_pop_container(CoilParser *parser)
     case 3. @include: [[filename [paths...]]...]
 */
 static gboolean
-parser_handle_include(CoilParser *parser, CoilLocation *location,
-    GList *include_args)
+make_file_include(CoilParser *parser, CoilLocation *location,
+    CoilObject *include_args)
 {
     g_return_val_if_fail(parser, FALSE);
     g_return_val_if_fail(location, FALSE);
 
-    CoilObject *include;
-    CoilObject *container = PEEK_CONTAINER(parser);
-    GValue *file_value, *import;
-    GValueArray *imports;
-    gsize i, n;
+    CoilObject *include, *container, *imports;
+    GValue *file_value;
 
-    if (include_args == NULL) {
+    if (include_args == NULL || coil_list_length(include_args) == 0) {
         set_parse_error(parser, location,
             "No filename specified for file include.");
         return FALSE;
     }
-
-    file_value = (GValue *)include_args->data;
-    include_args = g_list_delete_link(include_args, include_args);
-
-    n = g_list_length(include_args);
-    imports = g_value_array_new(n);
-
-    for (i = 0; i < n; i++) {
-        import = (GValue *)include_args->data;
-        imports = g_value_array_insert(imports, i, import);
-        include_args = g_list_delete_link(include_args, include_args);
-    }
+    container = PEEK_CONTAINER(parser);
+    file_value = coil_list_dup_index(include_args, 0);
+    imports = coil_list_remove_range(include_args, 0, 1);
 
     g_assert(container != NULL);
 
@@ -336,12 +319,11 @@ parser_make_path_from_string(CoilParser *parser, GString *gstring)
 
 %union {
     CoilPath    *path;
-    GValue      *value;
+    CoilValue   *value;
     glong        longint;
     gdouble      doubleval;
     GList       *path_list;
-    GList       *value_list;
-    GValueArray *value_array;
+    CoilObject  *object;
     GString     *gstring;
 }
 
@@ -357,18 +339,19 @@ parser_make_path_from_string(CoilParser *parser, GString *gstring)
 %type <path_list> path_list_comma_items
 %type <path_list> path_list_spaced
 
-%type <value_array> value_list
-%type <value_list> value_list_contents
-%type <value_list> value_list_items
-%type <value_list> value_list_items_comma
+%type <object> list
+%type <object> list_items
+%type <object> list_values
+%type <object> list_values_with_comma
 
 %type <value> include_import_path
-%type <value_list> include_arglist
-%type <value_list> include_args
-%type <value_list> include_file
-%type <value_list> include_import_list
-%type <value_list> include_import_list_comma
-%type <value_list> include_import_list_spaced
+%type <value> include_file_value
+
+%type <object> include_arglist
+%type <object> include_args
+%type <object> include_import_list
+%type <object> include_import_list_comma
+%type <object> include_import_list_spaced
 
 %type <doubleval> DOUBLE
 %type <longint> INTEGER
@@ -388,8 +371,7 @@ parser_make_path_from_string(CoilParser *parser, GString *gstring)
 %destructor { coil_path_unref($$); } <path>
 %destructor { coil_path_list_free($$); } <path_list>
 %destructor { coil_value_free($$); } <value>
-%destructor { coil_value_list_free($$); } <value_list>
-%destructor { g_value_array_free($$); } <value_array>
+%destructor { coil_object_unref($$); } <object>
 
 %start coil
 
@@ -503,7 +485,7 @@ container_context
 
 builtin_property
     : extend_property
-    | include_property
+    | include_declaration
 ;
 
 extend_property_declaration
@@ -522,31 +504,48 @@ extend_property
     }
 ;
 
-include_declaration
+include_begin
     : INCLUDE_SYM
     | INCLUDE_SYM ':' /* compat */
 ;
 
-include_property
-    : include_declaration include_args {
-        if (!parser_handle_include(YYCTX, &@$, $2)) {
+include_declaration
+    : include_begin include_args {
+        if (!make_file_include(YYCTX, &@$, $2)) {
             YYERROR;
         }
     }
 ;
 
 include_args
-    : include_file { $$ = $1; }
+    : include_file_value {
+        $$ = coil_list_new();
+        if ($$ == NULL) {
+            YYERROR;
+        }
+        $$ = coil_list_append($$, $1);
+    }
     | include_arglist { $$ = $1; }
 ;
 
-include_file
-    : link { $$ = g_list_prepend(NULL, $1); }
-    | string { $$ = g_list_prepend(NULL, $1); }
+include_file_value
+    : link
+    | string
 ;
 
 include_arglist
-    : '[' include_file include_import_list ']' { $$ = g_list_concat($2, $3); }
+    : '[' include_file_value include_import_list ']' {
+        if ($3 != NULL) {
+            $$ = coil_list_prepend($3, $2);
+        }
+        else {
+            $$ = coil_list_new();
+            if ($$ == NULL) {
+                YYERROR;
+            }
+            $$ = coil_list_append($$, $2);
+        }
+    }
 ;
 
 include_import_list
@@ -557,16 +556,28 @@ include_import_list
 ;
 
 include_import_list_spaced
-    : include_import_path { $$ = g_list_prepend(NULL, $1); }
+    : include_import_path {
+        $$ = coil_list_new();
+        if ($$ == NULL) {
+            YYERROR;
+        }
+        $$ = coil_list_append($$, $1);
+    }
     | include_import_list_spaced include_import_path {
-        $$ = g_list_prepend($1, $2);
+        $$ = coil_list_append($1, $2);
     }
 ;
 
 include_import_list_comma
-    : include_import_path { $$ = g_list_prepend(NULL, $1); }
+    : include_import_path {
+        $$ = coil_list_new();
+        if ($$ == NULL) {
+            YYERROR;
+        }
+        $$ = coil_list_append($$, $1);
+    }
     | include_import_list_comma ',' include_import_path {
-        $$ = g_list_prepend($1, $3);
+        $$ = coil_list_append($1, $3);
     }
 ;
 
@@ -631,45 +642,55 @@ path_list_comma_items
     | path_list_comma_items ',' path { $$ = g_list_prepend($1, $3); }
 ;
 
-value_list
-    : '[' ']' { $$ = g_value_array_new(0); }
-    | '[' value_list_contents ']' {
-        /* value list is backed with a g_value_array
-        XXX: this may change soon */
-        gsize i, n = g_list_length($2);
-        GList *list = g_list_last($2);
-
-        $$ = g_value_array_new(n);
-        /* list is reversed so restore order here */
-        for (i = 0; i < n; i++) {
-            GValue *value = (GValue *)list->data;
-            g_value_array_insert($$, i, value);
-            list = g_list_previous(list);
-        }
+list
+    : '[' list_items ']' {
+        $$ = $2;
     }
 ;
 
-value_list_contents
-    : value_list_items_comma { $$ = $1; }
-    | value_list_items_comma value { $$ = g_list_prepend($1, $2); }
-    | value_list_items { $$ = $1; }
+list_items
+    : /* empty */ {
+        $$ = coil_list_new();
+    }
+    | list_values_with_comma {
+        $$ = $1;
+    }
+    | list_values_with_comma value {
+        $$ = $1;
+        coil_list_append($1, $2);
+    }
+    | list_values {
+        $$ = $1;
+    }
 ;
 
-value_list_items
-    : value { $$ = g_list_prepend(NULL, $1); }
-    | value_list_items value { $$ = g_list_prepend($1, $2); }
+list_values
+    : value {
+        $$ = coil_list_new();
+        coil_list_append($$, $1);
+    }
+    | list_values value {
+        $$ = $1;
+        coil_list_append($1, $2);
+    }
 ;
 
-value_list_items_comma
-    : value ',' { $$ = g_list_prepend(NULL, $1); }
-    | value_list_items_comma value ',' { $$ = g_list_prepend($1, $2); }
+list_values_with_comma
+    : value ',' {
+        $$ = coil_list_new();
+        coil_list_append($$, $1);
+    }
+    | list_values_with_comma value ',' {
+        $$ = $1;
+        coil_list_append($1, $2);
+    }
 ;
 
 value
     : primative { $$ = $1; }
     | string { $$ = $1; }
     | link { $$ = $1; }
-    | value_list { coil_value_init($$, COIL_TYPE_LIST, take_boxed, $1); }
+    | list { coil_value_init($$, COIL_TYPE_LIST, take_object, $1); }
 ;
 
 path

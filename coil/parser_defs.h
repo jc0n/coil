@@ -25,6 +25,7 @@
 
 #include "error.h"
 #include "struct.h"
+#include "list.h"
 
 #define YYLTYPE CoilLocation
 #define YYLTYPE_IS_DECLARED 1

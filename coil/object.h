@@ -44,6 +44,7 @@
         (G_TYPE_INSTANCE_GET_CLASS((obj), COIL_TYPE_OBJECT, \
           CoilObjectClass))
 
+/* FIXME: make these functions */
 #define coil_object_ref(obj) g_object_ref(G_OBJECT(obj))
 #define coil_object_unref(obj) g_object_unref(G_OBJECT(obj))
 
@@ -69,6 +70,7 @@ struct _CoilObjectClass
 {
     GObjectClass parent_class;
 
+    /* FIXME: consider removing set_path and using set_container to update path instead */
     void (*set_path) (CoilObject *self, CoilPath *path);
     void (*set_container) (CoilObject *self, CoilObject *container);
 
@@ -137,6 +139,12 @@ gboolean
 coil_expand(CoilObject *object, const GValue **return_value,
         gboolean recursive);
 
+
+CoilObject *
+coil_value_get_object(const CoilValue *value);
+
+CoilObject *
+coil_value_dup_object(const CoilValue *value);
 
 /* TODO(jcon)
 CoilObject *
