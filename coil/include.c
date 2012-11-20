@@ -110,7 +110,7 @@ cache_entry_free(CacheEntry *entry)
     g_return_if_fail(entry);
 
     g_hash_table_remove(include_cache, entry->filepath);
-    g_object_unref(entry->root);
+    CLEAR(entry->root, coil_object_unref);
     g_free(entry->filepath);
     g_free(entry);
 }
@@ -123,8 +123,9 @@ cache_gc_notify(gpointer data, GObject *object_address)
     gchar *filepath = (gchar *)data;
     CacheEntry *entry = g_hash_table_lookup(include_cache, filepath);
 
-    if (entry && g_atomic_int_dec_and_test(&entry->ref_count))
+    if (entry && g_atomic_int_dec_and_test(&entry->ref_count)) {
         cache_entry_free(entry);
+    }
 }
 
 static void
@@ -145,9 +146,8 @@ cache_save(GObject *object, const gchar *filepath, CoilObject *root)
         entry = g_new(CacheEntry, 1);
         entry->ref_count = 1;
         entry->filepath = g_strdup(filepath);
-        entry->root = g_object_ref(root);
+        entry->root = coil_object_ref(root);
         entry->m_time = st.st_mtime;
-
         g_hash_table_insert(include_cache, entry->filepath, entry);
     }
     g_object_weak_ref(object, cache_gc_notify, entry->filepath);
@@ -161,17 +161,14 @@ cache_load(gpointer _notify, const gchar *filepath)
 
     GObject *notify = G_OBJECT(_notify);
     CacheEntry *entry;
-    CoilObject *root;
+    CoilObject *root = NULL;
     struct stat st;
 
     entry = g_hash_table_lookup(include_cache, filepath);
     if (entry == NULL) {
         root = coil_parse_file(filepath);
         if (coil_error_occurred()) {
-            if (root != NULL) {
-                coil_object_unref(root);
-            }
-            return NULL;
+            goto error;
         }
         cache_save(notify, filepath, root);
         return root;
@@ -179,22 +176,23 @@ cache_load(gpointer _notify, const gchar *filepath)
     if (stat(filepath, &st) < 0) {
         coil_set_error(COIL_ERROR_INTERNAL, NULL,
                 "Cannot stat include file '%s'.", filepath);
-        return NULL;
+        goto error;
     }
     if (st.st_mtime != entry->m_time) {
         root = coil_parse_file(filepath);
         if (coil_error_occurred()) {
-            if (root != NULL) {
-                coil_object_unref(root);
-            }
             cache_entry_free(entry);
-            return NULL;
+            goto error;
         }
-        g_object_unref(entry->root);
+        coil_object_unref(root);
         entry->root = root;
         entry->m_time = st.st_mtime;
     }
-    return g_object_ref(entry->root);
+    return coil_object_ref(entry->root);
+
+error:
+    CLEAR(root, coil_object_unref);
+    return NULL;
 }
 #define CACHE_INIT() cache_init()
 
@@ -308,8 +306,9 @@ expand_file_value(CoilObject *self)
     }
 
     filepath = find_include_path(self, filepath);
-    if (filepath == NULL)
+    if (filepath == NULL) {
         return NULL;
+    }
 
     g_value_unset(file_value);
     g_value_init(file_value, G_TYPE_STRING);
@@ -328,7 +327,7 @@ get_root(CoilObject *self)
     const gchar *filepath;
 
     if (priv->root) {
-        return priv->root;
+        return coil_object_ref(priv->root);
     }
     if (priv->is_expanded) {
         g_error("Include is expanded but no root is available.");
@@ -342,7 +341,7 @@ get_root(CoilObject *self)
         return NULL;
     }
     priv->root = root;
-    return root;
+    return coil_object_ref(root);
 }
 
 static gboolean
@@ -465,16 +464,16 @@ process_import(CoilObject *self, CoilValue *import)
     }
     root = get_root(self);
     if (root == NULL) {
-        return FALSE;
+        goto err;
     }
     if (self->container && G_VALUE_HOLDS(import, COIL_TYPE_OBJECT)) {
         CoilObject *obj;
 
-        obj = COIL_OBJECT(g_value_dup_object(import));
+        obj = coil_value_dup_object(import);
         coil_object_set_container(obj, self->container);
         if (coil_error_occurred()) {
             coil_object_unref(obj);
-            return FALSE;
+            goto err;
         }
         coil_object_unref(obj);
     }
@@ -494,10 +493,12 @@ process_import(CoilObject *self, CoilValue *import)
     if (!copy_into_namespace(self, path, value)) {
         goto err;
     }
-    coil_path_unref(path);
+    CLEAR(root, coil_object_unref);
+    CLEAR(path, coil_path_unref);
     return TRUE;
 
 err:
+    CLEAR(root, coil_object_unref);
     CLEAR(path, coil_path_unref);
     return FALSE;
 }
@@ -531,6 +532,7 @@ include_expand(CoilObject *self, const CoilValue **return_value)
 
     CoilIncludePrivate *priv = COIL_INCLUDE(self)->priv;
     CoilObject *import_list = IMPORT_LIST(self);
+    CoilObject *root = NULL;
 
     if (priv->is_expanded) {
         g_assert(priv->namespace_value);
@@ -540,26 +542,33 @@ include_expand(CoilObject *self, const CoilValue **return_value)
     }
     if (coil_list_length(import_list) > 0) {
         /* selective imports */
-        priv->namespace = coil_struct_new(NULL);
+        priv->namespace = coil_struct_new(NULL, NULL);
         coil_value_init(priv->namespace_value, COIL_TYPE_STRUCT,
                 set_object, priv->namespace);
         if (!process_import_list(self, import_list)) {
-            return FALSE;
+            goto error;
         }
     }
     else {
         /* import everything */
-        CoilObject *root = get_root(self);
-        if (root == NULL) {
-            return FALSE;
+        root = get_root(self);
+        if (coil_error_occurred()) {
+            goto error;
         }
-        priv->namespace = coil_object_ref(root);
+        priv->namespace = root;
         coil_value_init(priv->namespace_value, COIL_TYPE_STRUCT,
                 set_object, priv->namespace);
     }
     priv->is_expanded = TRUE;
     *return_value = priv->namespace_value;
     return TRUE;
+error:
+    *return_value = NULL;
+    priv->is_expanded = FALSE;
+    CLEAR(priv->namespace_value, coil_value_free);
+    CLEAR(priv->namespace, coil_object_unref);
+    CLEAR(root, coil_object_unref);
+    return FALSE;
 }
 
 static void
@@ -645,6 +654,7 @@ coil_include_dispose(GObject *object)
 {
     CoilIncludePrivate *priv = COIL_INCLUDE(object)->priv;
 
+    CLEAR(priv->root, coil_object_unref);
     CLEAR(priv->file_value, coil_value_free);
     CLEAR(priv->imports, coil_object_unref);
     CLEAR(priv->namespace, coil_object_unref);

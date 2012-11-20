@@ -164,14 +164,8 @@ clear_entry(StructEntry *entry)
 {
     g_return_if_fail(entry);
 
-    if (G_LIKELY(entry->path)) {
-        coil_path_unref(entry->path);
-        entry->path = NULL;
-    }
-    if (entry->value) {
-        coil_value_free(entry->value);
-        entry->value = NULL;
-    }
+    CLEAR(entry->path, coil_path_unref);
+    CLEAR(entry->value, coil_value_free);
     entry->next = NULL;
 }
 
@@ -257,7 +251,7 @@ struct_table_insert(StructTable *table, CoilPath *path, GValue *value)
         clear_entry(*bucket);
     }
     entry = *bucket;
-    entry->path = coil_path_ref(path);
+    entry->path = path;
     entry->value = value;
 
     table->size++;

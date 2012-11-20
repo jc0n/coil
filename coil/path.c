@@ -912,8 +912,7 @@ coil_path_pop(CoilPath *path, int i)
         if (len == 0) {
             return coil_path_ref(path);
         }
-        p = g_strndup(path->str, len);
-        return coil_path_take_string(p, len);
+        return coil_path_new_len(path->str, len);
     }
     else {
         /* remove i keys from the tail of the path */

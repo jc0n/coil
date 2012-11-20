@@ -26,9 +26,9 @@
 %option never-interactive
 
 %{
-#define YY_USER_ACTION {                                                     \
-        yylloc->line = yylineno;                                             \
-        yylloc->filepath = (gchar *)yyextra->filepath;                       \
+#define YY_USER_ACTION {                                                 \
+    yylloc->line = yylineno;                                             \
+    yylloc->filepath = (yyextra) ? (gchar *)yyextra->filepath : NULL;    \
 }
 
 #include "common.h"
@@ -99,7 +99,7 @@ G_STMT_START {                                                               \
         path_length_error(yytext, yyleng);                                   \
         return ERROR;                                                        \
     }                                                                        \
-    yylval->path = coil_path_take_string(g_strndup(yytext, yyleng), yyleng); \
+    yylval->path = coil_path_new_len(yytext, yyleng);                        \
 } G_STMT_END
 
 %}

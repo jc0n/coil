@@ -136,10 +136,9 @@ coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
         coil_struct_error(container, "Cycle detected during expansion");
         goto error;
     }
-
-    if (!klass->expand(self, &return_value))
+    if (!klass->expand(self, &return_value)) {
         goto error;
-
+    }
     if (recursive && return_value /* want to expand return value */
             && (value_ptr == NULL /* caller doesnt care about return value */
                 || return_value != *value_ptr) /* prevent expand cycle on same value */
@@ -153,9 +152,9 @@ coil_expand(CoilObject *object, const GValue **value_ptr, gboolean recursive)
     }
     g_mutex_unlock(&priv->expand_lock);
 
-    if (value_ptr && return_value)
+    if (value_ptr && return_value) {
         *value_ptr = return_value;
-
+    }
     return TRUE;
 
 error:
@@ -248,7 +247,7 @@ coil_object_set_property(GObject *object,
             break;
         }
         case PROP_PATH: {
-            CoilPath *path = (CoilPath *)g_value_dup_boxed(value);
+            CoilPath *path = (CoilPath *)g_value_get_boxed(value);
             if (path) {
                 g_object_freeze_notify(object);
                 coil_object_set_path(COIL_OBJECT(object), path);
@@ -355,7 +354,7 @@ coil_object_set_path(CoilObject *object, CoilPath *path)
     if (klass->set_path != NULL) {
         klass->set_path(object, path);
     }
-    object->path = path;
+    object->path = coil_path_ref(path);
 #if GLIB_MAJOR_VERSION >= 2 && GLIB_MINOR_VERSION >= 6
     g_object_notify_by_pspec(G_OBJECT(object), properties[PROP_PATH]);
 #else
@@ -429,6 +428,10 @@ coil_object_finalize(GObject *object)
 
     /* TODO(jcon): refactor */
     g_free(self->location.filepath);
+
+    CLEAR(self->path, coil_path_unref);
+
+    G_OBJECT_CLASS(coil_object_parent_class)->finalize(object);
 }
 
 inline void

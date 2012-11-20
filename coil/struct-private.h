@@ -27,13 +27,8 @@ coil_struct_set_prototype(CoilObject *self, gboolean prototype);
 void
 coil_struct_set_accumulate(CoilObject *self, gboolean accumulate);
 
-gboolean
-finalize_prototype(CoilObject *self, gpointer unused);
-
-
-CoilObject *
-_coil_create_containers(CoilObject *self, CoilPath *path,
-        gboolean prototype, gboolean has_lookup);
+void
+promote_prototype(CoilObject *self);
 
 gboolean
 coil_struct_mark_deleted_path(CoilObject *self, CoilPath *path, gboolean force);

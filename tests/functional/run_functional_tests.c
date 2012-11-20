@@ -150,9 +150,7 @@ expect_fail(const gchar *filepath)
 
     root = coil_parse_file(filepath);
     if (coil_error_occurred()) {
-        if (root != NULL) {
-            coil_object_unref(root);
-        }
+        CLEAR(root, coil_object_unref);
         g_assert(TRUE);
         coil_error_clear();
         return;
@@ -160,9 +158,9 @@ expect_fail(const gchar *filepath)
     /* expand file to catch intentional expand errors */
     /* TODO: add specific error checking */
     coil_struct_expand_items(root, TRUE);
+    CLEAR(root, coil_object_unref);
     g_assert(coil_error_occurred());
     coil_error_clear();
-    coil_object_unref(root);
 }
 
 static void

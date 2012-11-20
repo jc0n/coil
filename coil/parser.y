@@ -76,6 +76,7 @@ handle_internal_error(CoilParser *parser)
         parser->errors = g_list_prepend(parser->errors, copy);
         coil_error_clear();
     }
+    CLEAR_PATH(parser);
 }
 
 static char _parse_errors[] = "Parse Errors: \n";
@@ -168,8 +169,7 @@ handle_undefined_prototypes(CoilParser *parser)
             lp->data = prototype->path;
             /* cast the prototype to an empty struct
                to allow continue despite errors */
-            coil_struct_foreach_ancestor(prototype, TRUE,
-                (CoilStructFunc)finalize_prototype, NULL);
+            promote_prototype(prototype);
         }
 
         /* sort by path and build error message */
@@ -191,23 +191,26 @@ parser_post_processing(CoilParser *parser)
 {
     g_return_val_if_fail(parser != NULL, FALSE);
 
-    if (!handle_undefined_prototypes(parser))
-        return FALSE;
-
-    return TRUE;
+    return handle_undefined_prototypes(parser);
 }
 
 static gboolean
 parser_push_container(CoilParser *parser)
 {
-    CoilObject *new, *container = PEEK_CONTAINER(parser);
+    CoilObject *container, *parent;
 
-    new = _coil_create_containers(container, parser->path, FALSE, FALSE);
-    if (new == NULL) {
+    parent = PEEK_CONTAINER(parser);
+    container = coil_struct_new(
+        "container", parent,
+        "path", parser->path,
+        "is_prototype", FALSE,
+        NULL);
+    if (coil_error_occurred()) {
         return FALSE;
     }
-    coil_struct_set_accumulate(new, TRUE);
-    PUSH_CONTAINER(parser, new);
+    coil_struct_set_accumulate(container, TRUE);
+    PUSH_CONTAINER(parser, container);
+    CLEAR_PATH(parser);
     return TRUE;
 }
 
@@ -218,6 +221,7 @@ parser_pop_container(CoilParser *parser)
 
     coil_struct_set_accumulate(container, FALSE);
     coil_object_unref(container);
+    CLEAR_PATH(parser);
 }
 
 /* arguments can take the following form..
@@ -332,8 +336,9 @@ parser_make_path_from_string(CoilParser *parser, GString *gstring)
 %type <path> RELATIVE_PATH
 %type <path> ROOT_PATH
 %type <path> path
-%type <path> pathstring
+%type <path> path_string
 
+%type <path_list> container_parents
 %type <path_list> path_list
 %type <path_list> path_list_comma
 %type <path_list> path_list_comma_items
@@ -361,17 +366,17 @@ parser_make_path_from_string(CoilParser *parser, GString *gstring)
 
 %type <value> link
 %type <value> link_path
-%type <value> pathstring_value
+%type <value> path_string_value
 %type <value> primative
 %type <value> string
 %type <value> value
 
-%destructor { g_free($$); } <string>
-%destructor { g_string_free($$, TRUE); } <gstring>
-%destructor { coil_path_unref($$); } <path>
-%destructor { coil_path_list_free($$); } <path_list>
-%destructor { coil_value_free($$); } <value>
-%destructor { coil_object_unref($$); } <object>
+%destructor { CLEAR($$, g_free); } <string>
+%destructor { CLEAR($$, g_string_free, TRUE); } <gstring>
+%destructor { CLEAR($$, coil_path_unref); } <path>
+%destructor { CLEAR($$, coil_path_list_free); } <path_list>
+%destructor { CLEAR($$, coil_value_free); } <value>
+%destructor { CLEAR($$, coil_object_unref); } <object>
 
 %start coil
 
@@ -385,13 +390,10 @@ context
     : /* empty */
     | context statement
     |  error {
-        CoilObject *container = PEEK_CONTAINER(YYCTX);
-
-        if (!coil_struct_is_root(container)) {
+        if (!coil_struct_is_root(PEEK_CONTAINER(YYCTX))) {
             parser_pop_container(YYCTX);
         }
         handle_internal_error(YYCTX);
-        CLEAR_PATH(YYCTX);
     }
 ;
 
@@ -403,12 +405,11 @@ statement
 
 deletion
     : '~' RELATIVE_PATH {
-        CoilObject *container = PEEK_CONTAINER(YYCTX);
-
-        if (!coil_struct_mark_deleted_path(container, $2, FALSE)) {
+        coil_struct_mark_deleted_path(PEEK_CONTAINER(YYCTX), $2, FALSE);
+        CLEAR($2, coil_path_unref);
+        if (coil_error_occurred()) {
             YYERROR;
         }
-        coil_path_unref($2);
     }
 ;
 
@@ -423,10 +424,9 @@ assignment_path
         /* resolve path to prevent doing this more than once in other places */
         CLEAR_PATH(YYCTX);
         YYCTX->path = coil_path_resolve($1, container->path);
-        coil_path_unref($1);
+        CLEAR($1, coil_path_unref);
 
         if (coil_error_occurred()) {
-            CLEAR_PATH(YYCTX);
             YYERROR;
         }
     }
@@ -435,72 +435,58 @@ assignment_path
 assignment_value
     : container
     | value {
-        CoilObject *container = PEEK_CONTAINER(YYCTX);
+        coil_struct_insert_path(PEEK_CONTAINER(YYCTX), YYCTX->path, $1, FALSE);
+        CLEAR_PATH(YYCTX);
 
-        if (!coil_struct_insert_path(container, YYCTX->path, $1, FALSE)) {
-            CLEAR_PATH(YYCTX);
+        if (coil_error_occurred()) {
             YYERROR;
         }
-        CLEAR_PATH(YYCTX);
     }
 ;
 
-container
-    : container_declaration {
-        CoilObject *container = PEEK_CONTAINER(YYCTX);
+container_parents
+    : /* empty */ { $$ = NULL; }
+    | path_list_comma { $$ = $1; }
+;
 
-        if (!coil_struct_is_root(container)) {
+container
+    : container_parents '{' {
+        CoilObject *context = PEEK_CONTAINER(YYCTX);
+
+        if (!parser_push_container(YYCTX)) {
+            YYERROR;
+        }
+        if ($1 != NULL) {
+            coil_struct_extend_paths(PEEK_CONTAINER(YYCTX), $1, context);
+            CLEAR($1, coil_path_list_free);
+            if (coil_error_occurred()) {
+                YYERROR;
+            }
+        }
+    } context '}' {
+        if (!coil_struct_is_root(PEEK_CONTAINER(YYCTX))) {
             parser_pop_container(YYCTX);
         }
     }
 ;
 
-container_declaration
-    : container_context_inherit
-    | container_context
-;
-
-container_context_inherit
-    : path_list_comma '{' {
-        CoilObject *context = PEEK_CONTAINER(YYCTX), *container;
-
-        if (!parser_push_container(YYCTX)) {
-            YYERROR;
-        }
-        container = PEEK_CONTAINER(YYCTX);
-        if (!coil_struct_extend_paths(container, $1, context)) {
-            YYERROR;
-        }
-        coil_path_list_free($1);
-    } context '}'
-;
-
-container_context
-    : '{' {
-        if (!parser_push_container(YYCTX)) {
-            YYERROR;
-        }
-    } context '}'
-;
-
 builtin_property
     : extend_property
-    | include_declaration
+    | include_property
 ;
 
-extend_property_declaration
+extend_begin
     : EXTEND_SYM
     | EXTEND_SYM ':' /* compat */
 ;
 
 extend_property
-    : extend_property_declaration path_list {
-        CoilObject *container = PEEK_CONTAINER(YYCTX);
-
-        if (!coil_struct_extend_paths(container, $2, NULL)) {
+    : extend_begin path_list {
+        coil_struct_extend_paths(PEEK_CONTAINER(YYCTX), $2, NULL);
+        CLEAR($2, coil_path_list_free);
+        if (coil_error_occurred()) {
             YYERROR;
         }
-        coil_path_list_free($2);
     }
 ;
 
@@ -509,7 +495,7 @@ include_begin
     | INCLUDE_SYM ':' /* compat */
 ;
 
-include_declaration
+include_property
     : include_begin include_args {
         if (!make_file_include(YYCTX, &@$, $2)) {
             YYERROR;
@@ -583,7 +569,7 @@ include_import_list_comma
 
 include_import_path
     : link { $$ = $1; }
-    | pathstring_value { $$ = $1; }
+    | path_string_value { $$ = $1; }
 ;
 
 link
@@ -610,11 +596,11 @@ link_path
     }
 ;
 
-pathstring_value
-    : pathstring { coil_value_init($$, COIL_TYPE_PATH, take_boxed, $1); }
+path_string_value
+    : path_string { coil_value_init($$, COIL_TYPE_PATH, take_boxed, $1); }
 ;
 
-pathstring
+path_string
     : STRING_LITERAL {
         if (!($$ = parser_make_path_from_string(YYCTX, $1))) {
             YYERROR;
@@ -836,18 +822,12 @@ coil_parser_finish(CoilParser *parser)
     g_signal_remove_emission_hook(g_signal_lookup("create", COIL_TYPE_STRUCT),
                                   parser->prototype_hook_id);
 
-    g_hash_table_destroy(parser->prototypes);
-
     while ((container = g_queue_pop_head(&parser->containers))) {
         coil_object_unref(container);
     }
-    coil_path_unrefx(parser->path);
     if (parser->do_buffer_gc) {
         yy_delete_buffer((YY_BUFFER_STATE)parser->buffer_state,
                          (yyscan_t)parser->scanner);
-    }
-    if (parser->scanner) {
-        yylex_destroy((yyscan_t)parser->scanner);
     }
     if (parser->errors != NULL) {
         collect_parse_errors(parser);
@@ -856,9 +836,10 @@ coil_parser_finish(CoilParser *parser)
             parser->errors = g_list_delete_link(parser->errors, parser->errors);
         }
     }
-    if (parser->filepath) {
-        g_free(parser->filepath);
-    }
+    CLEAR(parser->prototypes, g_hash_table_destroy);
+    CLEAR(parser->path, coil_path_unref);
+    CLEAR(parser->scanner, yylex_destroy);
+    CLEAR(parser->filepath, g_free);
     return parser->root;
 }
 
