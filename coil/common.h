@@ -54,6 +54,12 @@
 #define COIL_TYPE_DOUBLE G_TYPE_DOUBLE
 #define COIL_TYPE_STRING G_TYPE_STRING
 
+#define CLEAR(p, destroy_func, args...)     \
+    if ((p) != NULL) {                      \
+        destroy_func(p, ##args);            \
+        p = NULL;                           \
+    }
+
 G_BEGIN_DECLS
 
 void
