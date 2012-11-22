@@ -81,6 +81,15 @@ run_tests(void)
     return result;
 }
 
+#define CHECK_ERROR()                           \
+    G_STMT_START {                              \
+        if (coil_error_occurred()) {            \
+            GError *_err = NULL;                \
+            coil_get_error(&_err);              \
+            g_assert_no_error(_err);            \
+        }                                       \
+    } G_STMT_END
+
 static void
 expect_pass(const gchar *filepath)
 {
@@ -89,22 +98,22 @@ expect_pass(const gchar *filepath)
     const GValue *test, *expected;
 
     root = coil_parse_file(filepath);
-    g_assert(!coil_error_occurred());
+    CHECK_ERROR();
 
     test = coil_struct_lookup(root, TEST_KEY_NAME,
             sizeof(TEST_KEY_NAME)-1, FALSE);
-    g_assert(!coil_error_occurred());
+    CHECK_ERROR();
 
     expected = coil_struct_lookup(root, EXPECTED_KEY_NAME,
             sizeof(EXPECTED_KEY_NAME)-1, FALSE);
-    g_assert(!coil_error_occurred());
+    CHECK_ERROR();
 
     if (test == NULL && expected == NULL) {
         /* just check syntax
          * expand everything to catch expand errors
          */
         coil_struct_expand_items(root, TRUE);
-        g_assert(!coil_error_occurred());
+        CHECK_ERROR();
     }
     else if (test == NULL) {
         g_error("Must specify '%s' in coil pass test file.", TEST_KEY_NAME);
@@ -123,6 +132,7 @@ expect_pass(const gchar *filepath)
         if (!coil_error_occurred()) {
             string = coil_object_to_string(root, &format);
         }
+        CHECK_ERROR();
         if (coil_get_error(&error)) {
             g_print("Failed: \n\n%s\n", error->message);
             g_assert(error != NULL);
