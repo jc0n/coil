@@ -85,6 +85,9 @@ coil_list_get_index(CoilObject *list, guint index);
 CoilValue *
 coil_list_dup_index(CoilObject *list, guint index);
 
+COIL_API(CoilObject *)
+coil_list_remove(CoilObject *list, guint index);
+
 CoilObject *
 coil_list_remove_range(CoilObject *list, guint i, guint n);
 

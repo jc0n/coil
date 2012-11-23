@@ -10,7 +10,7 @@ struct _ListProxyObject {
     PyObject_HEAD
 
     CoilObject *node;
-    GValueArray *arr;
+    CoilObject *list;
 };
 
 PyDoc_STRVAR(listproxy_doc,
@@ -18,19 +18,20 @@ PyDoc_STRVAR(listproxy_doc,
 
 
 PyObject *
-ccoil_listproxy_new(CoilObject *node, GValueArray *arr)
+ccoil_listproxy_new(CoilObject *node, CoilObject *list)
 {
     g_return_val_if_fail(node != NULL, NULL);
-    g_return_val_if_fail(arr != NULL, NULL);
+    g_return_val_if_fail(list != NULL, NULL);
 
     ListProxyObject *self;
 
     self = PyObject_New(ListProxyObject, &ListProxy_Type);
-    if (self == NULL)
+    if (self == NULL) {
         return NULL;
+    }
 
     self->node = coil_object_ref(node);
-    self->arr = arr;
+    self->list = coil_object_ref(list);
 
     return (PyObject *)self;
 }
@@ -45,16 +46,16 @@ listproxy_register_types(PyObject *m, PyObject *d)
 static void
 listproxy_dealloc(ListProxyObject *self)
 {
-    self->arr = NULL;
-    g_object_unref(self->node);
+    CLEAR(self->list, coil_object_unref);
+    CLEAR(self->node, coil_object_unref);
 }
 
 static const char _listproxy_notinitialized[] = "coil list is not initialized";
 
-#define CHECK_INITIALIZED(self)                                              \
-    if (self->arr == NULL || !G_IS_OBJECT(self->node)) {                     \
+#define CHECK_INITIALIZED(self, rval)                                        \
+    if (self->list == NULL || !G_IS_OBJECT(self->node)) {                    \
         PyErr_SetString(PyExc_RuntimeError, _listproxy_notinitialized);      \
-        return NULL;                                                         \
+        return (rval);                                                       \
     }                                                                        \
 
 #define CHECK_VALUE(value) \
@@ -70,44 +71,44 @@ listproxy_insert(ListProxyObject *self, PyObject *args)
 {
     Py_ssize_t i, n;
     PyObject *v;
-    GValue *value;
+    CoilValue *value;
 
-    CHECK_INITIALIZED(self);
+    CHECK_INITIALIZED(self, NULL);
 
-    if (!PyArg_ParseTuple(args, "nO:insert", &i, &v))
+    if (!PyArg_ParseTuple(args, "nO:insert", &i, &v)) {
         return NULL;
-
+    }
     CHECK_VALUE(v);
 
     /* convert to coil type */
     value = coil_value_from_pyobject(v);
-    if (value == NULL)
+    if (value == NULL) {
         return NULL;
-
-    n = self->arr->n_values;
-    if (i < 0)
+    }
+    n = coil_list_length(self->list);
+    if (i < 0) {
         i = MAX(n - i, 0);
-    else if (i > n)
+    }
+    else if (i > n) {
         i = n;
-
-    g_value_array_insert(self->arr, i, value);
-
+    }
+    coil_list_insert(self->list, i, value);
     Py_RETURN_NONE;
 }
 
 static PyObject *
 listproxy_append(ListProxyObject *self, PyObject *v)
 {
-    GValue *value;
+    CoilValue *value;
 
-    CHECK_INITIALIZED(self);
+    CHECK_INITIALIZED(self, NULL);
     CHECK_VALUE(v);
 
     value = coil_value_from_pyobject(v);
-    if (value == NULL)
+    if (value == NULL) {
         return NULL;
-
-    g_value_array_append(self->arr, value);
+    }
+    coil_list_append(self->list, value);
     Py_RETURN_NONE;
 }
 
@@ -117,24 +118,24 @@ listproxy_copy(ListProxyObject *self, PyObject *unused)
     PyObject *res;
     guint i, n;
 
-    CHECK_INITIALIZED(self);
+    CHECK_INITIALIZED(self, NULL);
 
-    n = self->arr->n_values;
+    n = coil_list_length(self->list);
     res = PyList_New(n);
-    if (res == NULL)
+    if (res == NULL) {
         return NULL;
-
+    }
     for (i = 0; i < n; i++) {
-        PyObject *v;
-        GValue *arrv;
+        PyObject *pyval;
+        CoilValue *value;
 
-        arrv = g_value_array_get_nth(self->arr, i);
-        v = coil_value_as_pyobject(self->node, arrv);
-        if (v == NULL) {
+        value = coil_list_get_index(self->list, i);
+        pyval = coil_value_as_pyobject(self->node, value);
+        if (pyval == NULL) {
             Py_DECREF(res);
             return NULL;
         }
-        PyList_SET_ITEM(res, i, v);
+        PyList_SET_ITEM(res, i, pyval);
     }
     return res;
 }
@@ -142,48 +143,36 @@ listproxy_copy(ListProxyObject *self, PyObject *unused)
 static PyObject *
 listproxy_clear(ListProxyObject *self, PyObject *unused)
 {
-    GValue *v;
-    GValueArray *arr;
-    guint i, n;
+    guint n;
 
-    CHECK_INITIALIZED(self);
-
-    /* XXX: Glib lacks g_value_array_clear  or the like
-     * Using g_value_array_remove in a loop appears to be O(n*n)
-     */
-    arr = self->arr;
-    n = arr->n_values;
-    for (i = 0; i < n; i++) {
-        v = g_value_array_get_nth(arr, i);
-        g_value_unset(v);
-    }
-    memset(arr->values, 0, arr->n_prealloced * sizeof(arr->values[0]));
-    arr->n_values = 0;
+    CHECK_INITIALIZED(self, NULL);
+    n = coil_list_length(self->list);
+    coil_list_remove_range(self->list, 0, n);
     Py_RETURN_NONE;
 }
 
 static PyObject *
 listproxy_count(ListProxyObject *self, PyObject *v)
 {
-    GValue *arrv;
-    PyObject *w;
     Py_ssize_t count = 0;
     gsize i, n;
 
-    CHECK_INITIALIZED(self);
-
-    n = self->arr->n_values;
+    CHECK_INITIALIZED(self, NULL);
+    n = coil_list_length(self->list);
     for (i = 0; i < n; i++) {
         int cmp;
-        arrv = g_value_array_get_nth(self->arr, i);
-        w = coil_value_as_pyobject(self->node, arrv);
-        if (w == NULL)
+        CoilValue *value = coil_list_get_index(self->list, i);
+        PyObject *pyval = coil_value_as_pyobject(self->node, value);
+        if (pyval == NULL) {
             return NULL;
-        cmp = PyObject_RichCompareBool(w, v, Py_EQ);
-        if (cmp > 0)
+        }
+        cmp = PyObject_RichCompareBool(pyval, v, Py_EQ);
+        if (cmp > 0) {
             count++;
-        else if (cmp < 0)
+        }
+        else if (cmp < 0) {
             return NULL;
+        }
     }
     return PyLong_FromLong(count);
 }
@@ -203,33 +192,33 @@ listproxy_index(ListProxyObject *self, PyObject *args)
 }
 
 static PyObject *
-convert_to_python_list(CoilObject *node, GValueArray *arr)
+convert_to_python_list(CoilObject *node, CoilObject *list)
 {
     PyObject *res;
     gsize i, n;
 
-    n = arr->n_values;
+    n = coil_list_length(list);
     res = PyList_New(n);
-    if (res == NULL)
+    if (res == NULL) {
         return NULL;
-
+    }
     for (i = 0; i < n; i++) {
-        PyObject *v;
-        GValue *arrv;
+        PyObject *pyval;
+        CoilValue *value;
 
-        arrv = g_value_array_get_nth(arr, i);
-        if (G_VALUE_HOLDS(arrv, COIL_TYPE_LIST)) {
-            GValueArray *subarr = (GValueArray *)g_value_get_boxed(arrv);
-            v = convert_to_python_list(node, subarr);
+        value = coil_list_get_index(list, i);
+        if (G_VALUE_HOLDS(value, COIL_TYPE_LIST)) {
+            CoilObject *inner_list = coil_value_get_object(value);
+            pyval = convert_to_python_list(node, inner_list);
         }
         else {
-            v = coil_value_as_pyobject(node, arrv);
+            pyval = coil_value_as_pyobject(node, value);
         }
-        if (v == NULL) {
+        if (pyval == NULL) {
             Py_DECREF(res);
             return NULL;
         }
-        PyList_SET_ITEM(res, i, v);
+        PyList_SET_ITEM(res, i, pyval);
     }
     return res;
 }
@@ -239,65 +228,68 @@ listproxy_pop(ListProxyObject *self, PyObject *args)
 {
     PyObject *res;
     Py_ssize_t i = -1;
-    GValue *value;
+    CoilValue *value;
     gsize n;
 
-    CHECK_INITIALIZED(self);
-
-    if (!PyArg_ParseTuple(args, "|n:pop", &i))
+    CHECK_INITIALIZED(self, NULL);
+    if (!PyArg_ParseTuple(args, "|n:pop", &i)) {
         return NULL;
+    }
 
-    n = self->arr->n_values;
+    n = coil_list_length(self->list);
     if (n == 0) {
         PyErr_SetString(PyExc_IndexError, "pop from empty list");
         return NULL;
     }
-    if (i < 0)
+    if (i < 0) {
         i += n;
+    }
     if (i < 0 || i >= n) {
         PyErr_SetString(PyExc_IndexError, "index out of range");
         return NULL;
     }
 
-    value = g_value_array_get_nth(self->arr, i);
-    if (G_VALUE_HOLDS(value, COIL_TYPE_LIST)) {
-        GValueArray *arr = (GValueArray *)g_value_get_boxed(value);
-        res = convert_to_python_list(self->node, arr);
+    value = coil_list_get_index(self->list, i);
+    if (G_VALUE_HOLDS(value, COIL_TYPE_LIST)) { /* XXX: necessary ? */
+        CoilObject *inner_list = coil_value_get_object(value);
+        res = convert_to_python_list(self->node, inner_list);
     }
     else {
         res = coil_value_as_pyobject(self->node, value);
     }
-    if (res == NULL)
+    if (res == NULL) {
         return NULL;
-
-    g_value_array_remove(self->arr, i);
+    }
+    coil_list_remove(self->list, i);
     return res;
 }
 
 static PyObject *
-listproxy_remove(ListProxyObject *self, PyObject *w)
+listproxy_remove(ListProxyObject *self, PyObject *arg)
 {
     gsize i, n;
 
-    CHECK_INITIALIZED(self);
-    CHECK_VALUE(w);
+    CHECK_INITIALIZED(self, NULL);
+    CHECK_VALUE(arg);
 
-    n = self->arr->n_values;
+    n = coil_list_length(self->list);
     for (i = 0; i < n; i++) {
-        GValue *arrv;
-        PyObject *v;
         int cmp;
+        CoilValue *value;
+        PyObject *pyval;
 
-        arrv = g_value_array_get_nth(self->arr, i);
-        v = coil_value_as_pyobject(self->node, arrv);
-        if (v == NULL)
+        value = coil_list_get_index(self->list, i);
+        pyval = coil_value_as_pyobject(self->node, value);
+        if (pyval == NULL) {
             return NULL;
-        cmp = PyObject_RichCompareBool(v, w, Py_EQ);
-        Py_DECREF(v);
-        if (cmp < 0)
+        }
+        cmp = PyObject_RichCompareBool(pyval, arg, Py_EQ);
+        Py_DECREF(pyval);
+        if (cmp < 0) {
             return NULL;
+        }
         if (cmp) {
-            g_value_array_remove(self->arr, i);
+            coil_list_remove(self->list, i);
             Py_RETURN_NONE;
         }
     }
@@ -315,7 +307,7 @@ listproxy_sort(ListProxyObject *self, PyObject *args)
 static int
 listproxy_init(ListProxyObject *self, PyObject *args, PyObject *kwargs)
 {
-    self->arr = NULL;
+    self->list = NULL;
     self->node = NULL;
     return 0;
 }
@@ -323,43 +315,44 @@ listproxy_init(ListProxyObject *self, PyObject *args, PyObject *kwargs)
 static Py_ssize_t
 listproxy_len(ListProxyObject *self)
 {
-    if (self->arr == NULL)
+    if (self->list == NULL) {
         return 0;
-
-    return self->arr->n_values;
+    }
+    return coil_list_length(self->list);
 }
 
 static int
 listproxy_contains(ListProxyObject *self, PyObject *item)
 {
-    PyObject *v;
-    GValue *arrv;
     gsize i, n;
 
-    if (self->arr == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, _listproxy_notinitialized);
-        return -1;
-    }
+    CHECK_INITIALIZED(self, -1);
 
-    n = self->arr->n_values;
+    n = coil_list_length(self->list);
     for (i = 0; i < n; i++) {
         int cmp;
+        CoilValue *value;
+        PyObject *pyval;
 
-        arrv = g_value_array_get_nth(self->arr, i);
-        v = coil_value_as_pyobject(self->node, arrv);
-        if (v == NULL)
+        value = coil_list_get_index(self->list, i);
+        pyval = coil_value_as_pyobject(self->node, value);
+        if (pyval == NULL) {
             return -1;
-        cmp = PyObject_RichCompareBool(v, item, Py_EQ);
-        Py_DECREF(v);
+        }
+        cmp = PyObject_RichCompareBool(pyval, item, Py_EQ);
+        Py_DECREF(pyval);
         if (cmp < 0) {
             if (PyErr_Occurred() &&
-                    PyErr_ExceptionMatches(PyExc_NotImplementedError))
+                    PyErr_ExceptionMatches(PyExc_NotImplementedError)) {
                 continue;
-            else
+            }
+            else {
                 return -1;
+            }
         }
-        if (cmp)
+        if (cmp) {
             return 1;
+        }
     }
     return 0;
 }
@@ -367,16 +360,17 @@ listproxy_contains(ListProxyObject *self, PyObject *item)
 static PyObject *
 listproxy_item(ListProxyObject *self, Py_ssize_t i)
 {
-    GValue *value;
+    CoilValue *value;
+    guint n;
 
-    CHECK_INITIALIZED(self);
+    CHECK_INITIALIZED(self, NULL);
 
-    if (i < 0 || i >= self->arr->n_values) {
+    n = coil_list_length(self->list);
+    if (i < 0 || i >= n) {
         PyErr_SetString(PyExc_IndexError, "list index out of range");
         return NULL;
     }
-
-    value = g_value_array_get_nth(self->arr, i);
+    value = coil_list_get_index(self->list, i);
     return coil_value_as_pyobject(self->node, value);
 }
 
@@ -400,13 +394,14 @@ listproxy_richcompare(PyObject *x, PyObject *y, int op)
         Py_INCREF(Py_NotImplemented);
         return Py_NotImplemented;
     }
-    CHECK_INITIALIZED(self);
+    CHECK_INITIALIZED(self, NULL);
 
     fast = PySequence_Fast(y, "expecting sequence");
-    if (fast == NULL)
+    if (fast == NULL) {
         return NULL;
+    }
 
-    n = self->arr->n_values;
+    n = coil_list_length(self->list);
     m = Py_SIZE(fast);
 
     if (n != m && (op == Py_EQ || op == Py_NE)) {
@@ -418,24 +413,23 @@ listproxy_richcompare(PyObject *x, PyObject *y, int op)
 
     k = MIN(n, m);
     for (i = 0; i < k; i++) {
-        GValue *arrv = g_value_array_get_nth(self->arr, i);
-        vx = coil_value_as_pyobject(self->node, arrv);
-        if (vx == NULL)
+        CoilValue *value = coil_list_get_index(self->list, i);
+        vx = coil_value_as_pyobject(self->node, value);
+        if (vx == NULL) {
             return NULL;
-
+        }
         vy = PySequence_Fast_GET_ITEM(fast, i);
         assert(vy != NULL);
-
         cmp = PyObject_RichCompareBool(vx, vy, Py_EQ);
         if (cmp < 0) {
             Py_DECREF(vx);
             Py_DECREF(fast);
             return NULL;
         }
-        if (!cmp)
+        if (!cmp) {
             break;
+        }
     }
-
     if (i >= n || i >= m) {
         switch (op) {
             case Py_LT: cmp = n < m; break;

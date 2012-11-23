@@ -85,7 +85,7 @@ PyObject *coil_value_as_pyobject(CoilObject *node, GValue *value);
 CoilPath *coil_path_from_pyobject(PyObject *o);
 gboolean struct_update_from_pyitems(CoilObject *node, PyObject *o);
 
-PyObject *ccoil_listproxy_new(CoilObject *node, GValueArray *arr);
+PyObject *ccoil_listproxy_new(CoilObject *node, CoilObject *list);
 PyObject *ccoil_struct_new(CoilObject *node);
 
 CoilObject *ccoil_struct_get_real(PyObject *obj);

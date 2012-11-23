@@ -52,7 +52,7 @@ pylist_from_value_list(GList * list)
 
     for (i = 0; i < size; i++) {
         g_assert(G_IS_VALUE(list->data));
-        pyitem = coil_value_as_pyobject((GValue *) list->data);
+        pyitem = coil_value_as_pyobject((CoilValue *) list->data);
         if (pyitem == NULL) {
             Py_DECREF(pylist);
             return NULL;
@@ -66,11 +66,11 @@ pylist_from_value_list(GList * list)
 }
 #endif
 
-static CoilList *
+static CoilObject *
 coil_list_from_pysequence(PyObject * obj)
 {
-    GValue *value;
-    GValueArray *arr;
+    CoilValue *value;
+    CoilObject *list;
     PyObject *fast, *item;
     Py_ssize_t i, n;
 
@@ -80,19 +80,19 @@ coil_list_from_pysequence(PyObject * obj)
     }
 
     n = PySequence_Fast_GET_SIZE(fast);
-    arr = g_value_array_new(n);
+    list = coil_list_new_sized(n);
     for (i = 0; i < n; i++) {
         item = PySequence_Fast_GET_ITEM(fast, i);
         value = coil_value_from_pyobject(item);
         if (value == NULL) {
-            g_value_array_free(arr);
+            coil_object_unref(list);
             Py_DECREF(fast);
             return NULL;
         }
-        g_value_array_insert(arr, i, value);
+        coil_list_append(list, value);
     }
     Py_DECREF(fast);
-    return arr;
+    return list;
 }
 
 CoilPath *
@@ -119,10 +119,10 @@ coil_path_from_pyobject(PyObject *obj)
     return path;
 }
 
-GValue *
+CoilValue *
 coil_value_from_pyobject(PyObject *o)
 {
-    GValue *value = NULL;
+    CoilValue *value = NULL;
 
     if (o == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "NULL python object.");
@@ -183,7 +183,7 @@ coil_value_from_pyobject(PyObject *o)
         }
     }
     else if (PySequence_Check(o)) {
-        coil_value_init(value, COIL_TYPE_LIST, take_boxed,
+        coil_value_init(value, COIL_TYPE_LIST, take_object,
                         coil_list_from_pysequence(o));
     }
     else if (PyDict_Check(o)) {
@@ -207,7 +207,7 @@ coil_value_from_pyobject(PyObject *o)
 }
 
 PyObject *
-coil_value_as_pyobject(CoilObject *node, GValue *value)
+coil_value_as_pyobject(CoilObject *node, CoilValue *value)
 {
     GType type;
 
@@ -260,17 +260,17 @@ coil_value_as_pyobject(CoilObject *node, GValue *value)
             Py_RETURN_NONE;
         }
         case G_TYPE_OBJECT: {
-            if (type == COIL_TYPE_STRUCT)
+            if (type == COIL_TYPE_STRUCT) {
                 return ccoil_struct_new(g_value_dup_object(value));
-
-            if (type == COIL_TYPE_NONE)
+            }
+            if (type == COIL_TYPE_NONE) {
                 Py_RETURN_NONE;
-
+            }
             if (type == COIL_TYPE_EXPR || type == COIL_TYPE_LINK) {
                 char *str;
                 PyObject *res;
                 CoilStringFormat fmt;
-                const GValue *real_value;
+                const CoilValue *real_value;
 
                 fmt = default_string_format;
                 fmt.options |= DONT_QUOTE_STRINGS;
@@ -291,18 +291,18 @@ coil_value_as_pyobject(CoilObject *node, GValue *value)
                 g_free(str);
                 return res;
             }
+            if (type == COIL_TYPE_LIST) {
+                assert(node != NULL);
+                assert(value != NULL);
+                CoilObject *list = coil_value_get_object(value);
+                return ccoil_listproxy_new(node, list);
+            }
             break;
         }
         case G_TYPE_BOXED:
             if (type == G_TYPE_GSTRING) {
                 GString *buf = g_value_get_boxed(value);
                 return PyString_FromStringAndSize(buf->str, buf->len);
-            }
-            if (type == COIL_TYPE_LIST) {
-                assert(node != NULL);
-                assert(value != NULL);
-                GValueArray *arr = (GValueArray *)g_value_get_boxed(value);
-                return ccoil_listproxy_new(node, arr);
             }
             break;
     }

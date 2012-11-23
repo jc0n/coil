@@ -80,6 +80,20 @@ coil_list_prepend(CoilObject *list, CoilValue *value)
     return list;
 }
 
+COIL_API(CoilObject *) /* steals reference */
+coil_list_insert(CoilObject *list, guint index, CoilValue *value)
+{
+    G_ARRAY_FUNC(list, insert_val, index, value);
+    return list;
+}
+
+COIL_API(CoilObject *)
+coil_list_remove(CoilObject *list, guint index)
+{
+    G_ARRAY_FUNC(list, remove_index, index);
+    return list;
+}
+
 COIL_API(CoilObject *)
 coil_list_remove_range(CoilObject *list, guint i, guint n)
 {
